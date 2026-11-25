@@ -73,14 +73,15 @@ function scene(base, kind = DOCUMENT, track = fastTrack(kind)) {
   fs.mkdirSync(folder, { recursive: true });
   fs.writeFileSync(path.join(folder, 'proposal.md'), track);
   const made = { dir, base: first, artifacts };
-  // inputs writes the inputs.json of a run that starts at commit, and returns its path.
-  made.inputs = (at = first, extensions = {}, outputs = undefined) => {
+  // inputs writes the inputs.json of a run that starts at commit, with outputs and the outbox
+  // folder outbox when given, and returns its path.
+  made.inputs = (at = first, extensions = {}, outputs = undefined, outbox = undefined) => {
     count += 1;
     const file = path.join(tmp, `inputs-${count}`, 'inputs.json');
     fs.mkdirSync(path.dirname(file), { recursive: true });
     fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: extensions,
       start_commits: [{ path: dir, commit: at }], start_artifacts: artifacts,
-      ...(outputs ? { outputs } : {}) } }));
+      ...(outputs ? { outputs } : {}), ...(outbox ? { outbox } : {}) } }));
     return file;
   };
   return made;
@@ -305,6 +306,15 @@ test('scope --plan: a fast-track proposal proves the commits of its kind', () =>
   const key = scene(BASE);
   commit(key.dir, { 'docs/hours.md': `Key ghp_${'A1b2C3d4E5'.repeat(4)}\n` });
   fails(scope(key), /^Rewrite commit [0-9a-f]{12} without /);
+  // A pattern in .git/info/exclude stops it, and the line that qory writes there does not.
+  const exclude = path.resolve(good.dir, '.git/info/exclude');
+  fs.writeFileSync(exclude, '/.qory\n');
+  passes(scope(good));
+  fs.writeFileSync(exclude, '/.qory\ntests/setup.js\n');
+  const hides = scope(good);
+  fails(hides, /^Remove this line from \.git\/info\/exclude, then run the verb again\./);
+  assert.equal(hides.lines[1], '  "tests/setup.js"');
+  fs.writeFileSync(exclude, '');
   // A start commit that is not the base of HEAD, and a call with no commit, still exit 3 and 2.
   const wrong = scope(good, 'a'.repeat(40));
   assert.equal(wrong.status, 3, wrong.out);
@@ -600,7 +610,7 @@ function delivered() {
     base: ref('b'), branch: 'qory/wi_abc', base_branch: 'main' };
 }
 
-// outboxOf returns the outbox folder of a session, which QORY_OUTBOX names, and fileOf the
+// outboxOf returns the outbox folder of a session, qory.outbox of its inputs, and fileOf the
 // output file in it.
 const outboxOf = (folder) => `${folder}-outbox`;
 const fileOf = (folder) => path.join(outboxOf(folder), 'pull-request', 'pull-request.json');
@@ -617,9 +627,9 @@ function session(run, document = pullRequest()) {
 
 // end runs the end check of the session, as the hook does: the output file in the outbox is
 // checked against the schema of qory.outputs and by the check of the module.
-const end = (run, folder, env = {}) => call(run.dir, ['end', folder, '--inputs',
-  run.inputs(undefined, {}, OUTPUTS)], { artifacts: [folder],
-  env: { ...ENV, QORY_RUN_ID: 'run_1', QORY_OUTBOX: outboxOf(folder), ...env } });
+const end = (run, folder, outbox = outboxOf(folder)) => call(run.dir, ['end', folder,
+  '--inputs', run.inputs(undefined, {}, OUTPUTS, outbox)], { artifacts: [folder],
+  env: { ...ENV, QORY_RUN_ID: 'run_1' } });
 
 test('end: on the fast track the commits of the output file are proved', () => {
   const run = scene(BASE);
@@ -628,7 +638,7 @@ test('end: on the fast track the commits of the output file are proved', () => {
   const ended = end(run, folder);
   fails(ended, NOT_DOCUMENT);
   assert.match(ended.err.split('\n')[0] + ended.out,
-    /\$QORY_OUTBOX\/pull-request\/pull-request\.json/);
+    /<outbox>\/pull-request\/pull-request\.json/);
   // A commit of the kind passes.
   const good = scene(BASE);
   commit(good.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
@@ -703,13 +713,13 @@ test('end: the schema of the type as qory sends it checks the output file of a s
   for (const [member, value] of [['head', ref], ['target', { collection: 'r1' }],
     ['branch', 'qory/wi_abc']]) {
     const got = end(run, session(run, { ...pullRequest(), [member]: value }));
-    fails(got, new RegExp(`^Remove the member ${member} from \\$QORY_OUTBOX/pull-request/` +
+    fails(got, new RegExp(`^Remove the member ${member} from <outbox>/pull-request/` +
       'pull-request\\.json\\.'));
   }
   const parts = end(run, session(run, { ...pullRequest(), text: '## Problem\n\nx' }));
   fails(parts, /^Write \/text of pull-request\.json in four parts, in their order\./);
   const missing = end(run, session(run, { title: 'Add the sum helper', draft: true }));
-  fails(missing, /^Add the member text to \$QORY_OUTBOX\/pull-request\/pull-request\.json\./,
+  fails(missing, /^Add the member text to <outbox>\/pull-request\/pull-request\.json\./,
     /^Add the member steps to /);
 });
 
@@ -728,33 +738,57 @@ test('end: the output that report-build writes passes the end check', () => {
   const refused = session(run);
   fs.writeFileSync(fileOf(refused), body.replace('"draft":true', '"draft":false'));
   fails(end(run, refused),
-    /^Set \/draft of \$QORY_OUTBOX\/pull-request\/pull-request\.json to true\./);
+    /^Set \/draft of <outbox>\/pull-request\/pull-request\.json to true\./);
 });
 
-// aliased moves the outbox of the session to <top>/x/outbox and returns the environment of an
-// end check whose QORY_OUTBOX names it through ALIAS, a link to top: the written path and the
-// real path differ, and the link is above the parent folder of the outbox.
+// emptyStart writes the inputs.json of a run of the scene with an empty start_artifacts, a run
+// that pulled nothing at the start, with the outputs and the outbox of the session folder.
+function emptyStart(run, folder) {
+  const file = path.join(tmp, `inputs-${++count}`, 'inputs.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ qory: { harness_extensions: {},
+    start_commits: [{ path: run.dir, commit: run.base }], start_artifacts: '',
+    outputs: OUTPUTS, outbox: outboxOf(folder) } }));
+  return file;
+}
+
+test('end and prove: an empty start_artifacts does not stop the check', () => {
+  const run = scene(BASE);
+  commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
+  const folder = session(run);
+  const inputs = emptyStart(run, folder);
+  // prove reads the fast-track proposal of the session folder, and the code change fails it.
+  fails(call(run.dir, ['prove', '--inputs', inputs], { artifacts: [folder] }), NOT_DOCUMENT);
+  // The check of the output in end reads the proposal as without --inputs: from the store of
+  // the output, the outbox, which has none, so it runs no proof and ends without a fault.
+  passes(call(run.dir, ['end', folder, '--inputs', inputs], { artifacts: [folder],
+    env: { ...ENV, QORY_RUN_ID: 'run_1' } }));
+});
+
+// aliased moves the outbox of the session to <top>/x/outbox and returns in outbox its path
+// through ALIAS, a link to top, for qory.outbox: the written path and the real path differ,
+// and the link is above the parent folder of the outbox.
 function aliased(folder) {
   const top = path.join(tmp, `alias-top-${++count}`);
   const alias = path.join(tmp, `alias-link-${count}`);
   fs.mkdirSync(path.join(top, 'x'), { recursive: true });
   fs.renameSync(outboxOf(folder), path.join(top, 'x', 'outbox'));
   fs.symlinkSync(top, alias);
-  return { top, alias, env: { QORY_OUTBOX: path.join(alias, 'x', 'outbox') } };
+  return { top, alias, outbox: path.join(alias, 'x', 'outbox') };
 }
 
-test('end: the check of the module passes when QORY_OUTBOX names the outbox through a link', () => {
+test('end: the check of the module passes with a qory.outbox through a link', () => {
   const run = scene(BASE, DOCUMENT, proposal('Standard track.'));
   commit(run.dir, { 'src/app.js': 'exports.a = 2;\n' });
   const folder = session(run);
-  const { top, alias, env } = aliased(folder);
-  assert.notEqual(fs.realpathSync(env.QORY_OUTBOX), env.QORY_OUTBOX);
-  passes(end(run, folder, env));
-  passes(end(run, folder, { QORY_OUTBOX: path.join(top, 'x', 'outbox') }));
+  const { top, alias, outbox } = aliased(folder);
+  assert.notEqual(fs.realpathSync(outbox), outbox);
+  passes(end(run, folder, outbox));
+  passes(end(run, folder, path.join(top, 'x', 'outbox')));
   // The module check still runs through the link: a text of three parts fails.
   fs.writeFileSync(path.join(alias, 'x/outbox/pull-request/pull-request.json'),
     JSON.stringify({ ...pullRequest(), text: '## Problem\n\nx' }));
-  fails(end(run, folder, env),
+  fails(end(run, folder, outbox),
     /^Write \/text of pull-request\.json in four parts, in their order\./);
 });
 
@@ -765,13 +799,13 @@ test('end: a link in the outbox, its parent or the folder of the type is refused
     // Each place in turn is replaced by a link to a copy of itself.
     for (const place of ['x', 'x/outbox', 'x/outbox/pull-request']) {
       const folder = session(run);
-      const { top, env } = aliased(folder);
+      const { top, outbox } = aliased(folder);
       const at = path.join(top, place);
       const copy = path.join(tmp, `alias-copy-${++count}`);
       fs.cpSync(at, copy, { recursive: true });
       fs.rmSync(at, { recursive: true });
       fs.symlinkSync(copy, at);
-      const got = end(run, folder, env);
+      const got = end(run, folder, outbox);
       assert.equal(got.status, 1, place);
       fails(got, /^Remove the link /);
     }

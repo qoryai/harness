@@ -2842,7 +2842,8 @@ expect "the verify-a-ticket tests pass" 0 "$ROOT" node --test scripts/verify-a-t
 # The tests of the guard of tool calls, with the hook input of Claude Code and of Codex.
 expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.test.js
 # The tests of the preflight: the browser, the app of the serve command and the sign-in of
-# the demo scripts. The sign-in tests start a browser, and skip when the machine has none.
+# the demo scripts, and of the verb film. The tests that open a page start a browser, and skip
+# when the machine has none; the tests of a film also skip with no ffmpeg and ffprobe.
 expect "the preflight tests pass" 0 "$ROOT" node --test scripts/preflight.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy

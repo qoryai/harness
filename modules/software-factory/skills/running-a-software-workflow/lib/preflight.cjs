@@ -18,14 +18,15 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { NEW_WINDOW, findBrowser } = require('./browser.cjs');
+const { CALL_MS, RUN_BUDGET_MS, START_MS, STOP_MS } = require('./budget.cjs');
+const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
 const { runKey } = require('./secrets.cjs');
+const startOf = require('./start.cjs');
 
 const RUNNER = path.join(__dirname, 'preflight-run.cjs');
 
-// The time for the address of the app to return a response after the serve command starts.
-const START_MS = 120000;
 // The most time that an open action waits for its page, as lib/browser.cjs has it, the time
 // of a press, and the time to start the browser and open a page for a sign-in.
 const OPEN_MS = 15000;
@@ -33,12 +34,12 @@ const PRESS_MS = 1000;
 const PAGE_MS = 15000;
 // The time of the runner besides the start and the sign-ins: the first GET of the address,
 // the start of the browser and the stop of the app. The runner stops its sign-ins at the
-// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it. The
-// Bash tool of Claude Code stops a command at 600 s, whatever its timeout, so the two stay
-// below that: the preflight ends within 585 s.
+// limit, which is at most MAX_MS, and the preflight stops the runner STOP_MS after it, so a
+// call ends within CALL_MS of lib/budget.cjs, 585 s.
 const MORE_MS = 30000;
-const MAX_MS = 570000;
-const STOP_MS = 15000;
+const MAX_MS = CALL_MS - STOP_MS;
+// The most bytes of the result file of the runner: 35,000 frames take about 1.4 MB.
+const MAX_RESULT = 64 * 1024 * 1024;
 
 // signInMs returns the most time that the replay of actions may take, by the limit of each
 // action, with the time after the last action and the time to open its page.
@@ -172,6 +173,34 @@ module.exports = (lib) => {
     return { text: other.text, action: 'run_again', fix: other.fix };
   }
 
+  // serveOf returns { command, url, cwd } of the serve row and the line "App address:" of the
+  // build plan that the preflight reads, or null when the plan has no serve row with a command.
+  // The plan comes from the folder of given.artifacts, or of qory.start_artifacts in the
+  // inputs.json of given.inputs, else from the artifact folder of the session. A serve row with
+  // a host that the browser cannot take, or with no address, throws Missing with the cause.
+  function serveOf(io, given) {
+    const starts = startOf(lib);
+    const start = starts.readStart(io.cwd, given.inputs, io.env);
+    const pinned = starts.planIo(io, given.artifacts, start);
+    const plan = withCause('the build plan is missing', () => lib.readPlan(pinned));
+    const row = plan.commands.serve;
+    if (!row || !row.command) return null;
+    if (plan.badHost !== null && plan.badHost !== undefined) {
+      throw new Missing('Set the App address host to letters, digits, . and -, then push the ' +
+        'build plan.', [`The App address of version ${plan.version} is ` +
+        `${short(plan.badHost, 80)}, whose host is not letters, digits, . and -, starting ` +
+        'and ending with a letter or digit, with no .., or an IPv6 address in brackets.',
+      'Cause: the App address of the build plan has a host other than letters, digits, . and ' +
+        '-.']);
+    }
+    if (!plan.address) {
+      throw new Missing('Add the line "App address: <url>" to ## Summary of the build plan, ' +
+        'then push it.', [`Version ${plan.version} has a serve command, and no http or ` +
+        'https address of the app.', 'Cause: the build plan has no App address.']);
+    }
+    return { command: row.command, url: plan.address, cwd: git.top(Missing, io.cwd, io.env) };
+  }
+
   // demoScripts returns the demo script of each scenario of the artifact folder root, in the
   // order of the scenarios: of each name scenario-<N> of demo-script in index.json that is not
   // withdrawn, the newest version that counts, as newest of lib/context.cjs reads a name that
@@ -225,24 +254,53 @@ module.exports = (lib) => {
         cause(`the browser check did not finish: ${why}`)]);
   }
 
-  // waited runs lib/preflight-run.cjs on spec and returns its result.
-  function waited(io, spec) {
-    const limitMs = spec.limitMs + STOP_MS;
-    const ran = childProcess.spawnSync(process.execPath, [RUNNER], {
-      input: JSON.stringify(spec), env: io.env, encoding: 'utf8', timeout: limitMs,
-      killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
-    });
-    const line = String(ran.stdout || '').trim().split('\n').pop();
-    let result = null;
+  // resultOf returns the parsed result that the runner wrote to file, or null for a file that is
+  // missing, no regular file, over MAX_RESULT bytes or no JSON.
+  function resultOf(file) {
     try {
-      result = JSON.parse(line);
+      if (!fs.lstatSync(file).isFile() || fs.lstatSync(file).size > MAX_RESULT) return null;
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
     } catch {
-      // The runner printed no result: the reason follows.
+      return null;
+    }
+  }
+
+  // stopped returns the Missing of a run of script, a demo script, that the limit stopped, for
+  // limitMs, the limit of the runner: the fix, then the cause. The words say film for a film.
+  function stopped(script, kind, limitMs) {
+    const what = kind === 'film' ? 'film' : 'run';
+    return new Missing(`Shorten the waits or the steps of ${script.scenario}.json, then ` +
+      `${what === 'film' ? 'film it' : 'run it'} again.\nThe ${what} ran past its limit of ` +
+      `${Math.ceil(limitMs / 1000)} s.`);
+  }
+
+  // waited runs lib/preflight-run.cjs on spec and returns its result. With past, a function
+  // that returns the Missing of a run that the limit stopped, a stop throws that Missing. The
+  // runner writes the result to a file next to the log of the serve command, which waited
+  // removes on each exit, so that a long list of frames needs no larger buffer.
+  // io.preflight.runner, which only a test sets, is another script.
+  function waited(io, spec, past) {
+    const limitMs = spec.limitMs + STOP_MS;
+    const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
+    fs.rmSync(file, { force: true });
+    let ran;
+    let result;
+    try {
+      ran = childProcess.spawnSync(process.execPath,
+        [(io.preflight || {}).runner || RUNNER], {
+          input: JSON.stringify({ ...spec, resultFile: file }), env: io.env, encoding: 'utf8',
+          timeout: limitMs, killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
+        });
+      result = resultOf(file);
+    } finally {
+      fs.rmSync(file, { force: true });
     }
     if (result && isObject(result.app) && Array.isArray(result.signIns)) {
+      if (result.unfinished && past) throw past(spec.limitMs);
       if (result.unfinished) unfinished(result.unfinished);
       return result;
     }
+    if (past && ran.error && ran.error.code === 'ETIMEDOUT') throw past(spec.limitMs);
     const error = String(ran.stderr || '').split('\n').find((one) => /^\w*Error\b/.test(one));
     unfinished(ran.error && ran.error.code === 'ETIMEDOUT'
       ? `the runner ran past its limit of ${limitMs / 1000} s`
@@ -368,5 +426,43 @@ module.exports = (lib) => {
       'points.json has a point run_again for each.' };
   }
 
-  return { preflight, demoScripts, pointOf, joined, signInMs, withCause, MAX_MS, STOP_MS };
+  // scriptLimitMs returns the limit of the runner for the actions of a demo script: their
+  // time, the start of the app and MORE_MS, at most options.maxMs, else MAX_MS.
+  function scriptLimitMs(options, actions) {
+    return Math.min((options.startMs || START_MS) + MORE_MS + signInMs(actions,
+      options.actionMs || ACTION_MS, options.signedInMs || SIGNED_IN_MS),
+    options.maxMs || MAX_MS);
+  }
+
+  // runScript runs script, a demo script, once in the browser with video off: the runner starts
+  // the app of serve, { command, url, cwd }, replays the setup as a sign-in, then each step. It
+  // returns { browser: null } when the machine has no browser, else { app, run, log }: run is
+  // { ok, step, why, outside } as lib/preflight-run.cjs has it, with no typed value in it, or
+  // null when the runner returned none. The time is that of preflight for the same actions.
+  // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
+  // file lists in dir, and run has capture, what it returns, besides.
+  function runScript(io, root, { serve, script, capture }) {
+    const options = io.preflight || {};
+    const browser = findBrowser(io.env, options.browsers);
+    if (!browser) return { browser: null };
+    const log = path.join(root, '.reports', 'preflight', 'serve.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    const startMs = options.startMs || START_MS;
+    const actionMs = options.actionMs || ACTION_MS;
+    const signedInMs = options.signedInMs || SIGNED_IN_MS;
+    const steps = script.steps.map((step) => step.actions);
+    const actions = [...script.setup, ...steps.flat()];
+    const names = typedNames([script]);
+    const limitMs = scriptLimitMs(options, actions);
+    const result = waited(io, {
+      serve: { command: serve.command, url: serve.url, cwd: serve.cwd, log },
+      browser, setups: [], runs: [{ setup: script.setup, steps, names, capture }], typed: names,
+      startMs, actionMs, signedInMs, limitMs, browserMs: options.browserMs, proc: options.proc,
+    }, capture && capture.kind !== 'pages' && ((ms) => stopped(script, capture.kind, ms)));
+    const [run] = hidden(result.runs || [], typedValues([{ names, actions }], io.env));
+    return { browser, app: result.app, run: run || null, log };
+  }
+
+  return { preflight, runScript, scriptLimitMs, serveOf, demoScripts, pointOf, joined, signInMs,
+    withCause, MAX_MS, RUN_BUDGET_MS, STOP_MS };
 };

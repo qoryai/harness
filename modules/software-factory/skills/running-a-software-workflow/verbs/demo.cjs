@@ -3,40 +3,59 @@
 //   demo surface          prints whether the composed harness has the skill scripting-demos,
 //                         the test of a surface module, and exits 0. A Shape run writes demo
 //                         scenarios only where the line says the stack has the module.
-//   demo check            reads the approved demo scenarios. With a scenario that is not
+//   demo check [<scenario>] [--inputs <path>] [--artifacts <folder>]
+//                         reads the approved demo scenarios. With a scenario that is not
 //                         removed and no skill scripting-demos in the composed harness, it
-//                         exits 1 with the fix. Otherwise it lists the scenarios that have no
-//                         demo script yet, and exits 0.
+//                         exits 1 with the fix. Otherwise it checks the script of each
+//                         scenario, the draft <folder>/.demo/<scenario>.json, else the pushed
+//                         one, against the scenario: a title, an evidence, a step title or an
+//                         expected result that differs by one character, an action other than
+//                         open, click, type, press and wait, and an open of the setup, the
+//                         sign-in, that is no page under the App address of the build plan.
+//                         It exits 1 with the fix first for each fault. A script that differs
+//                         from the one that its newest done script step of the build ledger
+//                         froze is a correction: the third one exits 1, and the first and the
+//                         second print the line "Start check-reviewer". A pushed script that
+//                         differs from that script and has no draft is a fault: it exits 1.
+//                         Its last line lists the scenarios that have no demo script yet. With
+//                         a scenario, it checks that scenario's script alone.
 //   demo write <scenario> builds <folder>/.demo/<scenario>.json from the approved scenario and
 //                         the actions in <folder>/.demo/<scenario>.actions.json, which the
 //                         demo author writes: the title, the expected result of each step, the
 //                         evidence and the version of the scenarios are the script's, so no
 //                         agent types them. It checks the result against the schema of
 //                         demo-script, and exits 1 with a finding for each fault.
+//   demo run <scenario> [--inputs <path>] [--artifacts <folder>]
+//                         runs <folder>/.demo/<scenario>.json once in a browser with video off:
+//                         the serve command of the build plan starts the app, the setup signs
+//                         in, and each step runs its actions. It exits 0 and prints the sha256
+//                         of the script, which the session passes to step end as the freeze of
+//                         the script. It exits 1 with the fix first for an action that fails.
 //
-// Both verbs read the same version as the push check of demo-script: the approved version of
-// the demo scenarios, else the newest. Neither verb runs a browser. Exit 3 means that the
-// artifacts are missing or unreadable.
+// The verbs read the same version as the push check of demo-script: the approved version of the
+// demo scenarios, else the newest. Only demo run runs a browser. Exit 3 means that the
+// artifacts are missing or unreadable, or that the app or the browser did not run.
 'use strict';
 
 const fs = require('node:fs');
 const path = require('node:path');
 
+const { takeInputs, takeValue } = require('../lib/limits.cjs');
+const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
 const { SCHEMAS } = require('../lib/template.cjs');
+const { INPUTS_USAGE } = require('./run.cjs');
 
 // The skill that the module browser-screens ships, which starts the demo author.
 const SKILL = 'scripting-demos';
-// The folder of the artifact folder that contains the actions of the demo author and the demo
-// script that demo write builds. It is no artifact: nothing in it is pushed unless the session
-// pushes the script.
-const FOLDER = '.demo';
-const EVIDENCE = /^Evidence: (film|pictures)$/;
-const USAGE = 'Give demo surface, demo check, or demo write with the id of a scenario, such ' +
-  'as scenario-1.';
+const USAGE = 'Give demo surface, demo check, or demo write or demo run with a scenario id.';
+// The most done script steps of a scenario in the build ledger: the first pass and 2 corrections.
+const MOST_ROWS = 3;
 
 module.exports = (lib) => {
-  const { Context, MAX_BYTES, Missing, approved, artifactFolder, isObject, plural, pluginFolders,
-    readFile, schema, scenarios, short, stepRows, writeJson } = lib;
+  const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, Missing, approved, artifactFolder,
+    boundedText, cut, draftScript, evidenceOf, isObject, plural, pluginFolders, readLedger, schema,
+    scenarios, scriptFindings, sha256, short, stepRows, within, writeJson } = lib;
+  const checks = require('../lib/preflight.cjs')(lib);
 
   // readScenarios returns { root, number, live } of the approved demo scenarios in the
   // artifact folder: the version number and each scenario that is not removed, or null for
@@ -76,7 +95,157 @@ module.exports = (lib) => {
       .map((one) => one.name));
   }
 
-  function check(io) {
+  // options returns { inputs, artifacts, rest } of the arguments, each undefined when it is not
+  // given, or { problem }, the line of wrong arguments.
+  function options(args) {
+    const { inputs, rest: other } = takeInputs(args);
+    if (inputs === null) return { problem: INPUTS_USAGE };
+    const { value: artifacts, rest } = takeValue(other, '--artifacts');
+    if (artifacts === null) return { problem: ARTIFACTS_USAGE };
+    return { inputs, artifacts, rest };
+  }
+
+  // addressOf returns the App address of the build plan in --inputs or --artifacts, else in
+  // the artifact folder, or null when there is no plan or it has no address. The sign-in of
+  // a script is checked against it only then.
+  // shortcut: with no readable build plan or no App address, the sign-in is not compared; the
+  // run of demo run still loads only pages of the origin of the app, so replace this with a
+  // refusal when a Build session can start with no plan.
+  function addressOf(io, given) {
+    try {
+      const starts = require('../lib/start.cjs')(lib);
+      const start = starts.readStart(io.cwd, given.inputs, io.env);
+      return lib.readPlan(starts.planIo(io, given.artifacts, start), { none: true }).address;
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      return null;
+    }
+  }
+
+  // doneRows returns one done row for each step id of the script steps of scenario id in ledger,
+  // which may be null: script:<id>, script:<id>#2 and script:<id>#3, the newest pass of an id
+  // when it has more, in the order of the ids.
+  function doneRows(ledger, id) {
+    const rows = new Map();
+    for (const row of ledger ? ledger.steps : []) {
+      const mine = row.kind === 'script' && row.id.split('#')[0] === `script:${id}`;
+      if (row.state === 'done' && mine) rows.set(row.id, row);
+    }
+    return [...rows.values()].sort((a, b) => Number(a.id.split('#')[1] || 1) -
+      Number(b.id.split('#')[1] || 1));
+  }
+
+  // pushedFile returns the path in the artifact folder of the newest version of the demo script
+  // of id that counts.
+  const pushedFile = (root, io, id) => path.join('demo-script', id, `v${new Context(root,
+    'check', io.home).counted('demo-script', id)}`, `${id}.json`);
+
+  // scriptOf returns { shown, text, data, drafted } of the script of id that check reads: the
+  // draft of the artifact folder, else the newest pushed version that counts. It returns
+  // { none: true } for a scenario with no script, and { findings } for a script that cannot be
+  // read, no JSON or breaks the schema of demo-script, which allows the actions open, click,
+  // type, press and wait and no other.
+  function scriptOf(root, io, id, pushed) {
+    const draft = path.join(FOLDER, `${id}.json`);
+    const drafted = fs.existsSync(path.join(root, draft));
+    if (!drafted && !pushed.has(id)) return { none: true };
+    const shown = drafted ? draft : pushedFile(root, io, id);
+    const got = boundedText(path.join(root, shown));
+    if (got.why) {
+      return { findings: [drafted
+        ? `Run demo write ${id} again.\n${shown} is no regular file of at most ${MAX_BYTES} bytes.`
+        : `Pull the artifacts again, then run demo check again.\n${shown} cannot be read.`] };
+    }
+    let data;
+    try {
+      data = JSON.parse(got.text);
+    } catch {
+      return { findings: [`Run demo write ${id} again.\n${shown} does not parse.`] };
+    }
+    const found = isObject(data)
+      ? schema.errors(schema.load(SCHEMAS, 'demo-script'), data, `${id}.json`)
+      : ['it is no object'];
+    if (found.length) {
+      return { findings: [`Use only open, click, type, press and wait in ${id}, then run demo ` +
+        `write ${id}.\n${shown} breaks its schema: ` +
+        `${short(found[0].split('\n')[0], 120)}`] };
+    }
+    if (data.scenario !== id) {
+      return { findings: [`Run demo write ${id} again.\n${shown} is the script of ` +
+        `${short(String(data.scenario), 30)}.`] };
+    }
+    return { shown, text: got.text, data, drafted };
+  }
+
+  // outsideOpens returns a finding for each open of the setup and the steps of data, the demo
+  // script, whose page is not under address, the App address of the build plan. The run
+  // refuses the same opens: it replays the setup and each step with that address.
+  function outsideOpens(data, address) {
+    const parts = [[' in the sign-in steps of', data.setup],
+      ...data.steps.map((step, at) => [` in step ${at + 1} of`, step.actions])];
+    return parts.flatMap(([where, actions]) => {
+      const tail = `${where} ${data.scenario}.json.`;
+      // The first line keeps the fix within 100 characters, so a long address is cut there and
+      // shown whole on the line after the step.
+      const room = 100 - 'Open only pages under '.length - tail.length;
+      return actions.filter((action) => action.do === 'open' && !within(action.url, address))
+        .map((action) => `Open only pages under ${cut(address, room)}${tail}\n` +
+          `The step opens ${cut(action.url, 80)}.` +
+          (address.length > room ? `\nThe App address is ${address}.` : ''));
+    });
+  }
+
+  // shortcut: the push check of demo-script does not read the ledger, so a changed frozen script
+  // is found by the next demo check, and an unchanged script that Verify faults starts no
+  // correction; replace both with a check of the ledger at the push, with the Verify work.
+  // unrecorded returns a finding when the pushed script of id, the newest version that counts,
+  // has another sha256 than the newest done row of the ledger, whatever the draft is: a session
+  // that pushed a script and skipped `step end`, or that pushed a change to a frozen script.
+  // The exception is a draft that is a copy of the pushed file, the correction path of
+  // scripting-demos, which gets the line for check-reviewer. It returns null with no row.
+  function unrecorded(root, io, got, id, rows, done) {
+    if (!rows.length || !done.has(id)) return null;
+    const shown = got.drafted ? pushedFile(root, io, id) : got.shown;
+    const pushed = got.drafted ? boundedText(path.join(root, shown)) : { text: got.text };
+    const last = rows[rows.length - 1];
+    if (pushed.why || sha256(pushed.text) === last.script_sha256 ||
+      (got.drafted && sha256(got.text) === sha256(pushed.text))) return null;
+    return `Push the frozen script of ${id} again, or run the step script:${id}#` +
+      `${rows.length + 1} for the pushed one.\n${shown} has another sha256 than the newest ` +
+      `done step ${last.id}.`;
+  }
+
+  // inspect returns { findings, notes } of the script of scenario: its faults, with the fix
+  // first, then the line for check-reviewer when a draft changes a script that a pass froze,
+  // whether the author wrote it or it is a copy of the pushed file. A change to a script that
+  // has had 2 corrections is a fault, and so is a pushed change to a frozen script that the
+  // draft does not copy.
+  function inspect(scenario, got, where) {
+    const { address, ledger, root, io, done } = where;
+    const id = scenario.id;
+    const rows = doneRows(ledger, id);
+    const findings = [...scriptFindings(scenario, got.data, `${id}.json`),
+      ...(address ? outsideOpens(got.data, address) : [])];
+    const changed = rows.length > 0 && sha256(got.text) !== rows[rows.length - 1].script_sha256;
+    const skipped = unrecorded(root, io, got, id, rows, done);
+    if ((findings.length || changed || skipped) && rows.length >= MOST_ROWS) {
+      return { findings: [`Keep the script of ${id} as it is: it has had 2 corrections, and a ` +
+        `third is refused.\nThe build ledger has the done steps script:${id}, script:${id}#2 ` +
+        `and script:${id}#3.` + (skipped ? `\nPush the frozen script of ${id} again, the file ` +
+          `that the done step ${rows[rows.length - 1].id} froze: it is the only way out.` : ''),
+      ], notes: [] };
+    }
+    const step = `script:${id}#${rows.length + 1}`;
+    if (findings.length && rows.length) {
+      findings.push(`Write ${id} again as the step ${step}, then run demo check ${id}.`);
+    }
+    if (skipped) findings.push(skipped);
+    return { findings, notes: changed && !findings.length
+      ? [`Start check-reviewer on the change to ${id}, then run the step ${step}.`] : [] };
+  }
+
+  // check is demo check, for the scenario `only` when it is given.
+  function check(io, given, only) {
     const { root, number, live } = readScenarios(io);
     if (!live.length) {
       io.print([], 'No demo script to write: the approved demo scenarios have no scenario.');
@@ -89,22 +258,35 @@ module.exports = (lib) => {
         `skill ${SKILL}.`], 'Wrote no demo script.');
       return 1;
     }
+    if (only && !live.some((one) => one.id === only)) {
+      io.print([`Check a scenario of the approved demo scenarios.\n${only} is not one of ` +
+        'them, or it is removed.'], 'Checked no demo script.');
+      return 1;
+    }
     const done = scripted(root, io);
+    const address = addressOf(io, given);
+    const ledger = readLedger(root);
+    const findings = [];
+    const notes = [];
+    const reviews = [];
+    for (const scenario of live.filter((one) => !only || one.id === only)) {
+      const got = scriptOf(root, io, scenario.id, done);
+      if (got.none) continue;
+      const found = got.findings ? got
+        : inspect(scenario, got, { address, ledger, root, io, done });
+      findings.push(...found.findings);
+      notes.push(...(found.notes || []));
+      if (found.notes && found.notes.length) reviews.push(scenario.id);
+    }
     const todo = live.filter((one) => !done.has(one.id)).map((one) => one.id);
-    io.print([], todo.length
+    const last = todo.length
       ? `Write the demo script of ${todo.join(', ')}, from version ${number} of the demo ` +
         'scenarios.'
-      : 'No demo script to write: each scenario has one.');
-    return 0;
-  }
-
-  // evidenceOf returns film or pictures from the Evidence line of scenario, or null.
-  function evidenceOf(scenario) {
-    for (const line of scenario.lines) {
-      const found = EVIDENCE.exec(line.text.trim());
-      if (found) return found[1];
-    }
-    return null;
+      : findings.length ? `Found ${plural(findings.length, 'fault')} in the demo scripts.`
+        : reviews.length ? `Review the change to the demo script of ${reviews.join(', ')} with ` +
+          'check-reviewer.' : 'No demo script to write: each scenario has one.';
+    io.print([...findings, ...notes], last);
+    return findings.length ? 1 : 0;
   }
 
   // actionsOf returns { actions } from the file, or { findings }: the actions file is a regular
@@ -113,23 +295,12 @@ module.exports = (lib) => {
   function actionsOf(file, shown, rows) {
     const cannot = { findings: [`Write ${shown} with the actions of the scenario, then run ` +
       `demo write again.\n${shown} cannot be read.`] };
-    let stat;
-    try {
-      stat = fs.lstatSync(file);
-    } catch {
-      return cannot;
-    }
-    if (!stat.isFile()) return cannot;
-    if (stat.size > MAX_BYTES) {
+    const got = boundedText(file);
+    if (got.why === 'unreadable') return cannot;
+    if (got.why) {
       return { findings: [`Write ${shown} in at most ${MAX_BYTES} bytes.\n${shown} is longer.`] };
     }
-    let text;
-    try {
-      text = readFile(file, shown);
-    } catch (error) {
-      if (!(error instanceof Missing)) throw error;
-      return cannot;
-    }
+    const text = got.text;
     let data;
     try {
       data = JSON.parse(text);
@@ -215,19 +386,68 @@ module.exports = (lib) => {
     return 0;
   }
 
+  // runDraft runs the draft script of scenario id, .demo/<id>.json, once in a browser with video
+  // off, as runScript of lib/preflight.cjs does. It exits 0 with the sha256 of the script, 1
+  // with the fix for the action that failed, and 3 when the app or the browser did not run.
+  function runDraft(io, id, given) {
+    const root = artifactFolder(io);
+    const shown = path.join(FOLDER, `${id}.json`);
+    const draft = draftScript(root, id);
+    if (!draft) {
+      throw new Missing(`Run demo write ${id}, then run demo run again.\n${shown} does not exist.`);
+    }
+    const serve = checks.serveOf(io, given);
+    if (!serve) {
+      throw new Missing('Add a serve row with a command to ## Commands of the build plan, then ' +
+        `plan the build again.\nThe build plan has no serve command, so ${id} has no app to run.`);
+    }
+    const ran = checks.runScript(io, root, { serve, script: draft.data });
+    if (!ran.browser) {
+      throw new Missing('Add a browser to the dev container, then run preflight again.\nNo ' +
+        'browser such as /usr/bin/chromium exists on this machine.');
+    }
+    if (!ran.app.started) {
+      throw new Missing(`Make ${short(serve.command, 40)} start the app in the dev container, ` +
+        `then run demo run again.\nThe app did not start: ${ran.app.why}.`);
+    }
+    if (!ran.run || ran.run.browser) {
+      throw new Missing('End the run: the browser did not finish the script.\n' +
+        `${ran.run ? ran.run.why : 'The runner returned no result'}.`);
+    }
+    if (!ran.run.ok) {
+      const where = ran.run.step === 0 ? 'the setup' : `step ${ran.run.step}`;
+      io.print([`Fix ${where} in ${path.join(FOLDER, `${id}.actions.json`)}, then run demo ` +
+        `write ${id}.\n${ran.run.why}.`], `Ran ${id} with video off: it failed in ${where}.`);
+      return 1;
+    }
+    io.print([], `Ran ${id} with video off: ${plural(draft.data.steps.length, 'step')} passed. ` +
+      `The sha256 of ${shown} is ${sha256(draft.text)}.`);
+    return 0;
+  }
+
+  const ID = /^scenario-[1-9][0-9]?$/;
+
   return {
     demo: {
-      usage: ['demo surface', 'demo check', 'demo write <scenario>'],
+      usage: ['demo surface', 'demo check [<scenario>] [--inputs <path>] [--artifacts <folder>]',
+        'demo write <scenario>', 'demo run <scenario> [--inputs <path>] [--artifacts <folder>]'],
       args: (io, what, rest) => {
-        if ((what === 'surface' || what === 'check') && !rest.length) return null;
-        if (what === 'write' && rest.length === 1 && /^scenario-[1-9][0-9]?$/.test(rest[0])) {
-          return null;
+        if (what === 'surface' && !rest.length) return null;
+        if (what === 'write' && rest.length === 1 && ID.test(rest[0])) return null;
+        if (what === 'check' || what === 'run') {
+          const given = options(rest);
+          if (given.problem) return given.problem;
+          if (what === 'check' ? given.rest.every((one) => ID.test(one)) && given.rest.length < 2
+            : given.rest.length === 1 && ID.test(given.rest[0])) return null;
         }
         return USAGE;
       },
       run: (io, what, rest) => {
         if (what === 'surface') return surface(io);
-        return what === 'check' ? check(io) : write(io, rest[0]);
+        if (what === 'write') return write(io, rest[0]);
+        const given = options(rest);
+        return what === 'check' ? check(io, given, given.rest[0])
+          : runDraft(io, given.rest[0], given);
       },
     },
   };

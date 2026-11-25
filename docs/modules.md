@@ -1223,25 +1223,32 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
   each output of the stage, in the order of the stage, with the primitives of the schema
-  resolved. qory sets the environment variable `QORY_OUTBOX` to the absolute path of the
-  outbox folder, and the session writes each output to `$QORY_OUTBOX/<type>/<type>.json`.
+  resolved. `qory.outbox` of the same file is the absolute path of the outbox folder,
+  `<outbox>`. The session creates that folder and writes each output to
+  `<outbox>/<type>/<type>.json`.
   The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
-  `inputs.json`, the check finds nothing. It finds:
+  `inputs.json`, the check finds nothing. A run with no `qory.outbox`, such as a run with
+  the access `read` or `write-no-push`, has no outbox, and the check reads no output file;
+  a malformed `qory.outputs` is a finding there too. A missing file is no finding, also for
+  a required output. When a `schema` is null, the type has no JSON Schema, and the check
+  applies none to its file and finds no member that qory sets or fills. The check finds:
   - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
     `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
-    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
-    after this one:", with a line for each such part. Only an absent list passes;
+    or `false`, or a `schema` is neither an object nor null. The finding is "Fix
+    qory.outputs in the lines after this one:", with a line for each such part. Only an
+    absent list passes;
   - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
     inputs file of the run." The point says that the setup of the run must provide it;
-  - a stage that declares an output while `QORY_OUTBOX` is unset or is no absolute path.
-    The finding is "Set QORY_OUTBOX in the setup of the run to the absolute path of the
-    outbox folder.", with the cause "not set" or "not an absolute path", and the check
-    reads no file. The point says that the setup of the run must set it;
-  - a required output with no file;
+  - a stage that declares an output while `qory.outbox` is present and is not an absolute
+    path. The finding is "Set qory.outbox in the inputs file to the absolute path of the
+    outbox folder.", with the cause "qory.outbox of the inputs file is not an absolute
+    path.", and the check reads no file. The point states that the setup of the run must
+    set it;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
-    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
-    cause line for each of these;
+    is followed. A file that is a link, is no regular file, has more than 1 MiB, or has a
+    path that cannot be read, such as one below a regular file, gets one cause line for each
+    of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
     `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
@@ -1268,8 +1275,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A file with findings gives the line "Fix the <n> findings of <file> in the lines after
   this one:" and then the findings, and adds the `run_again` point "<The type> output
   breaks its format rules, so the run could not deliver it, and another round writes it
-  again." A required output with no file adds the point "The stage needs <the type>, which
-  the run did not write, and another round writes it again."
+  again."
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -3336,16 +3342,10 @@ characters, the quote of the criterion is cut in both to its first 8 words and "
   "Files:" does not list. Here the mark `break` means that the run must not push the lock
   while the finding is left, not what `reviewing-drafts` defines for it. The reviewer reads
   files: no script reads imports.
-- **The run on the start commit.** After the lock, the session runs `checks.cjs preflight
-  --inputs <path>` first when the plan has a `serve` row with a command and an `App
-  address:` line, and `index.json` lists a demo script, an artifact of type `demo-script`
-  with a name such as `scenario-1`. Then it runs `checks.cjs run locked --inputs <path>`.
-  When the plan starts the app and `index.json` lists no demo script, the preflight would
-  exit 3, so the session runs no preflight and runs the checks with no app check. A point of
-  the preflight ends the session with that point. An exit 3 of the preflight with the cause
-  "no demo script exists for the app", such as for a withdrawn demo script, goes on with no
-  app check. An exit 3 with another cause ends the session with "The run stopped at the app
-  check, because <cause>.". A locked check fails right only when its finding starts with
+- **The run on the start commit.** After the lock, the session runs
+  `checks.cjs run locked --inputs <path>`, with no app check: `scripting-demos` runs the
+  preflight, before the first run of a demo script, as the bullet "Demo scripts" lists. A
+  locked check fails right only when its finding starts with
   "Fix the code until the locked check of <criterion> passes.". A check that is green, or
   red for another reason, runs once more with `run locked <criterion>`. When it is wrong
   again, the session pushes one question per such check to a member, with `about` set to
@@ -3367,14 +3367,15 @@ acceptance lock that no cancelled run wrote, and `.reports/build-ledger.json`. W
 build plan, it ends with a `run_again` point whose fix is "Plan the build, so that a run
 pushes the build plan." Each step is one row of the build ledger, in this order: each
 deliverable that is not built, as `deliverable:d-<N>`, in the order of the plan; then the
-demo scripts, as the bullet "Demo scripts" lists, which are no step of the ledger; then each
-open finding, as `fix:f<N>`. The findings are those that `findings open` prints from
-`open-findings.json` in the inputs folder, which qory writes read-only from the report of
-the last round of review, the `blocking` ones first, and, after Verify returned the work
-item, the findings of Verify. `work-item show` lists Verify's newest `verdict` and
-`verification` in `inputs`, marked `"from": "return"`. Each point of the verdict and each
-`not_met` row of the verification is one `blocking` finding, numbered `f<N>` after the
-highest id of the review, so that `scope` and `freeze` take its id.
+demo scripts, as the bullet "Demo scripts" lists, each as the ledger step `script:<id>`,
+with `#2` or `#3` for a correction; then each open finding, as `fix:f<N>`. The findings are
+those that `findings open` prints from `open-findings.json` in the inputs folder, which qory
+writes read-only from the report of the last round of review, the `blocking` ones first,
+and, after Verify returned the work item, the findings of Verify. `work-item show` lists
+Verify's newest `verdict` and `verification` in `inputs`, marked `"from": "return"`. Each
+point of the verdict and each `not_met` row of the verification is one `blocking` finding,
+numbered `f<N>` after the highest id of the review, so that `scope` and `freeze` take its
+id.
 
 - **Removed demo scenarios.** Before the steps, the session withdraws the demo script of
   each scenario that the newest demo scenarios mark `Removed, because` or no longer have,
@@ -3385,15 +3386,17 @@ highest id of the review, so that `scope` and `freeze` take its id.
   member and each exit 4, it writes "<scenario>: removed by Shape, still on the gate" in
   its output.
 - **Demo scripts.** After the last deliverable, so that the screens exist, the session runs
-  `checks.cjs demo check`. With no scenario that is not removed in the approved demo
-  scenarios, or with a demo script that counts for each of them, it does nothing more. With
-  a scenario and no skill `scripting-demos` in the composed harness, it starts no agent and
-  ends with one `run_again` point: "The demo scenarios need a module that scripts browser
-  screens, which the stack of this workspace lacks, so the run wrote no demo script.", with
-  the fix "Add the module browser-screens to the stack, then run another round." Otherwise
-  it loads `scripting-demos` by name, which writes one script per scenario with no script
-  yet, as "The module browser-screens" lists. The name is no `${qory:...}` reference, so a
-  stack without the module still composes `implement-changes`.
+  `checks.cjs demo check --inputs <path>`. With no scenario that is not removed in the
+  approved demo scenarios, or with a demo script that counts and no fault for each of
+  them, it does nothing more. With a scenario and no skill `scripting-demos` in the
+  composed harness, it starts no agent and ends with one `run_again` point: "The demo
+  scenarios need a module that scripts browser screens, which the stack of this workspace
+  lacks, so the run wrote no demo script.", with the fix "Add the module browser-screens to
+  the stack, then run another round." Otherwise it loads `scripting-demos` by name, which
+  scripts each scenario that has no script and corrects each script that `demo check`
+  refuses or whose draft changes a frozen script, as "The module browser-screens" lists.
+  The name is no `${qory:...}` reference, so a stack without the module still composes
+  `implement-changes`.
 - **A step.** The session runs `step begin` with the build plan, the skill, the two agent
   files and, for a fix, the file of its finding. It starts `software-developer` (the role
   `developer`) for the first and the second attempt and `software-debugger` (the role
@@ -3445,22 +3448,22 @@ highest id of the review, so that `scope` and `freeze` take its id.
   through `points.json` checks no output.
 - **The submission.** After the last step, and after a step that fails, the session starts
   `submission-writer` and runs `checks.cjs report-build --inputs <input file>`, which writes
-  `build-report.md` and the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, which
+  `build-report.md` and the outbox file `<outbox>/pull-request/pull-request.json`, which
   qory pushes after the session. It then runs `checks.cjs check build-report` and pushes
-  `build-report`. With exit 1 of `report-build`, it starts
-  `submission-writer` again, at most twice, then ends with one `run_again` point. With exit
-  3 and the line `Build the change in fewer commits`, it ends as Failures with that line;
-  with another exit 2, 3 or 4, it ends as Failures. When the writer fails, the run ends with
-  "The run wrote no text of the change, because <the cause>, so qory pushes the commits of
-  the steps without it." With exit 1 of `check build-report`, it runs `report-build --drop`
-  and ends with one `run_again` point; after a third push of `build-report` that fails, it
-  runs `report-build --drop` and ends with "The run could not push its build report." A stop
-  on the build plan and a case of "Demo scripts" that ends the run skip it, and so does a
-  session that ran no `step end done`, such as one whose first step fails, also in a later
-  round: qory fills `commits` with the commits of this run, and the type needs at least one.
-  Such a run ends with a point, as "A step that fails" lists. `submission-writer` describes
-  what the round built, also after a step that fails. When the end check fails three times,
-  the session records `escalate`.
+  `build-report`. With exit 1 of `report-build`, it starts `submission-writer` again, at
+  most twice, then ends with one `run_again` point. With exit 3 and the line
+  `Build the change in fewer commits`, it ends as Failures with that line; with another exit
+  2, 3 or 4, it ends as Failures. When the writer fails, the run ends with "The run wrote no
+  text of the change, because <the cause>, so qory pushes the commits of the steps without
+  it." With exit 1 of `check build-report`, it runs
+  `report-build --drop --inputs <input file>` and ends with one `run_again` point; after a
+  third push of `build-report` that fails, it runs the same command and ends with "The run
+  could not push its build report." A stop on the build plan and a case of "Demo scripts"
+  that ends the run skip it, and so does a session that ran no `step end done`, such as one
+  whose first step fails, also in a later round: qory fills `commits` with the commits of
+  this run, and the type needs at least one. Such a run ends with a point, as "A step that
+  fails" lists. `submission-writer` describes what the round built, also after a step that
+  fails. When the end check fails three times, the session records `escalate`.
 - **The end.** With every step done or replayed, the session follows "The end" of
   `running-a-workflow`: with `judges: false`, it runs no verdict command, and
   `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for
@@ -3803,28 +3806,160 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   and the reruns share one time limit. A missing tool, exit 127 or 126, and a timeout are
   red. Each call writes a record and the output of its commands to `.reports/runs/` of the
   artifact folder.
-- `demo surface`, `demo check` and `demo write <scenario>`: the demo scenarios of Shape and
-  the demo scripts of Build, in `verbs/demo.cjs`. `demo surface` reads no artifact and
-  always exits 0. It prints "The stack has a surface module: Shape writes demo scenarios."
-  when a skills folder of the composed harness has `scripting-demos`, which `demo check`
-  also tests, and otherwise "The stack has no surface module: Shape writes no demo
-  scenarios, and plans each criterion as Tests." `demo check` and `demo write` read the
-  approved version of the demo scenarios, else the newest, as the push check of
-  `demo-script` does, and skip a removed scenario. `demo check` exits 1 with the fix "Add
-  the module browser-screens to the stack, then run another round." when a scenario exists
-  and no skills folder of the composed harness has `scripting-demos`. Otherwise it exits 0
-  and prints "Write the demo script of <scenarios>, from version <N> of the demo
-  scenarios.", or "No demo script to write", for a scenario with no `demo-script` version
-  that counts. `demo write` reads `.demo/<scenario>.actions.json` of the artifact folder, a
-  regular file of at most 262144 bytes that is no link, and a JSON object with the lists
-  `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
-  `.demo/<scenario>.json`, through a temporary file, with the title, the evidence line,
-  `source.version`, and the title and expected result of each step, which are the Action and
-  the What the viewer sees of the scenario word for word, so no agent types them. It checks
-  the result against `demo-script.schema.json`, which allows the actions open, click, type,
-  press and wait and no other, and exits 1 with a finding for each fault, its place named by
-  the actions file. A script that `demo write` builds passes the push check of
-  `demo-script`. The verb runs no browser.
+- `demo surface`, `demo check [<scenario>]`, `demo write <scenario>` and `demo run
+  <scenario>`: the demo scenarios of Shape and the demo scripts of Build, in
+  `verbs/demo.cjs`. `demo surface` reads no artifact and always exits 0. It prints "The
+  stack has a surface module: Shape writes demo scenarios." when a skills folder of the
+  composed harness has `scripting-demos`, which `demo check` also tests, and otherwise "The
+  stack has no surface module: Shape writes no demo scenarios, and plans each criterion as
+  Tests." `demo check`, `demo write` and `demo run` read the approved version of the demo
+  scenarios, else the newest, as the push check of `demo-script` does, and skip a removed
+  scenario.
+  - `demo check [<scenario>] [--inputs <path>] [--artifacts <folder>]` exits 1 with the fix
+    "Add the module browser-screens to the stack, then run another round." when a scenario
+    exists and no skills folder of the composed harness has `scripting-demos`. Otherwise it
+    reads the script of each scenario, or of `<scenario>` alone: the draft
+    `.demo/<scenario>.json` of the artifact folder, else the newest pushed version that
+    counts, a regular file of at most 262144 bytes. It exits 1, with the fix first in each
+    finding, for a script that does not parse, that has another action than open, click,
+    type, press and wait, or whose title, evidence, step count, step number, step title or
+    expected result differs by one character from the approved scenario, the same
+    comparison as the push check of `demo-script`, which also refuses an `evidence` that
+    differs from the scenario's Evidence line. It exits 1 too for an `open` of the setup,
+    the sign-in, that is no page under the line `App address:` of the build plan: a page
+    under it has the same origin, no user name or password, no backslash, and a path that is
+    the path of the address or below it at a segment boundary, so with
+    `http://localhost:3000/app`, `/app` and `/app/x` pass, and `/application`, `/admin` and
+    `/app/../admin` fail. It exits 1 too for a script whose waits add up to more than the
+    415 seconds that a film has for them (`WAITS_MS` of `lib/budget.cjs`), the sum of the
+    `timeout_ms` of each `wait` of the setup and the steps, 5 seconds for a wait with none:
+    "Shorten the waits in <script> to at most 415 s in total.", and the line "They add up to
+    <m> s (a wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of
+    waits." It also refuses a setup whose waits add up to more than the 120 seconds that
+    the app start, the sign-in and the browser share (`START_MS`): "Shorten the setup waits
+    in <script> to at most 120 s in total.", and the line "They add up to <m> s (a wait
+    with no timeout_ms counts 5 s), and the app start, the sign-in and the browser share
+    120 s." The push check of `demo-script` finds both too. The
+    finding of an outside `open` is "Open only pages under <App address> in the sign-in
+    steps of <script>." or "... in step <N> of <script>." and the line "The step opens
+    <url>." An address too long for 100
+    characters in the first line is cut there and shown whole in the line "The App address
+    is <address>." The build plan is the one in `--inputs` or `--artifacts`, as `preflight`
+    reads it, else the one in the artifact folder. When no build plan can be read or it has
+    no address, the sign-in is not compared, and `demo run` still loads only pages of the
+    origin of the app. Its last line is "Write the demo script of <scenarios>,
+    from version <N> of the demo scenarios." for a scenario with no `demo-script` version
+    that counts, "Review the change to the demo script of <scenarios> with check-reviewer."
+    when a draft changes a frozen script and no scenario lacks a script, and "No demo script
+    to write: each scenario has one." otherwise. A session skips the demo section only on
+    the last line "No demo script to write".
+  - The freeze and the corrections: `demo check` reads `.reports/build-ledger.json` and the
+    done rows of the steps `script:<id>`, `script:<id>#2` and `script:<id>#3`, kind
+    `script`. A script whose sha256 differs from the `script_sha256` of the newest done row
+    is a correction. The first and the second print "Start check-reviewer on the change to
+    <id>, then run the step script:<id>#<k>." and exit 0. With 3 done rows and a changed
+    script or a fault, it exits 1 with "Keep the script of <id> as it is: it has had 2
+    corrections, and a third is refused." When the pushed script also differs from the
+    newest done row, a line "Push the frozen script of <id> again" follows: pushing the
+    file of the frozen script again is the only way out. A script that breaks a rule after
+    a pass has the
+    extra line "Write <id> again as the step script:<id>#<k>, then run demo check <id>."
+    `<k>` is the number of done rows of the scenario plus 1; the skill reads it from the
+    ledger, since `demo check` prints no step for a script that has not changed. With a
+    draft, `demo check` also compares the newest pushed version that counts with the newest
+    done row, and a pushed script with another sha256 is a fault: "Push the frozen script of
+    <id> again, or run the step script:<id>#<k> for the pushed one." `step end
+    --script-sha256` does not compare the hash with the file, so this check catches a
+    session that pushed a script and skipped the step. With no done row, nothing is
+    compared.
+  - `demo write <scenario>` reads `.demo/<scenario>.actions.json` of the artifact folder, a
+    regular file of at most 262144 bytes that is no link, and a JSON object with the lists
+    `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
+    `.demo/<scenario>.json`, through a temporary file, with the title, the evidence line,
+    `source.version`, and the title and expected result of each step, which are the Action
+    and the What the viewer sees of the scenario word for word, so no agent types them. It
+    checks the result against `demo-script.schema.json`, which allows the actions open,
+    click, type, press and wait and no other, and exits 1 with a finding for each fault, its
+    place named by the actions file. A script that `demo write` builds passes the push check
+    of `demo-script`. It runs no browser.
+  - `demo run <scenario> [--inputs <path>] [--artifacts <folder>]` runs the draft
+    `.demo/<scenario>.json` once, with video off: the runner of `preflight` starts the app
+    of the `serve` row at the `App address:`, replays the setup as a sign-in, then the
+    actions of each step in order, in one page, with the limits of the sign-in of
+    `preflight`: no page of another origin, no new window, the variables that the script
+    types and no other. It exits 0 and prints "Ran <id> with video off: <n> steps passed.
+    The sha256 of .demo/<id>.json is <hash>." The session passes the hash to `step end` as
+    the freeze. It exits 1 with the fix "Fix the setup in .demo/<id>.actions.json, then run
+    demo write <id>." or "Fix step <k> in ...", and a line with the failed action, with no
+    typed value. It exits 3 for a missing draft, a plan with no `serve` row, no browser, an
+    app that does not start or a browser that fails. It records no ledger row and pushes
+    nothing.
+- `film <scenario> [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
+  [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
+  `verbs/film.cjs`. One call takes one scenario and ends within 585 seconds (`CALL_MS` of
+  `lib/budget.cjs`): the 600 seconds of a tool call, less 15 seconds of margin, which also
+  covers the stop of the app and the browser, the delete of the frames and the start of
+  Node. Run the film call with a tool timeout of at least 600 s. The 585 seconds are 15
+  seconds to stop the runner, 35 seconds for the encode (`ENCODE_MS`, measured: 35 seconds
+  for about 28,000 frames; ffmpeg gets what is left of the 585 seconds, at most 90 and at
+  least 5 seconds), and 535 seconds for the runner (`RUN_BUDGET_MS`). The runner's 535
+  seconds are 120 seconds for the start of the app, the start of the browser and the
+  sign-in (`START_MS`), and 415 seconds for the waits of the setup and the steps
+  (`WAITS_MS`). The waits of a setup count against both the 415 seconds and the 120
+  seconds, and `demo check` refuses a setup whose waits add up to more than 120 seconds.
+  When the 120 seconds run out before the browser starts, or during the sign-in, `film`
+  exits 3 with the fix
+  "Shorten the sign-in steps of <scenario>.json, or make the app start faster, then film it
+  again." ("run it again" for pictures) and the line "The 120 s for the app start, the
+  sign-in and the browser ran out before the browser started."
+  The three parts of the 120 seconds share one deadline, 120 seconds after the
+  start of the runner: when it passes, the sign-in fails and the call stops. A run past
+  the limit of the runner exits 3 with the fix "Shorten the waits or the steps of
+  <scenario>.json, then film it again." (for pictures, "run it again") and the line "The
+  film ran past its limit of <n> s." ("The run ran past ..."). It stores nothing in Qory
+  Apiary and writes no `demo-evidence` and no ledger row: the session pushes the files.
+  - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
+    a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
+    `App address:`, opens a page of 1280 x 720 px, replays the setup as a sign-in, then the
+    actions of each step, with the limits of the sign-in of `preflight`. The files go to
+    `.film/<scenario>/` of the artifact folder, which the call makes new. With the evidence
+    `film`, the page is recorded from the start of step 1: the sign-in runs before the
+    recording, so no frame has it, and nothing inside the film is cut or sped up. The
+    runner keeps each frame that the page paints (about 50 KB each), whatever the paint
+    rate, and one frame at the start and one at the end of the last step, so every cue of
+    the captions lies within the film. The runner returns its frames in a file of the
+    folder `.reports/preflight/` of the artifact folder, which the call removes, so the
+    number of frames has no limit but the 64 MiB of that file. ffmpeg, which is
+    `/usr/bin/ffmpeg` or else the first `ffmpeg` on the `PATH`, makes `<scenario>.mp4` from
+    them at 25 frames a second, and the last frame stays for 1 second. `<scenario>.vtt` has
+    one cue per step, with the title of the step as its text, from the start of the step to
+    the start of the next; the first cue starts at `00:00:00.000`. The call removes the
+    frames, so the folder has the two files that the check of `demo-video` reads. With the
+    evidence `pictures`, the replay records no video, and the folder has
+    `<scenario>-step-<N>.png`, the page after the last action of step N, as the check of
+    `screenshot` reads them. It exits 0 and prints the folder. A step that fails stores
+    nothing: it exits 1 with the fix "Check step <k> against the app, then run film <id>
+    again." (for the sign-in, "the sign-in" in place of "step <k>"), the failed action with
+    no typed value, and the last line "Stored no film: it failed in step <k>." A film
+    scenario with no ffmpeg, a scenario with no pushed script that counts, a plan with no
+    `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
+    run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
+    `.film/<scenario>/` removes that folder, and a call with no browser exits before it
+    makes the folder, so the film of an earlier call stays. The text of a cue in the
+    captions is the title of its step, and a title with `-->` exits 3 before the film, with
+    the fix "Change the Action of step <N> in the demo scenario so it has no "-->", then film
+    it again." The first frame of the film is at 0 ms.
+    An `open` of a step that is no page under the `App address:` of the build plan, by the
+    rule of `demo check`, fails the step, whatever its origin. The session pushes the files
+    of a scenario with `demo-video` (`<id>.mp4` and `<id>.vtt`) or `screenshot`
+    (`<id>-step-<N>.png`), as the section "Film" of `running-checks` lists.
+  - `film pages <path>...` takes pictures of the pages that the paths open, for the two
+    screen reviewers: `.film/pages/pages-<N>-<width>.png` for the Nth path at 360, 768 and
+    1280 px, each taken after the page loads. A path starts with `/` and is a page under the
+    `App address:`, by the rule of `demo check`; otherwise the call exits 1 with "Open only
+    pages under <App address>, as paths that start with /." and takes no picture. The setup
+    of the first demo script that counts is the sign-in; with no script, the pages open
+    with no sign-in.
 - `run locked [<criterion>...] [--inputs <path>] [--artifacts <folder>]`: runs the checks
   of the acceptance lock that counts, the newest `acceptance-lock` version that no
   cancelled run wrote, which it reads with `lockReader.readLock` of core's
@@ -3895,11 +4030,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line, and the scan result is the line before "Checked ...". git runs with full stat
   checks, no untracked cache, no global excludes file, no global or system git config (git
   2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
-  `.git/info/exclude` is red. `git status` runs with `--ignore-submodules=none`, so a
-  changed submodule counts whatever its `ignore` setting. An ignored path is no change, but
-  an untracked `.gitignore` file is one, also when it ignores itself; one inside an ignored
-  folder is none. git compares change times by the second, so a tracked file whose times or
-  size differ from its index entry by a nanosecond or a byte is hashed, and counts when its
+  `.git/info/exclude` is red, other than the line `/.qory`, which qory writes there, and a
+  line that starts with `/.qory/`. A line that is empty, has only spaces or starts with `#`
+  is no pattern, and no white space is trimmed. The finding is "Remove this line from
+  .git/info/exclude, then run the verb again.", with the first such pattern in quotes on the
+  next line. `git status` runs with `--ignore-submodules=none`, so a changed submodule
+  counts whatever its `ignore` setting. An ignored path is no change, but an untracked
+  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
+  none. git compares change times by the second, so a tracked file whose times or size
+  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
   content differs. Stat data that an agent writes into the index file is not checked. With a
   base, it also scans each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
@@ -4015,34 +4154,35 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `qory.start_artifacts`, as `run` does, and the demo scripts from the artifact folder of
   the session, the store of the run, since the folder of the build plans holds only build
   plans: of each name that `index.json` lists, the newest version that it counts, so a
-  version folder or a name that `index.json` does not list is not read. The output of the
-  serve command goes to `.reports/preflight/serve.log`, a new file in place of whatever was
-  at that path. After the check, also on a failure or a signal, the process group of the
-  command stops, and on Linux each process with the mark of the supervisor of `run`. The
-  runner of the check stops them too within 500 ms of the end of `preflight`, and a watcher
-  in the group kills the process group of the browser and then the group when the runner
-  ends, also on SIGKILL. The browser starts as
-  the leader of a new process group, and each stop of the browser kills that group, so a
-  child of the browser that stays in the group stops with it. A process that leaves
-  the group by `setsid` and removes the mark from its environment keeps running, as
-  `lib/supervise.cjs` states, and after a SIGKILL of the runner, so does every process that
-  left the group. The sign-ins stop after at most 570
-  seconds, and `preflight` ends within 585 seconds, below the 600 seconds after which the
-  Bash tool of Claude Code stops a command. It exits 0 when each part is there, 1 with the
+  version folder or a name that `index.json` does not list is not read. A draft
+  `.demo/<scenario>.json` that `demo write` built replaces the pushed script of its
+  scenario, so the session runs `preflight` before it pushes the first script. The output
+  of the serve command goes to `.reports/preflight/serve.log`, a new file in place of
+  whatever was at that path. After the check, also on a failure or a signal, the process
+  group of the command stops, and on Linux each process with the mark of the supervisor of
+  `run`. The runner of the check stops them too within 500 ms of the end of `preflight`, and
+  a watcher in the group kills the process group of the browser and then the group when the
+  runner ends, also on SIGKILL. The browser starts as the leader of a new process group, and
+  each stop of the browser kills that group, so a child of the browser that stays in the
+  group stops with it. A process that leaves the group by `setsid` and removes the mark from
+  its environment keeps running, as `lib/supervise.cjs` states, and after a SIGKILL of the
+  runner, so does every process that left the group. The sign-ins stop after at most 570
+  seconds, and `preflight` ends within 585 seconds. It exits 0 when each part is there, 1 with the
   points, 2 for wrong arguments, and 3 for a missing input or a check that did not finish:
   no build plan, a `serve` command with no address of the app or one whose host breaks the
-  host rule, no demo script, a demo script that cannot be read or breaks its format rules,
-  a demo script that types a key of qory or of an agent, or a check of the app that fails
-  or runs past its limit. With each of these exits 3, a line that starts with `Cause:`
-  contains the cause for the line that ends the run, as `running-checks` lists it; after a
-  check that did not finish, the session ends the run. The session then checks the points
-  with `check points` and ends: the end check sends them with the verdict `escalate`.
-- `report-build [--inputs <path>]` and `report-build --drop`: the first writes
+  host rule, no demo script, a demo script that cannot be read or breaks its format rules, a
+  demo script that types a key of qory or of an agent, or a check of the app that fails or
+  runs past its limit. With each of these exits 3, a line that starts with `Cause:` contains
+  the cause for the line that ends the run, as `running-checks` lists it; after a check that
+  did not finish, the session ends the run. The session then checks the points with `check
+  points` and ends: the end check sends them with the verdict `escalate`.
+- `report-build --inputs <path>` and `report-build --drop --inputs <path>`: the first writes
   `build-report.md` of the standard track to the artifact folder, with every table rendered
   from records, so no agent types a result, and writes the outbox file that qory's push
   reads. A fast-track report is written elsewhere. The second removes the regular file
-  `$QORY_OUTBOX/pull-request/pull-request.json` and nothing else, prints one line, and
-  exits 0; it exits 3 with a fix line when the file cannot be removed. The sections come
+  `<outbox>/pull-request/pull-request.json` and nothing else, prints one line, and
+  exits 0; it exits 3 with a fix line when the file cannot be removed, or when the outbox
+  folder cannot be read from `--inputs`, as the first form lists. The sections come
   from these
   sources:
   - `## Summary`: the HEAD commit, the number of review rounds and "Ready for review.";
@@ -4087,18 +4227,21 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The same records give the same bytes, and the file ends with one newline. Without a
   ledger, the verb exits 3.
 
-  The verb always writes the outbox file `$QORY_OUTBOX/pull-request/pull-request.json`, as
-  JSON `{"title", "text", "steps", "draft"}`. qory sets `QORY_OUTBOX` to the absolute path
-  of the outbox folder. When `QORY_OUTBOX` is unset or is no absolute path, the verb writes
-  no file and exits 3 with the fix "Set QORY_OUTBOX to the absolute path of the outbox
-  folder." It creates the folder of the type first. When the outbox folder, the folder above
-  it, or the folder of the type is a link, as core's end check reads it, the verb exits 3
-  with the fix "Remove the link in the path of the outbox." and writes no file. A file that
-  would have more than 786432 bytes, the `size_limit` of the type `pull-request`, exits 3
-  with the fix "Build the change in fewer commits", because only the list of `steps` can
-  make it that large (the text has at most 20,000 characters), and the verb writes no
-  file. The links that the rule reads are those of the outbox folder, its parent and the
-  folder of the type; a link above them is followed.
+  The verb always writes the outbox file `<outbox>/pull-request/pull-request.json`, as
+  JSON `{"title", "text", "steps", "draft"}`. `<outbox>` is `qory.outbox` of the
+  `inputs.json` that `--inputs` takes, the absolute path of the outbox folder. The verb
+  writes no file and exits 3 with the fix on the first line in each of these cases: no
+  `--inputs`, an `inputs.json` that does not exist or is no JSON object ("Give --inputs the
+  inputs.json that qory wrote for the run."), and a `qory.outbox` that is missing or is no
+  absolute path ("Set qory.outbox in the inputs file to the absolute path of the outbox
+  folder."). It creates the outbox folder and the folder of the type first. When the outbox
+  folder, the folder above it, or the folder of the type is a link, as core's end check
+  reads it, the verb exits 3 with the fix "Remove the link in the path of the outbox." and
+  writes no file. A file that would have more than 786432 bytes, the `size_limit` of the
+  type `pull-request`, exits 3 with the fix "Build the change in fewer commits", because
+  only the list of `steps` can make it that large (the text has at most 20,000 characters),
+  and the verb writes no file. The links that the rule reads are those of the outbox folder,
+  its parent and the folder of the type; a link above them is followed.
   The session writes no `target` and no member that qory fills (`commits`, `head`,
   `base`, `branch`, `base_branch`, `earlier_commits`): qory sets and fills them after the
   push, and the end check refuses a file that has one. `title` and `text` come from
@@ -4130,7 +4273,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   that git does not have is a lost row of a cancelled run and has no entry in `steps`; any
   other failure of git exits 3 with a fix line. On each non-zero exit, and for `--drop`,
   the verb removes a regular file at the path of the outbox file, so that qory never reads
-  the text of an earlier run. It removes nothing when `QORY_OUTBOX` is unset or relative.
+  the text of an earlier run. It removes nothing when the `inputs.json` has no
+  `qory.outbox`, and `--drop` then exits 0. With the other faults of `--inputs`, it removes
+  nothing, and `--drop` exits 3 with the fix.
   When a link is in the path of the outbox, it removes nothing and prints a fix line, and
   `--drop` exits 3. It writes the outbox file first and `build-report.md`
   second, each through a temporary file in its folder that it renames into place. When a
@@ -4233,14 +4378,19 @@ that hides its commits from the key scan. Two members of `qory` in `inputs.json`
 writes before the session, set the base and the build plan that the checks use instead:
 
 - `start_commits`, `[{"path": "<absolute checkout path as the agent sees it>", "commit":
-  "<40 or 64 hex digits>"}]`. `scope` and `freeze` take the entry whose real path is the
-  real path of the top of the checkout, and use its commit as the base. Exit 3: a `--base`
-  that resolves to another commit, as an older base widens the range and a newer one hides
-  commits; no entry for the checkout; an entry that is not a map with an absolute path and
-  a full commit id; or a HEAD that does not descend from the commit.
+  "<40 or 64 hex digits>"}]`. `start_commits` lists each repository the run may push, with
+  its commit at the start; a read-only repository has no entry. `scope` and `freeze` take
+  the entry whose real path is the real path of the top of the checkout, and use its commit
+  as the base. Exit 3: a `--base` that resolves to another commit, as an older base widens
+  the range and a newer one hides commits; no entry for the checkout; an entry that is not a
+  map with an absolute path and a full commit id; or a HEAD that does not descend from the
+  commit.
 - `start_artifacts`, the absolute path of the folder of the build plans that qory pulled.
-  `run`, `probe`, `scope`, `freeze` and `preflight` use it as `--artifacts` when
-  `--artifacts` is not given; both, with different real paths, exit 3.
+  `run`, `probe`, `scope`, `freeze`, `preflight`, `demo run` and `film` use it as
+  `--artifacts` when `--artifacts` is not given; both, with different real paths, exit 3.
+  An empty string is a run that pulled no build plans at the start: the build plan then
+  comes from the artifact folder of the session, as without `--inputs`. Any other relative
+  path exits 3.
 
 When the folder of `--artifacts` or `start_artifacts` has an `index.json` that lists no
 version of `build-plan`, or lists `build-plan` only as withdrawn, the session started with
@@ -4287,8 +4437,8 @@ Exit status:
   the folder, 0 needs a range with no changed path.
 - 1: a path outside the Files, including a path under `.qory`; any changed path when the
   folder has no build plan; a key; more than 500 commits since the start commit; or a
-  pattern in `.git/info/exclude`. One line per finding, the fix first, and never the value
-  of a key.
+  pattern in `.git/info/exclude` other than `/.qory` or a line that starts with `/.qory/`.
+  One or more lines per finding, the fix first, and never the value of a key.
 - 2: wrong arguments, with the usage on stderr.
 - 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
   plan that cannot be read, a Files cell that is no list of paths, or a start commit that
@@ -4333,12 +4483,17 @@ The push form (`push`) and `end --offline` run no proof: the working folder of a
 the store of the push, not a checkout, and `end --offline` runs no program.
 
 The commits are those from the start commit to the HEAD of the checkout, which the proof
-reads as objects, never as files of the working folder. The start commit is `--base`, a
-full commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they
-must be the same commit, or the call exits 3. The proposal is the newest one in the folder
-of `--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
-artifact folder of the session counts as none. A change in the working folder that no
-commit has is not proved: `freeze` and `scope` judge it.
+reads as objects, never as files of the working folder. The start commit is `--base`, a full
+commit id, when given, else `qory.start_commits` of `inputs.json`; with both, they must be
+the same commit, or the call exits 3. The proposal is the newest one in the folder of
+`--artifacts` or of `qory.start_artifacts`, so a proposal that an agent writes into the
+artifact folder of the session counts as none. With a `qory.start_artifacts` of `""`, a run
+that pulled no build plans at the start, the proposal and the build plan come from the
+artifact folder of the session for `prove`, but the check of the output at `end` reads no
+proposal and runs no proof of the fast track. The push is stopped instead: qory's scope
+check at the push, with no start snapshot, stops the push of any changed path, or does not
+run, which stops the push too. A change in the working folder that no commit has is not
+proved: `freeze` and `scope` judge it.
 
 The proofs, in order:
 
@@ -4648,11 +4803,47 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the step>`
   instead of guessing a target;
 - the skill `scripting-demos`, which `workflow-implement-changes` loads by name after its
-  last deliverable. For each scenario that `demo check` lists, it runs `notes`, starts
-  `browser-demo-author`, runs `demo write`, starts the agent again with the printed lines at
-  most twice, runs `check demo-script`, and pushes the script with `qory artifact push
-  demo-script --name <scenario> <folder>/.demo/<scenario>.json`. It writes no ledger row.
-  Each script is pushed once: a later round writes only the scenarios with no script.
+  last deliverable. For each scenario that `demo check` lists or refuses, it opens the
+  ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
+  runs `demo check <id>`, starts the agent again with the printed lines at most twice,
+  runs `check demo-script`, runs `preflight` once for the session, runs `demo run <id>`,
+  pushes the script with `qory artifact push demo-script --name <scenario>
+  <folder>/.demo/<scenario>.json`, and ends the step with `--script-sha256` of the script
+  that passed.
+
+The check and the freeze of a script:
+
+- A script is checked before it is pushed: `demo check` and the push check of `demo-script`
+  compare the title, the evidence, the step count and the title and expected result of each
+  step with the approved scenario by exact string, and refuse any other action than open,
+  click, type, press and wait.
+- A script runs once with video off, in `demo run`, before its push. The `preflight` call
+  moved from the run on the start commit of `write-acceptance-checks` to before that first
+  run, and it reads the drafts in `.demo/` as well as the pushed scripts.
+- A script is frozen at its first pass: the ledger step `script:<id>` is `done` with the
+  `script_sha256` of the script. A script that differs from the newest done row is a
+  correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
+  skill with the line "Review the change to a demo script", before the correction runs. A
+  third correction is refused by `demo check`, and the ledger refuses the id
+  `script:<id>#4`.
+  A draft that differs from the newest done row is a correction, also a copy of the pushed
+  file in `.demo/<id>.json`. A pushed script that differs from the newest done row is a
+  fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
+  file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
+  fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
+  or to push the frozen script again. The limits: the push check of `demo-script` does not
+  read the ledger, so a changed frozen script is found by the next `demo check`, not at
+  the push; and `demo check` finds no correction that Verify asks for when the script is
+  unchanged, because it compares only the script with the scenario and the ledger.
+- `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
+  `App address:` of the build plan, by origin or by path. The agent corrects the script in
+  its session. With no readable build plan or no address, `demo check` compares nothing.
+
+The freeze and the count of corrections are rows of the build ledger of the kind `script`,
+and the sha256 of a script is the only record of a freeze. `demo run` uses the runner and
+the sign-in replay of `preflight`. The run ends when `check-reviewer` reports `blocked`,
+when a script needs a third correction, or when a step of `scripting-demos` fails, as
+"Failures" of `running-a-workflow` lists.
 
 No entry of `software-factory` references the role `demo-author` or the skill
 `scripting-demos` with `${qory:...}`: a reference to a role that no agent fills fails the
@@ -4865,8 +5056,9 @@ name from `review_group` of the stack entry `verify-a-ticket`.
 The script also runs `scripts/pack-mockups.test.js`, `scripts/render-mockups.test.js`,
 `scripts/versions.test.js`, `scripts/checks.test.js`, `scripts/tool-guard.test.js`,
 `scripts/preflight.test.js` and rule 9 with `node`, and exits 1 at its start with an
-instruction to install `node` when `node` is missing. Only the sign-in tests of
-`scripts/preflight.test.js` start a browser, and they skip when the machine has none.
+instruction to install `node` when `node` is missing. Only the tests of
+`scripts/preflight.test.js` that open a page start a browser, and they skip when the machine
+has none. The tests of a film also need `ffmpeg` and `ffprobe`, and skip without them.
 
 Before its first `qory` call, the script runs `node scripts/hook-commands.js`. It reads the
 13 hook commands of the settings fragments of `core`: 3 for Claude Code, 3 for Codex, 2 for

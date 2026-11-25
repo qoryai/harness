@@ -85,7 +85,7 @@ test('the skill starts the members of the group reviewers that panel starts, in 
 
 test('the skill starts no submission-writer and writes no build report or submission text', () => {
   assert.doesNotMatch(WORKFLOW,
-    /submission-writer|QORY_SUBMISSION_HANDOFF|QORY_OUTBOX|pull-request\.json/);
+    /submission-writer|QORY_SUBMISSION_HANDOFF|qory\.outbox|<outbox>|pull-request\.json/);
   assert.doesNotMatch(WORKFLOW, /report-build|build-report|artifact push/);
   says(section(WORKFLOW, 'What the session writes'), 'write no outbox file, no build report ' +
     'and no submission text. Start no agent that is not a reviewer.');
@@ -213,7 +213,6 @@ function work(text, suite = SUITES.passed, done = 'done', round = 1) {
     GIT_COMMITTER_NAME: 'Sam Example', GIT_COMMITTER_EMAIL: 'sam@example.com',
     QORY_RUN_REPOSITORIES: 'example-org/shop', QORY_HARNESS_HOME: w.home,
   };
-  delete w.env.QORY_OUTBOX;
   git(w.repo, w.env, 'init', '-q');
   fs.mkdirSync(path.join(w.repo, 'src/jobs'), { recursive: true });
   fs.writeFileSync(path.join(w.repo, 'README.md'), 'The shop.\n');

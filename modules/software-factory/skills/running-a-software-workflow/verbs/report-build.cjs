@@ -3,9 +3,9 @@
 // lib/report-build.cjs, so no agent types a result; checks.cjs check build-report renders
 // them again. report-build --drop only removes the output file.
 //
-// The output file is $QORY_OUTBOX/pull-request/pull-request.json, as JSON
-// { title, text, steps, draft }. qory sets QORY_OUTBOX to the absolute path of the outbox
-// folder; with no such variable the verb writes no file and exits 3. title and text come from
+// The output file is <outbox>/pull-request/pull-request.json, as JSON
+// { title, text, steps, draft }. <outbox> is qory.outbox of the inputs.json of --inputs, an
+// absolute path; without one the verb writes no file and exits 3. title and text come from
 // .reports/submission.md of the artifact folder, which the agent submission-writer writes:
 // the first line is `# <title>`, and the rest is text, with the four parts of the type
 // pull-request. steps lists { commit, step } for each commit of a done row, the commits of
@@ -37,11 +37,11 @@ const MAX_FILE = 262144;
 
 const TEXT = 'submission.md';
 const TYPE = 'pull-request';
-const SHOWN = `$QORY_OUTBOX/${TYPE}/${TYPE}.json`;
+const SHOWN = `<outbox>/${TYPE}/${TYPE}.json`;
 
 module.exports = (lib) => {
-  const { Context, Missing, artifactFolder, outboxFolder, outboxLinked, plural, schema,
-    short } = lib;
+  const { Context, Missing, OUTBOX_FIX, artifactFolder, outboxFolder, outboxLinked, plural,
+    schema, short } = lib;
   const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
   // readText returns { title, text } of .reports/submission.md in root, or the findings of a
@@ -113,11 +113,18 @@ module.exports = (lib) => {
       .map((commit) => ({ commit, step: owner.get(commit) }));
   }
 
-  // dropOutput removes the regular file of the output, so a failure never leaves the text of
-  // an earlier run for qory's push. It removes nothing when the outbox has a link in it, or
-  // QORY_OUTBOX is unset. It returns removed, absent, or failed, after it prints the fix.
-  function dropOutput(io) {
-    const outbox = outboxFolder(io.env);
+  // dropOutput removes the output file in the outbox of inputs, so qory's push never reads the
+  // text of an earlier run. It returns removed, absent with no qory.outbox, or failed after it
+  // prints the fix; quiet prints no fix for a fault of inputs, which the verb reports itself.
+  function dropOutput(io, inputs, quiet) {
+    let outbox;
+    try {
+      outbox = outboxFolder(inputs && path.resolve(io.cwd, inputs));
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      if (!quiet) io.err.write(`${error.message}\n`);
+      return 'failed';
+    }
     if (!outbox) return 'absent';
     const link = outboxLinked(outbox, TYPE);
     if (link) {
@@ -189,15 +196,10 @@ module.exports = (lib) => {
     }
   }
 
-  function build(io, what, rest) {
-    const { inputs } = takeInputs([what, ...rest].filter((one) => one !== undefined));
+  function build(io, inputs) {
     const root = artifactFolder(io);
-    const outbox = outboxFolder(io.env);
-    if (!outbox) {
-      throw new Missing('Set QORY_OUTBOX to the absolute path of the outbox folder.\n' +
-        `qory sets it when it starts the session, and it is ${io.env.QORY_OUTBOX === undefined ?
-          'not set' : 'not an absolute path'} here.`);
-    }
+    const outbox = outboxFolder(inputs && path.resolve(io.cwd, inputs));
+    if (!outbox) throw new Missing(`${OUTBOX_FIX}\nThe inputs file has no qory.outbox.`);
     const top = git.top(Missing, io.cwd, io.env);
     const context = new Context(root, 'check', io.home, root);
     context.workingFolder = top;
@@ -231,45 +233,51 @@ module.exports = (lib) => {
   }
 
   // run removes an earlier output file on every non-zero exit, a thrown Missing included.
-  function run(io, what, rest) {
+  function run(io, inputs) {
     let status;
     try {
-      status = build(io, what, rest);
+      status = build(io, inputs);
     } catch (error) {
-      dropOutput(io);
+      dropOutput(io, inputs, true);
       throw error;
     }
-    if (status !== 0) dropOutput(io);
+    if (status !== 0) dropOutput(io, inputs, true);
     return status;
   }
 
   // drop removes the output file and nothing else, for an end of a session that is not
   // ready, after an earlier report-build wrote the file.
-  function drop(io) {
-    const state = dropOutput(io);
+  function drop(io, inputs) {
+    const state = dropOutput(io, inputs);
     if (state === 'failed') return 3;
     io.print([], state === 'removed' ? 'Removed the output file.'
       : `No output file at ${SHOWN} to remove.`);
     return 0;
   }
 
+  // parse returns { dropping, inputs, other } of the arguments of the verb.
+  function parse(what, rest) {
+    const dropping = what === '--drop';
+    const { inputs, rest: other } = takeInputs((dropping ? rest : [what, ...rest])
+      .filter((one) => one !== undefined));
+    return { dropping, inputs, other };
+  }
+
   return {
     'report-build': {
-      usage: ['report-build [--inputs <path>]', 'report-build --drop'],
+      usage: ['report-build --inputs <path>', 'report-build --drop --inputs <path>'],
       args: (io, what, rest) => {
-        if (what === '--drop') {
-          if (!rest.length) return null;
-          dropOutput(io);
-          return 'Give report-build --drop with no other argument.';
-        }
-        const { inputs, rest: other } = takeInputs([what, ...rest]
-          .filter((one) => one !== undefined));
-        const why = inputs === null ? INPUTS_USAGE
-          : other.length && 'Give report-build only --inputs, with a path, or only --drop.';
-        if (why) dropOutput(io);
+        const { dropping, inputs, other } = parse(what, rest);
+        const why = inputs === null ? INPUTS_USAGE : other.length && (dropping
+          ? 'Give report-build --drop only --inputs, with a path.'
+          : 'Give report-build only --inputs, with a path, or --drop first, then --inputs.');
+        if (why) dropOutput(io, inputs, true);
         return why || null;
       },
-      run: (io, what, rest) => (what === '--drop' ? drop(io) : run(io, what, rest)),
+      run: (io, what, rest) => {
+        const { dropping, inputs } = parse(what, rest);
+        return dropping ? drop(io, inputs) : run(io, inputs);
+      },
     },
   };
 };

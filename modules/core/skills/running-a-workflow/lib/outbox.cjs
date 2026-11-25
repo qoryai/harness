@@ -1,15 +1,15 @@
-// The check of the outbox, which end runs: the file $QORY_OUTBOX/<type>/<type>.json of each
-// output that the stage declares, against its schema in qory.outputs of the inputs file. The
-// check resolves no $ref and knows no kind of work.
+// The check of the outbox, which end runs: the file <outbox>/<type>/<type>.json of each output
+// that the stage declares, against its schema in qory.outputs of the inputs file. <outbox> is
+// the folder in qory.outbox of that file. The check resolves no $ref and knows no kind of work.
 'use strict';
 
 const childProcess = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { Missing, NAME, isObject, jsonKind, short } = require('./base.cjs');
+const { Missing, NAME, isObject, jsonKind, quote, short } = require('./base.cjs');
 const { allowed, checkFiles } = require('./drafts.cjs');
-const { OUTBOX_BROKEN, OUTBOX_NONE, OUTBOX_SETUP } = require('./end.cjs');
+const { OUTBOX_BROKEN, OUTBOX_SETUP } = require('./end.cjs');
 
 // The most bytes of the inputs file, and of an output file (the largest structured type).
 const INPUTS_MAX = 1024 * 1024;
@@ -46,30 +46,64 @@ try {
 }
 `;
 
-// readOutputs returns { outputs, faults, setup } for qory.outputs of the inputs file: each entry
-// { type, required, schema } that is well formed, a line for each part that is not, and in
-// setup the cause when the file exists and is no JSON object. A missing file or list gives none.
-function readOutputs(inputs) {
-  const none = { outputs: [], faults: [] };
-  if (!inputs) return none;
+// The fix for an inputs file with no usable qory.outbox, and for a verb with no inputs file.
+const OUTBOX_FIX = 'Set qory.outbox in the inputs file to the absolute path of the outbox folder.';
+const INPUTS_FIX = 'Give --inputs the inputs.json that qory wrote for the run.';
+
+// readInputs returns { data }, the JSON object of the inputs file at inputs, {} when it does
+// not exist, or { setup } with the cause when it is no regular file of at most INPUTS_MAX
+// bytes or no JSON object.
+function readInputs(inputs) {
   let data;
   try {
     const stat = fs.lstatSync(inputs);
     if (!stat.isFile() || stat.size > INPUTS_MAX) {
-      return { ...none, setup: 'It is no regular file, or has more than 1 MiB.' };
+      return { setup: 'It is no regular file, or has more than 1 MiB.' };
     }
     data = JSON.parse(fs.readFileSync(inputs, 'utf8'));
   } catch (error) {
-    return error.code === 'ENOENT' ? none
-      : { ...none, setup: `It cannot be read as JSON: ${short(error.message, 100)}.` };
+    return error.code === 'ENOENT' ? {}
+      : { setup: `It cannot be read as JSON: ${short(error.message, 100)}.` };
   }
-  if (!isObject(data)) return { ...none, setup: `It is ${jsonKind(data)}, not an object.` };
+  return isObject(data) ? { data } : { setup: `It is ${jsonKind(data)}, not an object.` };
+}
+
+// outboxCause returns why value, qory.outbox of the inputs file, is no outbox folder, or null.
+const outboxCause = (value) => (typeof value === 'string' && path.isAbsolute(value) ? null
+  : 'qory.outbox of the inputs file is not an absolute path.');
+
+// outboxFolder returns qory.outbox of the inputs file at inputs, null when the file has none,
+// or throws Missing with the fix for no inputs, a missing or broken file, or a relative path.
+// A module that writes the outbox reads it the same way, through LIBRARY.
+function outboxFolder(inputs) {
+  if (!inputs) {
+    throw new Missing(`${INPUTS_FIX}\nThe outbox folder is set in qory.outbox of that file.`);
+  }
+  const { data, setup } = readInputs(inputs);
+  if (!data) throw new Missing(`${INPUTS_FIX}\n${setup || `${quote(inputs)} does not exist.`}`);
+  const value = isObject(data.qory) ? data.qory.outbox : undefined;
+  if (value === undefined) return null;
+  const cause = outboxCause(value);
+  if (cause) throw new Missing(`${OUTBOX_FIX}\n${cause}`);
+  return path.normalize(value);
+}
+
+// readOutputs returns { outputs, faults, setup, outbox }: each well-formed entry of qory.outputs,
+// a line for each part that is not, the cause of an inputs file that is no JSON object, and
+// the value of qory.outbox. With a missing file or list, outputs is empty.
+function readOutputs(inputs) {
+  const none = { outputs: [], faults: [] };
+  if (!inputs) return none;
+  const { data, setup } = readInputs(inputs);
+  if (!data) return setup ? { ...none, setup } : none;
   if (!isObject(data.qory) || !Object.hasOwn(data.qory, 'outputs')) {
     return none;
   }
+  const { outbox } = data.qory;
   const list = data.qory.outputs;
   if (!Array.isArray(list)) {
-    return { outputs: [], faults: [`Write qory.outputs as a list.\nIt is ${jsonKind(list)}.`] };
+    return { outputs: [], faults: [`Write qory.outputs as a list.\nIt is ${jsonKind(list)}.`],
+      outbox };
   }
   const outputs = [];
   const faults = [];
@@ -81,11 +115,11 @@ function readOutputs(inputs) {
         'It is no such name.');
     } else if (typeof one.required !== 'boolean') {
       faults.push(`Write the required of ${at} as true or false.\nIt is another value.`);
-    } else if (!isObject(one.schema)) {
-      faults.push(`Write the schema of ${at} as an object.\nIt is another value.`);
+    } else if (one.schema !== null && !isObject(one.schema)) {
+      faults.push(`Write the schema of ${at} as an object or null.\nIt is another value.`);
     } else outputs.push(one);
   });
-  return { outputs, faults };
+  return { outputs, faults, outbox };
 }
 
 // linked returns the first of the outbox folder, its parent and the folder of the type that is
@@ -174,11 +208,6 @@ function without(schema) {
 const broken = (cause, item) => [{ line: 'Fix qory.outputs in the lines after this one:',
   point: OUTBOX_BROKEN, item }, ...cause.map((line) => ({ line, point: null }))];
 
-// outboxFolder returns the absolute path in QORY_OUTBOX of env, or null when it is unset or
-// relative. A module that writes the outbox reads it the same way, through LIBRARY.
-const outboxFolder = (env) => (typeof env.QORY_OUTBOX === 'string' &&
-  path.isAbsolute(env.QORY_OUTBOX) ? path.normalize(env.QORY_OUTBOX) : null);
-
 // fileFault returns why the file at full, below the outbox, cannot be read as an output, or
 // null. The cause is the one that holds: a link, no file, or more than OUTBOX_MAX bytes.
 function fileFault(stat) {
@@ -189,45 +218,38 @@ function fileFault(stat) {
 
 // outboxDrafts returns the results of the check of the outbox, as endDrafts lists them:
 // { line, point, item }. io is the io of end, with cwd, env, home, inputs, plugin, registry().
+// With no qory.outbox, the run has no outbox: only the form of qory.outputs is checked.
 function outboxDrafts(io) {
-  const { outputs, faults, setup } = readOutputs(io.inputs);
+  const { outputs, faults, setup, outbox } = readOutputs(io.inputs);
   const env = io.env || process.env;
   if (setup) {
     return [{ line: `Fix the inputs file of the run.\n${setup}`,
       point: OUTBOX_SETUP, item: 'inputs' }];
   }
   const results = faults.length ? broken(faults, 'outputs') : [];
-  if (!outputs.length) return results;
-  const folder = outboxFolder(env);
-  if (!folder) {
-    return [...results, { line: 'Set QORY_OUTBOX in the setup of the run to the absolute path of ' +
-      `the outbox folder.\nIt is ${env.QORY_OUTBOX === undefined ? 'not set' :
-        'not an absolute path'}.`, point: OUTBOX_SETUP, item: 'QORY_OUTBOX' }];
+  if (!outputs.length || outbox === undefined) return results;
+  const cause = outboxCause(outbox);
+  if (cause) {
+    return [...results, { line: `${OUTBOX_FIX}\n${cause}`, point: OUTBOX_SETUP, item: 'outbox' }];
   }
+  const folder = path.normalize(outbox);
   const total = limit(env);
   const clock = { total, until: Date.now() + total };
   const { types } = io.registry();
-  for (const { type, required, schema } of outputs) {
-    const file = `$QORY_OUTBOX/${type}/${type}.json`;
+  for (const { type, schema } of outputs) {
+    const file = `<outbox>/${type}/${type}.json`;
     const dir = path.join(folder, type);
     const full = path.join(dir, `${type}.json`);
     const link = linked(folder, type);
-    let stat = null;
+    let why = null;
     if (!link) {
       try {
-        stat = fs.lstatSync(full);
-      } catch {
-        // No file.
+        why = fileFault(fs.lstatSync(full));
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        why = `Its path cannot be read: ${error.code}.`;
       }
     }
-    if (!stat && !link) {
-      if (required === true) {
-        results.push({ line: `Write ${file}.\nThe stage needs a ${type} output, and the file ` +
-          'does not exist.', point: OUTBOX_NONE, item: type });
-      }
-      continue;
-    }
-    const why = link ? null : fileFault(stat);
     let lines = [];
     if (link) {
       lines = [`Remove the link ${short(link, 80)}.\nThe outbox of ${file} must hold no link: ` +
@@ -249,7 +271,8 @@ function outboxDrafts(io) {
 }
 
 // checkOutput returns the findings of one output file: its JSON, the members that the session
-// writes by mistake, its schema, and the check of the module for the type.
+// writes by mistake, its schema, and the check of the module for the type. When schema is
+// null, the type has no JSON Schema, and the check applies none.
 function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
   const text = fs.readFileSync(full, 'utf8');
   let value;
@@ -266,7 +289,7 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
         'fills'} it after the push, and the session writes none.`);
     }
   }
-  lines.push(...checkSchema({ type, schema: rules.schema, text, file }, clock));
+  if (schema) lines.push(...checkSchema({ type, schema: rules.schema, text, file }, clock));
   const def = types.find((one) => one.type === type);
   if (def && allowed(def, `${type}.json`)) {
     try {
@@ -280,4 +303,4 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
   return lines;
 }
 
-module.exports = { FILL, limit, linked, outboxDrafts, outboxFolder, readOutputs };
+module.exports = { FILL, OUTBOX_FIX, limit, linked, outboxDrafts, outboxFolder, readOutputs };

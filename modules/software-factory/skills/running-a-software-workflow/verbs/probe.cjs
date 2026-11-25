@@ -210,7 +210,7 @@ module.exports = (lib) => {
     if (!work.commit) {
       throw new Missing('Commit once, then probe again: the checkout has no commit to copy.');
     }
-    if (work.excluded) throw new Missing(git.EXCLUDED);
+    if (work.excluded) throw new Missing(work.excluded);
     const changed = lib.changesOf(work, plan);
     if (changed.length) {
       throw new Missing('Freeze the step first, then probe again: the checkout has ' +

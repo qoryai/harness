@@ -24,7 +24,8 @@ Each command of this skill that starts with `<skill folder>/checks.cjs` is the c
 of `running-a-workflow`. `<inputs>` is the path of the input file from the prompt, which
 ends in `/in/inputs.json`, and `<in>` is the folder of that file. `<folder>` is the
 artifact folder that the pull prints, and `<start>` is the folder in
-`qory.start_artifacts` of the input file. Give each Bash call of
+`qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`, the run
+pulled no build plans at the start, and `<start>` is `<folder>`. Give each Bash call of
 `run` the timeout 3600000 ms, and run no other command in the same call.
 
 The developer is ${qory:agents/developer}, and the debugger is ${qory:agents/debugger}. In
@@ -121,22 +122,29 @@ the screens of the demo scenarios exist. A demo script contains the browser acti
 approved demo scenario. The skill `scripting-demos` of the module browser-screens writes it,
 and a stack without that module has no such skill.
 
-1. Run `<skill folder>/checks.cjs demo check`.
-   - With 0 and a line that starts with "No demo script to write", skip the rest of this
-     section.
-   - With 1, the approved demo scenarios have a scenario, and the harness has no skill
-     `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow` lists,
-     with one `run_again` point. Its text is "The demo scenarios need a module that scripts
-     browser screens, which the stack of this workspace lacks, so the run wrote no demo
-     script." and its `fix` is "Add the module browser-screens to the stack, then run
+1. Run `<skill folder>/checks.cjs demo check --inputs <inputs>`.
+   - With 0 and a last line that starts with "No demo script to write", skip the rest of
+     this section.
+   - With 1 and the first line "Add the module browser-screens to the stack, then run
+     another round.", the approved demo scenarios have a scenario, and the harness has no
+     skill `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow`
+     lists, with one `run_again` point. Its text is "The demo scenarios need a module that
+     scripts browser screens, which the stack of this workspace lacks, so the run wrote no
+     demo script." and its `fix` is "Add the module browser-screens to the stack, then run
      another round." Print the first line of `demo check` in your output.
+   - With 1 and another first line, a script that exists breaks a rule: the skill
+     `scripting-demos` corrects it.
+   - With 0 and a last line that starts with "Review the change to the demo script", a
+     draft changes a script that passed: the skill `scripting-demos` has the change
+     reviewed.
    - With 2 or 3, end as "Failures" lists for the checks script, where the step is "the
      check of the demo scripts".
 2. Load the skill `scripting-demos` by its name, and follow it for the scenarios that the
-   line "Write the demo script of" of `demo check` lists. When your runtime cannot load it,
-   read its `SKILL.md` where your runtime lists it. When it cannot be read, end as
-   "Failures" lists, with "The run could not load the rules for a demo script, so it wrote
-   no demo script."
+   last line "Write the demo script of" or "Review the change to the demo script of" of
+   `demo check` lists, and for each scenario whose script `demo check` refuses. When your
+   runtime cannot load it, read its `SKILL.md` where your runtime lists it. When it cannot
+   be read, end as "Failures" lists, with "The run could not load the rules for a demo
+   script, so it wrote no demo script."
 3. When the skill ends the run, end as it lists. Otherwise go on with "The order of the
    run".
 
@@ -284,8 +292,9 @@ and qory's submit step stops on a submission with no commit; skip it by
    the steps without it."
 2. Run `<skill folder>/checks.cjs report-build --inputs <inputs>`. It writes
    `build-report.md` in `<folder>` and the outbox file
-   `$QORY_OUTBOX/pull-request/pull-request.json`, which qory pushes after the session. On
-   each non-zero exit it removes an earlier outbox file.
+   `<outbox>/pull-request/pull-request.json`, which qory pushes after the session.
+   `<outbox>` is the folder in `qory.outbox` of `<inputs>`. On each non-zero exit it
+   removes an earlier outbox file.
    - With 0, go on with step 3.
    - With exit 1, a rule of the text broke. Start ${qory:agents/submission-writer} again
      with each line that `report-build` printed quoted, at most twice, check its report as
@@ -302,12 +311,12 @@ and qory's submit step stops on a submission with no commit; skip it by
    <folder>/build-report.md`. It renders the tables of `build-report.md` again from the
    records and compares each section with the file byte for byte.
    - With exit 1, the tables are the script's, so a difference is a defect: start no agent.
-     Run `<skill folder>/checks.cjs report-build --drop`, which removes the outbox file
-     of step 2, so that qory's push reads no text of a change that is not ready.
-     Then end as "Points" of `running-a-workflow` lists, with one `run_again` point: "The
-     change is not ready, because the build report differs from the records of the run."
-     Print the first line of the check in your output. When `--drop` exits with 3, end as
-     "Failures" lists for the checks script instead.
+     Run `<skill folder>/checks.cjs report-build --drop --inputs <inputs>`, which
+     removes the outbox file of step 2, so that qory's push reads no text of a change that
+     is not ready. Then end as "Points" of `running-a-workflow` lists, with one
+     `run_again` point: "The change is not ready, because the build report differs from the
+     records of the run." Print the first line of the check in your output. When `--drop`
+     exits with 3, end as "Failures" lists for the checks script instead.
    - With exit 2, 3 or 4, end as "Failures" lists for the checks script, where the step is
      "the build report".
 4. Push `build-report` as "Push only what changed" and "Check before each push" of
@@ -319,11 +328,11 @@ and qory's submit step stops on a submission with no commit; skip it by
 
    When the push exits with 4 or fails, run steps 2 and 3 again, then push again, at most
    twice more. When the third push also fails, run
-   `<skill folder>/checks.cjs report-build --drop`, so that qory's push reads no text
-   of a change whose report was not pushed. Then end with "The run could not push its
-   build report." as "Points" of `running-a-workflow` lists. When `--drop` exits with 3,
-   end as "Failures" lists for the checks script instead. No agent wrote the file, so
-   start no agent to fix it.
+   `<skill folder>/checks.cjs report-build --drop --inputs <inputs>`, so that qory's
+   push reads no text of a change whose report was not pushed. Then end with "The run could
+   not push its build report." as "Points" of `running-a-workflow` lists. When `--drop`
+   exits with 3, end as "Failures" lists for the checks script instead. No agent wrote the
+   file, so start no agent to fix it.
 5. Go back to "The end" or "A step that fails", whichever started this section.
 
 ## The end

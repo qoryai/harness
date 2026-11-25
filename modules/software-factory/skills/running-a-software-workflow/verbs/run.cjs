@@ -106,7 +106,9 @@ module.exports = (lib) => {
       return state === 'red' ? 1 : 0;
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
-    if (work.excluded) return done('red', [git.EXCLUDED], `Ran no ${kind} command ${where}.`);
+    if (work.excluded) {
+      return done('red', [work.excluded.split('\n')], `Ran no ${kind} command ${where}.`);
+    }
     // A plan with no targeted command runs zero tests, and zero tests are red.
     if (!row.command && kind === 'targeted') {
       return done('red', [['Set a targeted command in ## Commands of the build plan, then push it.',
@@ -230,7 +232,7 @@ module.exports = (lib) => {
     };
     const where = `on ${short(work.commit)}${changed.length ? ' with uncommitted changes' : ''}`;
     const none = `Ran no locked check ${where}.`;
-    if (work.excluded) return done('red', [git.EXCLUDED], none);
+    if (work.excluded) return done('red', [work.excluded.split('\n')], none);
     if (lock.differs) {
       return done('red', [`Pull ${lock.what} again: the stored ${def.main} differs from ` +
         'index.json.'], none);

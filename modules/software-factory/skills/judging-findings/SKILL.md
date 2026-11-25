@@ -52,9 +52,10 @@ The values:
   change. It is missing when that session wrote none. When it is missing, judge the change
   from the diff alone.
 - `outputs`: no path. An object in the input file whose members are the outputs that the
-  stage declares, keyed by type, written inline: each output in `.qory/outbox/` that passed
-  the check of its schema. The member `pull-request` has the `title` and the `text` of the
-  draft pull request. When `outputs` is missing, go on: it is no reason to stop.
+  stage declares, keyed by type, written inline: each output in the outbox folder,
+  `qory.outbox` of `inputs.json`, that passed the check of its schema. The member
+  `pull-request` has the `title` and the `text` of the draft pull request. When `outputs` is
+  missing, go on: it is no reason to stop.
 - `report`: the path where you write your report. Write no other path.
 
 ## Reading the result of the suite

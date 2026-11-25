@@ -25,14 +25,15 @@ This review reads those two gaps in the diff.
   findings" lists. The member is missing in the first round.
 
 The review also reads the newest acceptance lock from `<start>`, the folder in
-`qory.start_artifacts` of the input file. The copy of the change contains no `.qory` folder,
-so do not look for the lock there. Read `<start>/index.json`. Of the entries of `artifacts`
-with the `type` `acceptance-lock`, leave out each withdrawn one: an entry whose version with
-the largest `number` in `versions`, of those with no `cancelled` set to `true`, has
-`withdrawn` set to `true`. Take the entry left whose `name` is `main`, missing or empty,
-else the one entry left. `<N>` is the entry's `newest_version`, and `<name>` is its `name`,
-or `main` when the `name` is missing or empty. Read
-`<start>/acceptance-lock/<name>/v<N>/acceptance-lock.json`.
+`qory.start_artifacts` of the input file. When `qory.start_artifacts` is `""`, the run
+pulled no artifacts at the start, and `<start>` is `/tmp/qory-artifacts`, the artifact
+folder of the run. The copy of the change contains no `.qory` folder, so do not look for the
+lock there. Read `<start>/index.json`. Of the entries of `artifacts` with the `type`
+`acceptance-lock`, leave out each withdrawn one: an entry whose version with the largest
+`number` in `versions`, of those with no `cancelled` set to `true`, has `withdrawn` set to
+`true`. Take the entry left whose `name` is `main`, missing or empty, else the one entry
+left. `<N>` is the entry's `newest_version`, and `<name>` is its `name`, or `main` when the
+`name` is missing or empty. Read `<start>/acceptance-lock/<name>/v<N>/acceptance-lock.json`.
 
 The lock cannot be read when `<start>/index.json` or that file does not exist or cannot be
 read, when no entry is left, when `newest_version` is null, when more than one entry is left

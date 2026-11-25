@@ -309,6 +309,6 @@ module.exports = (lib) => {
     return out;
   }
 
-  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOut, readRecords,
+  return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOut, readLedger, readRecords,
     renderReport: render, splitReport: split };
 };

@@ -1,11 +1,14 @@
 // Tests of the preflight of running-a-software-workflow (lib/preflight.cjs): the browser, the
 // app that the serve command starts, and the sign-in of the demo scripts, and the points that
-// a missing part writes, which check points passes and end sends with the verdict escalate.
-// The sign-in tests start a real browser, and skip when this machine has none.
+// a missing part writes, which check points passes and end sends with the verdict escalate,
+// and of the verb film (verbs/film.cjs), which stores the film or the pictures of a scenario.
+// The tests that open a page start a real browser, and skip when this machine has none; the
+// tests of a film also skip with no ffmpeg and ffprobe.
 'use strict';
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const dgram = require('node:dgram');
 const fs = require('node:fs');
 const http = require('node:http');
@@ -20,7 +23,7 @@ const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-wor
 const { main } = require(path.join(PLUGIN, 'skills/running-a-workflow/checks.cjs'));
 const { LIBRARY } = require(path.join(PLUGIN, 'skills/running-a-workflow/lib/registry.cjs'));
 const { preflight } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
-const { findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
+const { BROWSER_START_MS, findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
 const replay = require(path.join(SKILL, 'lib/replay.cjs'));
 
 const { signInSetups } = replay;
@@ -38,6 +41,10 @@ const NO_BROWSER = BROWSER ? false
 // The most time for a real browser to start in these tests. A run keeps the 15 s of
 // lib/browser.cjs, but a start on a CI runner with 2 cores can take longer.
 const BROWSER_MS = 60000;
+// ffmpeg and ffprobe for the tests of a film, which skip when this machine has none.
+const FFMPEG = findBrowser(process.env, ['ffmpeg']);
+const FFPROBE = findBrowser(process.env, ['ffprobe']);
+const NO_FILM = NO_BROWSER || (FFMPEG && FFPROBE ? false : 'no ffmpeg and ffprobe, so no film');
 
 const P01 = {
   text: 'The dev container has no browser, so the run could not open the app.',
@@ -53,10 +60,10 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
-// a frame of it, /popup posts the form to it in a new window, /popup-same opens /orders in a
-// new window at the submit, /leak sends the password as a
-// host name of that port at the submit, and /alert shows the form with an alert at its load
-// and at each key. The other origin adds a line to the file OTHER_LOG for each request.
+// a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done", /popup posts the
+// form to it in a new window, /popup-same opens /orders in a new window at the submit, /leak
+// sends the password as a host name of that port at the submit, and /alert shows the form with
+// an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -99,6 +106,10 @@ http.createServer((req, res) => {
       '"submit", (e) => { e.preventDefault(); location.href = "http://" + ' +
       'document.getElementById("password").value + ".localhost:' + process.env.OTHER_PORT +
       '/"; });</script></body>'));
+  }
+  else if (req.url === '/clock') {
+    res.end(page('<h1 id="t">Start</h1><script>setTimeout(() => { document.getElementById("t")' +
+      '.textContent = "Done"; }, 1500);</script>'));
   }
   else if (req.url === '/alert') {
     res.end(form(false).replace('</body>', '<script>alert("Welcome");' +
@@ -329,11 +340,12 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   assert.equal(preflight.joined(['A', 'B', 'C']), 'A, B and C');
 });
 
-test('preflight: the preflight stops its runner before the Bash tool stops it at 600 s', () => {
+test('preflight: the preflight stops its runner within the call limit of 585 s', () => {
   // The runner stops its sign-ins at MAX_MS, and the preflight stops the runner STOP_MS later.
-  assert.ok(preflight.MAX_MS + preflight.STOP_MS < 600000);
+  const { CALL_MS } = require(path.join(SKILL, 'lib/budget.cjs'));
   assert.equal(preflight.MAX_MS, 570000);
-  assert.equal(preflight.MAX_MS + preflight.STOP_MS, 585000);
+  assert.equal(preflight.MAX_MS + preflight.STOP_MS, CALL_MS);
+  assert.equal(CALL_MS, 585000);
 });
 
 test('preflight: the setups that type a variable count once, with their scenarios', () => {
@@ -532,6 +544,50 @@ const outsidePoint = (address, origin) => ({
   action: 'run_again',
   fix: `Make the app's sign-in work in the dev container without leaving ${address}, then run ` +
     'another round.',
+});
+
+// runScript runs a demo script whose setup is SIGN_IN and whose first step has actions, with the
+// value of DEMO_PASSWORD, on the app, as demo run does.
+async function runSteps(actions, value) {
+  const here = checkout();
+  const port = await freePort();
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: value };
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env,
+    preflight: { browsers: [BROWSER], startMs: 10000, actionMs: 3000, signedInMs: 3000,
+      browserMs: BROWSER_MS } };
+  const one = script('scenario-1', SIGN_IN);
+  one.steps = actions.map((list, place) => ({ step: place + 1, title: 'Step.', expected: 'Seen.',
+    actions: list }));
+  return preflight.runScript(io, here.root, { serve: { command: 'node app/server.cjs',
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one });
+}
+
+test('runScript: a script whose setup and steps pass runs once and passes',
+  { skip: NO_BROWSER }, async () => {
+  const got = await runSteps([[{ do: 'wait', text: 'Order 1042' }]], 'parcel-blue-41');
+  assert.deepEqual(got.run, { ok: true, step: null, why: null, outside: null });
+});
+
+test('runScript: a step that fails ends the run with its number, and a failed sign-in is step 0',
+  { skip: NO_BROWSER }, async () => {
+  const late = await runSteps([[{ do: 'wait', text: 'Order 1042' }],
+    [{ do: 'click', target: '#nothing' }]], 'parcel-blue-41');
+  assert.equal(late.run.ok, false);
+  assert.equal(late.run.step, 2);
+  assert.match(late.run.why, /^action 1 \(click #nothing\) failed: /);
+  const wrong = await runSteps([[{ do: 'wait', text: 'Order 1042' }]], 'wrong-value-7');
+  assert.equal(wrong.run.ok, false);
+  assert.equal(wrong.run.step, 0);
+});
+
+test('runScript: with no browser on the machine, it runs nothing', () => {
+  const here = checkout();
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
+    preflight: { browsers: [path.join(tmp, 'no-browser')] } };
+  const got = preflight.runScript(io, here.root, { serve: { command: 'true',
+    url: 'http://127.0.0.1:9/', cwd: here.dir }, script: script('scenario-1', SIGN_IN) });
+  assert.deepEqual(got, { browser: null });
 });
 
 test('preflight: a sign-in that opens another site writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
@@ -1282,6 +1338,63 @@ test('preflight verb: with the app stopped, the session ends escalate, and the p
     .filter((line) => line.startsWith('run verdict')), [`run verdict escalate --points ${file}`]);
 });
 
+test('demo run: a script that passes prints its sha256, and a step that fails gets its fix',
+  { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const port = await freePort();
+  const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: 'parcel-blue-41' };
+  const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
+    startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
+  const draft = (actions) => {
+    const one = script('scenario-1', SIGN_IN);
+    one.steps[0].actions = actions;
+    fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+    fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+    return fs.readFileSync(path.join(here.root, '.demo', 'scenario-1.json'), 'utf8');
+  };
+  const text = draft([{ do: 'wait', text: 'Order 1042' }]);
+  const done = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.out.trim(), 'Ran scenario-1 with video off: 1 step passed. The sha256 of ' +
+    `.demo/scenario-1.json is ${crypto.createHash('sha256').update(text).digest('hex')}.`);
+  draft([{ do: 'click', target: '#nothing' }]);
+  const failed = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(failed.status, 1, failed.out + failed.err);
+  const lines = failed.out.trim().split('\n');
+  assert.equal(lines[0], 'Fix step 1 in .demo/scenario-1.actions.json, then run demo write ' +
+    'scenario-1.');
+  assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
+  assert.equal(lines.at(-1), 'Ran scenario-1 with video off: it failed in step 1.');
+  // A sign-in that fails is the setup.
+  const one = script('scenario-1', [{ do: 'open', url: '/missing-page' },
+    { do: 'click', target: '#nothing' }]);
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+  const setup = call(['demo', 'run', 'scenario-1', '--artifacts', pinned], deps);
+  assert.equal(setup.status, 1, setup.out + setup.err);
+  assert.equal(setup.out.trim().split('\n')[0],
+    'Fix the setup in .demo/scenario-1.actions.json, then run demo write scenario-1.');
+});
+
+test('preflight verb: a draft script that breaks its schema exits 3 with the cause', async () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const port = await freePort();
+  const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  demoScript(here.root);
+  fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), '{"scenario":"scenario-1"}');
+  const done = call(['preflight', '--artifacts', pinned], { cwd: here.dir, artifacts: [here.root],
+    preflight: { browsers: [process.execPath], startMs: 1000 } });
+  assert.equal(done.status, 3, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.match(lines[0], /^Run demo write scenario-1 again\./);
+  assert.ok(lines.some((line) => line.trim() === 'Cause: a demo script breaks its format rules.'),
+    done.out);
+});
+
 test('preflight verb: each input that is missing or broken, and a runner with no result, exit 3 with their causes, and bad arguments exit 2', () => {
   const here = checkout();
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
@@ -1381,6 +1494,21 @@ test('preflight verb: each input that is missing or broken, and a runner with no
     ['preflight', '--inputs']]) {
     assert.equal(call(argv, deps).status, 2, argv.join(' '));
   }
+});
+
+test('preflight verb: an empty qory.start_artifacts reads the build plan of the session', () => {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  const inputs = path.join(here.dir, 'inputs.json');
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { harness_extensions: {}, start_commits: [],
+    start_artifacts: '' } }));
+  // The plan of the session folder has no App address, so preflight exits 3 on it.
+  const done = call(['preflight', '--inputs', inputs], { cwd: here.dir,
+    artifacts: [pinnedPlan([], 'npm run dev')],
+    preflight: { browsers: [process.execPath], startMs: 1000 } });
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Add the line "App address: <url>" to ## Summary of the ' +
+    'build plan, then push it.');
 });
 
 // The pages of the guard tests, each with a sign-in form whose submit sends the password to
@@ -1685,4 +1813,618 @@ test('preflight: a page cannot look up another host name', { skip: NO_BROWSER },
   } finally {
     other.server.close();
   }
+});
+
+// ---- film: the film or the pictures of a scenario, and the pictures of pages -----------------
+
+const { capture } = require(path.join(SKILL, 'lib/capture.cjs'));
+const filmVerb = require(path.join(SKILL, 'verbs/film.cjs'));
+
+// pushed writes the demo scripts of scripts into root as version 1 of each, and index.json.
+function pushed(root, scripts) {
+  for (const one of scripts) {
+    const dir = path.join(root, 'demo-script', one.scenario, 'v1');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${one.scenario}.json`), JSON.stringify(one));
+  }
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: scripts
+    .map((one) => entry(one.scenario, [[1]])) }));
+}
+
+// scenario returns a demo script that signs in, with the evidence and the steps of the
+// actions in lists.
+const scenario = (id, evidence, ...lists) => ({ ...script(id, SIGN_IN), evidence,
+  steps: lists.map((actions, at) => ({ step: at + 1, title: `Step ${at + 1} of ${id}.`,
+    expected: 'Seen.', actions })) });
+
+const CLOCK = [[{ do: 'open', url: '/clock' }, { do: 'wait', text: 'Start' }],
+  [{ do: 'wait', text: 'Done', timeout_ms: 5000 }]];
+const ORDERS = [[{ do: 'open', url: '/orders' }, { do: 'wait', text: 'Order 1042' }]];
+
+// filming returns a checkout with the pushed scripts and the dependencies of call, for a build
+// plan with the serve row of the app.
+async function filming(scripts) {
+  const here = checkout();
+  assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
+  pushed(here.root, scripts);
+  const port = await freePort();
+  const plan = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    DEMO_PASSWORD: 'parcel-blue-41' };
+  const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
+    startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
+  return { ...here, plan, deps };
+}
+
+// probe returns the width, height and duration in seconds of the film file.
+function probe(file) {
+  const got = childProcess.spawnSync(FFPROBE, ['-v', 'error', '-show_entries',
+    'stream=width,height:format=duration', '-of', 'json', file], { encoding: 'utf8' });
+  const data = JSON.parse(got.stdout);
+  return { width: data.streams[0].width, height: data.streams[0].height,
+    seconds: Number(data.format.duration) };
+}
+
+test('film: two film scenarios make two films, and a pictures scenario one picture per step', { skip: NO_FILM }, async () => {
+  const here = await filming([scenario('scenario-1', 'film', ...CLOCK),
+    scenario('scenario-2', 'film', ...ORDERS),
+    scenario('scenario-3', 'pictures', ...ORDERS, [{ do: 'wait', text: 'Order 1042' }])]);
+  const film = path.join(here.root, '.film');
+  const one = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(one.status, 0, one.out + one.err);
+  assert.equal(one.out.trim(), 'Filmed scenario-1: 2 steps in .film/scenario-1/scenario-1.mp4, ' +
+    'with the captions scenario-1.vtt.');
+  const two = call(['film', 'scenario-2', '--artifacts', here.plan], here.deps);
+  assert.equal(two.status, 0, two.out + two.err);
+  const pictures = call(['film', 'scenario-3', '--artifacts', here.plan], here.deps);
+  assert.equal(pictures.status, 0, pictures.out + pictures.err);
+  assert.equal(pictures.out.trim(), 'Took 2 pictures of scenario-3 in .film/scenario-3/, one ' +
+    'for each step.');
+  // Each folder has only its files: no frame and no list of frames stay.
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-1')).sort(),
+    ['scenario-1.mp4', 'scenario-1.vtt']);
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-2')).sort(),
+    ['scenario-2.mp4', 'scenario-2.vtt']);
+  assert.deepEqual(fs.readdirSync(path.join(film, 'scenario-3')).sort(),
+    ['scenario-3-step-1.png', 'scenario-3-step-2.png']);
+  // A film has the frame of 1280 x 720, and runs from step 1 to the end at real speed: the
+  // page changes 1.5 s after its load, then the film holds the last frame for 1 s.
+  const clock = probe(path.join(film, 'scenario-1', 'scenario-1.mp4'));
+  assert.deepEqual([clock.width, clock.height], [1280, 720]);
+  const vtt = fs.readFileSync(path.join(film, 'scenario-1', 'scenario-1.vtt'), 'utf8');
+  const cues = [...vtt.matchAll(/^(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})$/gm)];
+  assert.equal(cues.length, 2);
+  assert.equal(cues[0][1], '00:00:00.000');
+  assert.equal(cues[0][2], cues[1][1]);
+  const seconds = (time) => Number(time.slice(6)) + 60 * Number(time.slice(3, 5));
+  assert.ok(seconds(cues[1][2]) > 2.4, vtt);
+  assert.ok(Math.abs(clock.seconds - seconds(cues[1][2])) < 0.15, `${clock.seconds} s, ${vtt}`);
+  assert.ok(vtt.includes('\nStep 2 of scenario-1.\n'), vtt);
+  // The film shows the change of the page: its frames at 0.1 s and in its last 0.3 s differ.
+  const frame = (...seek) => childProcess.spawnSync(FFMPEG, ['-v', 'error', ...seek, '-i',
+    path.join(film, 'scenario-1', 'scenario-1.mp4'), '-frames:v', '1', '-f', 'image2pipe',
+    '-vcodec', 'png', '-'], { maxBuffer: 10 * 1024 * 1024 }).stdout;
+  assert.notDeepEqual(frame('-ss', '0.1'), frame('-sseof', '-0.3'));
+  // The checks of demo-video and screenshot pass on the files.
+  const check = (type, ...files) => call(['check', type, ...files], { ...here.deps, cwd: tmp });
+  const base = (id) => path.join(film, id, id);
+  const video = check('demo-video', `${base('scenario-1')}.mp4`, `${base('scenario-1')}.vtt`);
+  assert.equal(video.status, 0, video.out + video.err);
+  const shots = check('screenshot', `${base('scenario-3')}-step-1.png`,
+    `${base('scenario-3')}-step-2.png`);
+  assert.equal(shots.status, 0, shots.out + shots.err);
+  // A film opens on step 1: the sign-in is no part of it, and neither is a password.
+  assert.ok(!vtt.includes('Sign in'), vtt);
+});
+
+test('film: a step that fails stores nothing, with the fix first', { skip: NO_FILM }, async () => {
+  const here = await filming([scenario('scenario-1', 'film', ORDERS[0],
+    [{ do: 'click', target: '#nothing' }])]);
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Check step 2 against the app, then run film scenario-1 again.');
+  assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
+  assert.equal(lines.at(-1), 'Stored no film: it failed in step 2.');
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+});
+
+test('film pages: a picture of each page at each width, after the sign-in of the first script', { skip: NO_BROWSER }, async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const done = call(['film', 'pages', '/orders', '/clock', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.out.trim(), 'Took 6 pictures of 2 pages in .film/pages/ at 360, 768, 1280 ' +
+    'px: pages-<N>-<width>.png is the Nth path.');
+  const names = fs.readdirSync(path.join(here.root, '.film', 'pages')).sort();
+  assert.deepEqual(names, ['pages-1-1280.png', 'pages-1-360.png', 'pages-1-768.png',
+    'pages-2-1280.png', 'pages-2-360.png', 'pages-2-768.png']);
+  // The width of a PNG is at bytes 16 to 19 of its header.
+  const width = (name) => fs.readFileSync(path.join(here.root, '.film', 'pages', name))
+    .readUInt32BE(16);
+  assert.deepEqual(['pages-1-360.png', 'pages-1-768.png', 'pages-1-1280.png'].map(width),
+    [360, 768, 1280]);
+});
+
+test('film pages: a path outside the App address is refused before any run', async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const plan = pinnedPlan(['App address: `http://127.0.0.1:41111/app`'], 'node app/server.cjs');
+  const done = call(['film', 'pages', '/app/x', '/admin', '--artifacts', plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.out.split('\n')[0],
+    'Open only pages under http://127.0.0.1:41111/app, as paths that start with /.');
+  assert.equal(fs.existsSync(path.join(here.root, '.film')), false);
+  // A path that starts with // names a host, so it is another origin and is refused too.
+  const host = call(['film', 'pages', '//example.com/app/x', '--artifacts', plan], here.deps);
+  assert.equal(host.status, 1, host.out + host.err);
+});
+
+test('film: a link in place of .film is refused before the browser starts', async () => {
+  const here = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const outside = fs.mkdtempSync(path.join(tmp, 'outside-'));
+  fs.symlinkSync(outside, path.join(here.root, '.film'));
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Make the artifact folder writable, and remove .film if ' +
+    'it is a link.');
+  assert.deepEqual(fs.readdirSync(outside), []);
+});
+
+test('film: a film scenario with no ffmpeg exits 3 with the fix, a missing script exits 3, bad arguments exit 2', async () => {
+  const here = await filming([scenario('scenario-1', 'film', ...ORDERS)]);
+  const deps = { ...here.deps,
+    preflight: { ...here.deps.preflight, ffmpegs: [path.join(tmp, 'x')] } };
+  const none = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.equal(none.out.split('\n')[0], 'Add ffmpeg to the dev container, then run film ' +
+    'again.');
+  const absent = call(['film', 'scenario-2', '--artifacts', here.plan], here.deps);
+  assert.equal(absent.status, 3, absent.out + absent.err);
+  assert.equal(absent.out.split('\n')[0],
+    'Push the demo script of scenario-2, then run film scenario-2 again.');
+  for (const argv of [['film'], ['film', 'scenario-1', 'scenario-2'], ['film', 'one'],
+    ['film', 'pages']]) {
+    assert.equal(call(argv, here.deps).status, 2, argv.join(' '));
+  }
+});
+
+test('film: the runner, its stop and the ffmpeg limit of a late run end within 585 s', () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  assert.equal(budget.CALL_MS, budget.TOOL_CALL_MS - budget.MARGIN_MS);
+  assert.equal(preflight.RUN_BUDGET_MS, budget.RUN_BUDGET_MS);
+  // A runner that takes all of its budget, and 15 s more to stop: ffmpeg gets what is left of
+  // the call, and the three end within CALL_MS.
+  const spent = budget.RUN_BUDGET_MS + preflight.STOP_MS;
+  assert.ok(spent + filmVerb.ffmpegLimitMs(spent) <= budget.CALL_MS);
+  // ffmpeg gets its 90 s after a quick run, and 5 s at the least after a late one.
+  assert.equal(filmVerb.ffmpegLimitMs(0), filmVerb.FFMPEG_MS);
+  assert.equal(filmVerb.ffmpegLimitMs(540000), 45000);
+  assert.equal(filmVerb.ffmpegLimitMs(700000), 5000);
+});
+
+test('film: the longest script that demo check accepts is not stopped by the runner, and one second more is refused', () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  const demoScript = require(path.join(SKILL, 'lib/demo-script.cjs'))({ ...LIBRARY,
+    stepRows: () => [] });
+  const waits = (...list) => scenario('scenario-1', 'film', ...list.map((ms) => [
+    { do: 'wait', text: 'Done', timeout_ms: ms }]));
+  const shortened = (data) => demoScript.scriptFindings({ title: data.title, lines: [] }, data,
+    'scenario-1.json').filter((one) => one.startsWith('Shorten the waits'));
+  // The waits of the share, 415 s, in 7 steps: 6 of 60 s and one of 55 s.
+  const longest = waits(60000, 60000, 60000, 60000, 60000, 60000, 55000);
+  assert.deepEqual(shortened(longest), []);
+  assert.equal(shortened(waits(60000, 60000, 60000, 60000, 60000, 60000, 56000)).length, 1);
+  const loaded = LIBRARY.schema.load(path.join(SKILL, 'schemas'), 'demo-script');
+  assert.deepEqual(LIBRARY.schema.errors(loaded, longest, 'scenario-1.json'), []);
+  const actions = [...longest.setup, ...longest.steps.flatMap((step) => step.actions)];
+  const limit = preflight.scriptLimitMs({ maxMs: budget.RUN_BUDGET_MS }, actions);
+  assert.ok(limit >= budget.START_MS + budget.WAITS_MS);
+  // The start of the browser and the sign-in of a normal setup fit in the start allowance and
+  // leave room for the app.
+  assert.ok(BROWSER_START_MS + preflight.signInMs(SIGN_IN, replay.ACTION_MS,
+    replay.SIGNED_IN_MS) < budget.START_MS);
+});
+
+test('film: the encode takes the arguments of ffmpeg that make 25 frames a second', () => {
+  assert.ok(filmVerb.ffmpegArguments('scenario-1', '1.000').join(' ')
+    .includes('concat -i frames.txt -vf fps=25,tpad=stop_mode=clone:stop_duration=1.000'));
+});
+
+test('film: the encode of a film of 480 s at 56 frames a second ends within the time of the call', { skip: !(FFMPEG && FFPROBE && process.env.FILM_ENCODE_TIMING) && 'set FILM_ENCODE_TIMING=1 to run this encode, which takes about 25 s' }, () => {
+  const budget = require(path.join(SKILL, 'lib/budget.cjs'));
+  const dir = fs.mkdtempSync(path.join(tmp, 'encode-'));
+  // 56 distinct frames, each linked 480 times: 26,880 frames, one every 1/56 s.
+  assert.equal(childProcess.spawnSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i',
+    'testsrc2=size=1280x720:rate=25', '-frames:v', '56', '-q:v', '4', path.join(dir, 's%02d.jpg')])
+    .status, 0);
+  const lines = [];
+  const count = 480 * 56;
+  for (let at = 0; at < count; at += 1) {
+    const name = `f${String(at + 1).padStart(6, '0')}.jpg`;
+    fs.linkSync(path.join(dir, `s${String((at % 56) + 1).padStart(2, '0')}.jpg`),
+      path.join(dir, name));
+    lines.push(`file '${name}'`, `duration ${(1 / 56).toFixed(3)}`);
+  }
+  lines.push(`file 'f${String(count).padStart(6, '0')}.jpg'`);
+  fs.writeFileSync(path.join(dir, 'frames.txt'), `${lines.join('\n')}\n`);
+  const before = Date.now();
+  const made = childProcess.spawnSync(FFMPEG, filmVerb.ffmpegArguments('scenario-1', '1.000'),
+    { cwd: dir, timeout: filmVerb.FFMPEG_MS, killSignal: 'SIGKILL', encoding: 'utf8' });
+  const took = Date.now() - before;
+  assert.equal(made.status, 0, made.stderr);
+  assert.ok(took < budget.ENCODE_MS, `${took} ms for ${count} frames`);
+  assert.ok(probe(path.join(dir, 'scenario-1.mp4.tmp')).seconds > 479);
+});
+
+// A runner for the film tests that starts no browser: FILM_FAKE says what it returns. 'late'
+// is a run past its limit, 'bad' a frame with a name that the runner never gives, and 'ok' two
+// frames written to the folder of the capture.
+const FAKE_RUNNER = path.join(tmp, 'film-runner.cjs');
+fs.writeFileSync(FAKE_RUNNER, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const mode = process.env.FILM_FAKE;
+const dir = spec.runs[0].capture.dir;
+let capture = null;
+if (mode === 'pictures') {
+  fs.writeFileSync(dir + '/scenario-1-step-1.png', 'png');
+  capture = { kind: 'pictures', files: ['scenario-1-step-1.png'] };
+} else if (mode !== 'late' && mode !== 'start' && mode !== 'signin') {
+  const files = mode === 'bad' ? ['../outside.jpg'] : ['f000001.jpg', 'f000002.jpg'];
+  for (const file of files) if (mode !== 'bad') fs.writeFileSync(dir + '/' + file, 'x');
+  capture = { kind: 'film', frames: files.map((file, at) => ({ file, at: at * 40 })),
+    starts: [0], end: 1040 };
+}
+const run = mode === 'late' ? null : mode === 'start' ? { ok: false, step: 0, outside: null,
+  why: 'the browser failed: the time for the start ran out before the browser started',
+  browser: true, late: true } : mode === 'signin' ? { ok: false, step: 0, outside: null,
+  why: 'action 2 (wait for Done) failed: the page showed no such text within 1 s', late: true } : { ok: true, step: null, why: null, outside: null, capture };
+const result = { app: { started: true, ran: true, why: null }, signIns: [],
+  runs: run ? [run] : [], unfinished: mode === 'late' ?
+    'the script runs ran past the limit of 535 s' : null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+const FAKE_FFMPEG = path.join(tmp, 'fake-ffmpeg');
+fs.writeFileSync(FAKE_FFMPEG, '#!/bin/sh\n: > scenario-1.mp4.tmp\n', { mode: 0o755 });
+const FAILING_FFMPEG = path.join(tmp, 'failing-ffmpeg');
+fs.writeFileSync(FAILING_FFMPEG, '#!/bin/sh\necho boom >&2\nexit 1\n', { mode: 0o755 });
+
+// faked returns the checkout of a scenario that films with the fake runner and ffmpeg, and the
+// dependencies of call with FILM_FAKE in the environment and ffmpeg as the ffmpeg.
+async function faked(fake, ffmpeg, browsers = [process.execPath]) {
+  const here = await filming([scenario('scenario-1', 'film', ...ORDERS)]);
+  const deps = { ...here.deps, env: { ...here.deps.env, FILM_FAKE: fake },
+    preflight: { ...here.deps.preflight, browsers, runner: FAKE_RUNNER,
+      ffmpegs: [ffmpeg] } };
+  return { ...here, deps, film: path.join(here.root, '.film') };
+}
+
+test('film: a runner past its limit, a bad frame and a failing ffmpeg remove the new folder', async () => {
+  for (const [fake, ffmpeg, line] of [
+    ['late', FAKE_FFMPEG, /^Shorten the waits or the steps of scenario-1\.json, then film it /],
+    ['bad', FAKE_FFMPEG, /^End the run: the runner stored a frame that cannot be read\./],
+    ['ok', FAILING_FFMPEG, /^End the run: ffmpeg did not make the film of scenario-1\./]]) {
+    const here = await faked(fake, ffmpeg);
+    const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+    assert.equal(done.status, 3, `${fake}: ${done.out}${done.err}`);
+    assert.match(done.out.split('\n')[0], line, fake);
+    // The folder .film has no scenario-1, no frame and no list of frames.
+    assert.deepEqual(fs.readdirSync(here.film), [], fake);
+  }
+});
+
+// stopText returns the two lines of a film call that the limit of the runner stopped, for a
+// scenario with the evidence in kind, run with the dependencies of faked.
+async function stopText(kind, fake = 'late') {
+  const here = await filming([scenario('scenario-1', kind, ...ORDERS)]);
+  const deps = { ...here.deps, env: { ...here.deps.env, FILM_FAKE: fake },
+    preflight: { ...here.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER,
+      ffmpegs: [FAKE_FFMPEG] } };
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  const limit = preflight.scriptLimitMs({ ...deps.preflight, maxMs: preflight.RUN_BUDGET_MS },
+    [...SIGN_IN, ...ORDERS[0]]);
+  return { lines: done.out.split('\n').slice(0, 2), seconds: Math.ceil(limit / 1000),
+    status: done.status };
+}
+
+test('film: a run that the limit stops prints the film text, not the text of preflight', async () => {
+  const film = await stopText('film');
+  assert.deepEqual(film.lines, ['Shorten the waits or the steps of scenario-1.json, then film ' +
+    'it again.', `  The film ran past its limit of ${film.seconds} s.`]);
+  const pictures = await stopText('pictures');
+  assert.deepEqual(pictures.lines, ['Shorten the waits or the steps of scenario-1.json, then ' +
+    'run it again.', `  The run ran past its limit of ${pictures.seconds} s.`]);
+});
+
+test('film: a start deadline that ran out before the browser started prints the fix first', async () => {
+  const film = await stopText('film', 'start');
+  assert.deepEqual(film.lines, ['Shorten the sign-in steps of scenario-1.json, or make the app ' +
+    'start faster, then film it again.', '  The 120 s for the app start, the sign-in and the ' +
+    'browser ran out before the browser started.']);
+  const pictures = await stopText('pictures', 'start');
+  assert.equal(pictures.lines[0], 'Shorten the sign-in steps of scenario-1.json, or make the ' +
+    'app start faster, then run it again.');
+  // A sign-in that fails after the deadline prints the same lines, not "Check the sign-in".
+  const signin = await stopText('film', 'signin');
+  assert.deepEqual(signin.lines, film.lines);
+  assert.equal(signin.status, 3);
+});
+
+test('film: the pictures have the names that screenshot reads, and running-checks lists the two pushes', async () => {
+  const again = await filming([scenario('scenario-1', 'pictures', ...ORDERS)]);
+  const deps = { ...again.deps, env: { ...again.deps.env, FILM_FAKE: 'pictures' },
+    preflight: { ...again.deps.preflight, browsers: [process.execPath], runner: FAKE_RUNNER } };
+  const done = call(['film', 'scenario-1', '--artifacts', again.plan], deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  const file = path.join(again.root, '.film', 'scenario-1', 'scenario-1-step-1.png');
+  const check = call(['check', 'screenshot', file], { ...again.deps, cwd: tmp });
+  assert.equal(check.status, 0, check.out + check.err);
+  const skill = fs.readFileSync(path.join(MODULES,
+    'software-factory/skills/running-checks/SKILL.md'), 'utf8');
+  assert.ok(skill.includes('<qory> artifact push screenshot --name <id> ' +
+    '<folder>/.film/<id>/<id>-step-*.png'), 'the push of the pictures');
+  assert.ok(skill.includes('<qory> artifact push demo-video --name <id> \\\n  ' +
+    '<folder>/.film/<id>/<id>.mp4 <folder>/.film/<id>/<id>.vtt'), 'the push of the film');
+});
+
+test('replay: an open of a step outside the App address fails, and an open under it passes', async () => {
+  const opened = [];
+  const page = { guard: async () => {}, goto: async (url) => { opened.push(url); } };
+  const options = { base: 'http://127.0.0.1:41111/app', origin: 'http://127.0.0.1:41111' };
+  const outside = await replay.replay(page, [{ do: 'open', url: '/admin' }], options);
+  assert.equal(outside.failure.words, 'action 1 (open /admin) failed: the address is outside ' +
+    'the App address http://127.0.0.1:41111/app');
+  assert.deepEqual(opened, []);
+  const under = await replay.replay(page, [{ do: 'open', url: '/app/orders' }], options);
+  assert.equal(under.failure, null);
+  assert.deepEqual(opened, ['http://127.0.0.1:41111/app/orders']);
+});
+
+test('replay: after the deadline of the start allowance, the next action fails and each wait is cut', async () => {
+  const waited = [];
+  const page = { guard: async () => {}, click: async (target, ms) => {
+    waited.push(ms);
+    await new Promise((resolve) => { setTimeout(resolve, 80); });
+  } };
+  const until = Date.now() + 100;
+  const done = await replay.replay(page, [{ do: 'click', target: '#a' },
+    { do: 'click', target: '#b' }, { do: 'click', target: '#c' }],
+  { base: 'http://127.0.0.1:41111/', origin: 'http://127.0.0.1:41111', actionMs: 60000, until });
+  // The first click may wait what is left of 100 ms, not 60 s; the third starts too late.
+  assert.ok(waited[0] <= 100, `${waited}`);
+  assert.equal(done.failure.place, 2);
+  assert.equal(done.failure.why,
+    'the time for the start of the app, the browser and the sign-in ran out');
+});
+
+test('film: a slow start of the app and a sign-in that waits too long stop the run at the deadline', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The app starts after 1.5 s, and the sign-in waits up to 60 s for a text that never shows.
+  const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS, startMs: 5000,
+    limitMs: 120000, runs: [{ setup: [{ do: 'open', url: '/orders' },
+      { do: 'wait', text: 'a text that never shows', timeout_ms: 60000 }],
+    steps: [[{ do: 'open', url: '/orders' }]], names: [] }] });
+  spec.serve.command = `sleep 1.5; APP_PORT=${port} node app/server.cjs`;
+  const began = Date.now();
+  const ran = await runner(spec);
+  const seconds = (Date.now() - began) / 1000;
+  const [one] = JSON.parse(ran.out).runs;
+  assert.equal(one.ok, false, ran.out);
+  assert.equal(one.step, 0);
+  assert.equal(one.late, true);
+  // The start allowance is 5 s from the start of the runner: the run ends near it, not at 60 s.
+  assert.ok(seconds < 20, `${seconds} s`);
+});
+
+test('film: a start deadline with under 1 s left says the time ran out, not "did not start within 0.1 s"', { skip: NO_BROWSER }, async () => {
+  const here = checkout();
+  const port = await freePort();
+  // The app answers about 2.1 s after the start of the runner, of the 2.5 s of the deadline.
+  const spec = appSpec(here, port, port, { browser: BROWSER, browserMs: BROWSER_MS, startMs: 2500,
+    limitMs: 120000, runs: [{ setup: SIGN_IN, steps: [[{ do: 'open', url: '/orders' }]],
+      names: [] }] });
+  spec.serve.command = `sleep 1.8; APP_PORT=${port} node app/server.cjs`;
+  const [one] = JSON.parse((await runner(spec)).out).runs;
+  assert.equal(one.ok, false);
+  assert.match(one.why, /^the browser failed: the time for the start ran out/);
+  assert.equal(one.late, true);
+  assert.doesNotMatch(one.why, /did not start within/);
+});
+
+test('film: a machine with no browser exits before it makes the folder, and the earlier film stays', async () => {
+  const here = await faked('ok', FAKE_FFMPEG, ['/nonexistent/browser']);
+  const earlier = path.join(here.film, 'scenario-1');
+  fs.mkdirSync(earlier, { recursive: true });
+  fs.writeFileSync(path.join(earlier, 'scenario-1.mp4'), 'earlier film');
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0],
+    'Add a browser to the dev container, then run preflight again.');
+  assert.equal(fs.readFileSync(path.join(earlier, 'scenario-1.mp4'), 'utf8'), 'earlier film');
+  const pages = call(['film', 'pages', '/orders', '--artifacts', here.plan], here.deps);
+  assert.equal(pages.status, 3, pages.out + pages.err);
+  assert.equal(fs.existsSync(path.join(here.film, 'pages')), false);
+});
+
+test('film: ffmpeg gets what is left of the call, from the start of the call', async () => {
+  // A fake clock: the runner takes 583 s of the call, and ffmpeg gets the 5 s that it has at
+  // least. After a quick run it gets 90 s. spawnSync records the timeout of the ffmpeg call.
+  const limits = [];
+  const real = childProcess.spawnSync;
+  const realNow = Date.now;
+  let offset = 0;
+  Date.now = () => realNow() + offset;
+  childProcess.spawnSync = (command, args, options) => {
+    const done = real(command, args, options);
+    if (command === FAKE_FFMPEG) limits.push(options.timeout);
+    else if (command === process.execPath) offset = Number(process.env.FILM_OFFSET);
+    return done;
+  };
+  try {
+    for (const [late, expected] of [[0, 90000], [583000, 5000]]) {
+      process.env.FILM_OFFSET = String(late);
+      offset = 0;
+      const here = await faked('ok', FAKE_FFMPEG);
+      const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+      assert.equal(done.status, 0, done.out + done.err);
+      assert.equal(limits.at(-1), expected);
+      assert.deepEqual(fs.readdirSync(path.join(here.film, 'scenario-1')).sort(),
+        ['scenario-1.mp4', 'scenario-1.vtt']);
+    }
+  } finally {
+    childProcess.spawnSync = real;
+    Date.now = realNow;
+    delete process.env.FILM_OFFSET;
+  }
+});
+
+test('film: a step title is the text of its cue, and a title with an arrow is refused before the film', async () => {
+  const text = filmVerb.captions({ steps: [{ title: 'Save A & B' }] }, { starts: [0], end: 1000 });
+  assert.ok(text.includes('\nSave A & B\n'), text);
+  const one = scenario('scenario-1', 'film', ORDERS[0], ORDERS[0]);
+  one.steps[1].title = 'Save --> done.';
+  const here = await filming([one]);
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.deepEqual(done.out.split('\n').slice(0, 2), [
+    'Change the Action of step 2 in the demo scenario so it has no "-->", then film it again.',
+    '  A cue of scenario-1.vtt cannot hold "-->", which ends the cue in a player.']);
+  assert.equal(fs.existsSync(path.join(here.root, '.film')), false);
+});
+
+test('film: a result with 40,000 frames passes from the runner, and its file is removed', () => {
+  const fake = path.join(tmp, 'fake-runner.cjs');
+  fs.writeFileSync(fake, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const frames = Array.from({ length: 40000 }, (_, at) => ({
+  file: 'f' + String(at + 1).padStart(6, '0') + '.jpg', at: at * 12 }));
+const capture = { kind: 'film', frames, starts: [0], end: 481000 };
+const result = { app: { started: true, ran: true, why: null }, signIns: [],
+  runs: [{ ok: true, step: null, why: null, outside: null, capture }], unfinished: null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+  const here = checkout();
+  const io = { env: process.env, preflight: { browsers: [process.execPath], runner: fake } };
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:1/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir } };
+  const done = preflight.runScript(io, here.root, given);
+  assert.equal(done.run.capture.frames.length, 40000);
+  assert.ok(JSON.stringify(done.run.capture).length > 1024 * 1024);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.reports', 'preflight'))
+    .filter((name) => name.startsWith('result-')), []);
+  // A runner that writes no JSON ends the run with its exit status, and leaves no file.
+  const bad = path.join(tmp, 'bad-runner.cjs');
+  fs.writeFileSync(bad, `const fs = require('fs');
+fs.writeFileSync(JSON.parse(fs.readFileSync(0, 'utf8')).resultFile, 'not json');
+`);
+  assert.throws(() => preflight.runScript({ ...io, preflight: { ...io.preflight, runner: bad } },
+    here.root, given), /did not finish/);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.reports', 'preflight'))
+    .filter((name) => name.startsWith('result-')), []);
+});
+
+test('film: the captions have one cue per step, from the start of the step', () => {
+  const steps = [{ title: 'Open it.' }, { title: 'Read it.' }, { title: 'Close it.' }];
+  const text = filmVerb.captions({ steps }, { starts: [0, 1250, 61000], end: 3723456 });
+  assert.equal(text, 'WEBVTT\n\n1\n00:00:00.000 --> 00:00:01.250\nOpen it.\n\n' +
+    '2\n00:00:01.250 --> 00:01:01.000\nRead it.\n\n3\n00:01:01.000 --> 01:02:03.456\n' +
+    'Close it.\n');
+  assert.equal(filmVerb.stamp(7), '00:00:00.007');
+});
+
+// A page of the capture tests: it records what capture asks of it.
+function fakePage() {
+  const page = { calls: [], frame: null };
+  page.screenshot = async (format = 'png') => {
+    page.calls.push(`screenshot ${format}`);
+    return Buffer.from(format);
+  };
+  page.resize = async (width) => { page.calls.push(`resize ${width}`); };
+  page.screencast = async (onFrame) => {
+    page.frame = onFrame;
+    page.calls.push('screencast');
+    return async () => { page.calls.push('stop'); };
+  };
+  return page;
+}
+
+test('capture: a film keeps the frame of each change from the start of step 1, and stops its screencast', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const taken = await capture(page, { kind: 'film', dir, name: 'scenario-1' });
+  await taken.begin(0);
+  page.frame(Buffer.from('a'));
+  await taken.end(0);
+  await taken.begin(1);
+  const done = await taken.finish();
+  assert.deepEqual(page.calls, ['screenshot jpeg', 'screencast', 'stop', 'screenshot jpeg']);
+  assert.equal(done.kind, 'film');
+  assert.deepEqual(done.frames.map((one) => one.file), ['f000001.jpg', 'f000002.jpg',
+    'f000003.jpg']);
+  assert.equal(done.starts.length, 2);
+  assert.equal(done.starts[0], 0);
+  assert.equal(done.frames[0].at, 0);
+  assert.equal(done.end, done.frames.at(-1).at + 1000);
+  assert.equal(fs.readFileSync(path.join(dir, 'f000002.jpg'), 'utf8'), 'a');
+});
+
+test('capture: a film of 8 steps that run past 151 s keeps every frame of a page that paints 56 times a second, and its captions end within it', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const realNow = Date.now;
+  let now = 1000000;
+  Date.now = () => now;
+  try {
+    const taken = await capture(page, { kind: 'film', dir, name: 'scenario-1' });
+    // Steps of 58 s each: they start at 0, 58, 116, 174 ... 406 s, and the last ends at 464 s.
+    const starts = Array.from({ length: 8 }, (_, at) => 58000 * at);
+    const origin = now;
+    let sent = 0;
+    for (let at = 0; at < 8; at += 1) {
+      now = origin + starts[at];
+      await taken.begin(at);
+      for (let paint = Math.ceil(starts[at] * 56 / 1000) + 1;
+        paint * 1000 / 56 < starts[at] + 58000; paint += 1) {
+        now = origin + Math.round(paint * 1000 / 56);
+        page.frame(Buffer.from('p'));
+        sent += 1;
+      }
+      await taken.end(at);
+    }
+    now = origin + 464000;
+    const done = await taken.finish();
+    // The first and the last frame come from a screenshot: no painted frame is dropped.
+    assert.equal(done.frames.length, sent + 2);
+    assert.equal(fs.readdirSync(dir).length, sent + 2);
+    assert.ok(sent > 9000 && done.frames.at(-1).at > 151000);
+    assert.deepEqual(done.starts, starts);
+    const steps = starts.map((_, at) => ({ title: `Step ${at + 1}.` }));
+    const text = filmVerb.captions({ steps }, done);
+    const cues = [...text.matchAll(/^(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})$/gm)];
+    const ms = (time) => ((Number(time.slice(0, 2)) * 60 + Number(time.slice(3, 5))) * 60 +
+      Number(time.slice(6))) * 1000;
+    assert.equal(cues.length, 8);
+    for (const [, from, to] of cues) assert.ok(ms(from) < done.end && ms(to) <= done.end, text);
+    assert.equal(ms(cues[7][2]), done.end);
+  } finally {
+    Date.now = realNow;
+  }
+});
+
+test('capture: pictures take the page after each step, and pages at each width', async () => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const page = fakePage();
+  const pictures = await capture(page, { kind: 'pictures', dir, name: 'scenario-4' });
+  await pictures.end(0);
+  await pictures.end(1);
+  assert.deepEqual(fs.readdirSync(dir).sort(), ['scenario-4-step-1.png', 'scenario-4-step-2.png']);
+  assert.deepEqual(page.calls, ['screenshot png', 'screenshot png']);
+  const other = fs.mkdtempSync(path.join(tmp, 'capture-'));
+  const wide = fakePage();
+  const pages = await capture(wide, { kind: 'pages', dir: other, name: 'pages',
+    widths: [360, 1280] });
+  await pages.end(0);
+  assert.deepEqual(wide.calls, ['resize 360', 'screenshot png', 'resize 1280', 'screenshot png',
+    'resize 1280']);
+  assert.deepEqual((await pages.finish()).files, ['pages-1-360.png', 'pages-1-1280.png']);
 });
