@@ -16,6 +16,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file whose path it gets from a workflow. No process entry starts the workflow yet. A
   criterion-change point changes no criterion yet, and an answer to a question is no source
   yet.
+- The end check of a Build write session that ends without `points.json` stops the end while
+  a checkout of `qory.start_commits` has a change that no commit contains, so that the full
+  suite and the review run on committed work. A session counts when `qory.outputs` has
+  `pull-request`, its checkout is writable, and it has no `qory.review`,
+  `qory.review_session` or `qory.hook_session`. A change is a tracked, staged or untracked
+  file that git does not ignore, or a changed submodule, outside `.qory/`. The finding is
+  `Commit these changes, then end the session: the suite and the review read only committed
+  work.`, then `Not committed:` with at most 20 paths and their count. At the third failed
+  check, the point is "The Build session ended <n> times with changes it did not commit, so
+  the suite and the review could not check them.", where `<n>` counts the checks that found
+  a change. The check is the new registry member `end(io)`, which
+  `running-a-software-workflow` adds; other stacks are unchanged.
+- After a step that fails in a session with a step done, the Build session commits the files
+  that the failed step left, before it writes the text of the change. `git reset -q <base>`,
+  with the `base` of the last row of the build ledger, keeps each file and takes the commits
+  of the failed step off the branch. The skill `workflow-implement-changes` lists the two
+  commands for a commit: with the identity `qory` and `qory@localhost`, as `freeze` sets it,
+  because `git commit` exits with 128 where no identity is set, with no hook and no
+  signature, and with no path under `.qory`. `git reset -q` ends a merge or a cherry-pick in
+  progress. The session takes no file out and sets no file back: when the commit has a file
+  with a key, a path outside the plan, a new repository folder or a changed submodule, the
+  scope check of qory's push stops the push, qory pushes no commit, and the run ends
+  `push_scope_refused`.
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
@@ -1278,6 +1301,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `scope`, `freeze`, `run`, `probe` and `diff` of `running-a-software-workflow` count a
+  changed submodule whatever its `ignore` setting in `.gitmodules` and `.git/config`: their
+  `git status` runs with `--ignore-submodules=none`.
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
   which Forager does not pass to a session. The end check reads it from the file of
   `--inputs`, and so does `report-build`, which takes `--inputs` in both forms:

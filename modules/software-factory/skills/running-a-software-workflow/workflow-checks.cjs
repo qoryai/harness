@@ -44,7 +44,7 @@ const path = require('node:path');
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
-// workflow-implement-changes (SKILL.md:230: "reports `Blocked: needs a change to the build plan").
+// workflow-implement-changes (SKILL.md:247: "reports `Blocked: needs a change to the build plan").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
@@ -106,6 +106,8 @@ function workflowChecks(core) {
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),
+    // The check at the end of a Build write session: no change outside a commit.
+    end: require('./lib/uncommitted.cjs')(lib).end,
     // The record of the track at the end of a report of proposal-reviewer, which the report
     // check reads for an agent whose Expected output has the line "Track read:".
     records: [{
