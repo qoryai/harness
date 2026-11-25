@@ -11,8 +11,9 @@ const { isDeepStrictEqual } = require('node:util');
 module.exports = (lib) => {
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
-    criterionHashes, CRITERIA_HASHES, isObject, jsonFile, liveIn, linked, linkProblem, countedOf, newestCriteria, noCriteria, num,
-    parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
+    criterionHashes, CRITERIA_HASHES, isObject, jsonFile, liveIn, linked, linkProblem, countedOf,
+    newestCriteria, noCriteria, num, parseJson, plural, pullCriteria, readFile, short, timeOf,
+    versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -223,7 +224,7 @@ module.exports = (lib) => {
       return `${ASK}: acceptance-lock version ${num(newest.number)} already locks criteria ` +
         `version ${num(version)}.`;
     }
-    return `${ASK}: ${state.why() || `no member uploaded criteria after acceptance-lock ` +
+    return `${ASK}: ${state.why() || `no member wrote criteria after acceptance-lock ` +
       `version ${num(newest.number)}, the lock that counts.`}`;
   }
 
@@ -356,12 +357,14 @@ module.exports = (lib) => {
       run.find(`Lock the draft with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ${FILE} is ` +
         `missing.\nIt must have the hash of each criterion of criteria version ${num(version)}.`);
     } else {
+      const own = (hashes, id) => (Object.hasOwn(hashes, id) ? hashes[id] : undefined);
       const wrong = [...new Set([...Object.keys(wanted), ...Object.keys(recorded)])]
-        .find((id) => recorded[id] !== wanted[id]);
+        .find((id) => own(recorded, id) !== own(wanted, id));
       if (wrong !== undefined) {
         run.find(`Lock the draft again with checks.cjs lock: /criteria/${CRITERIA_HASHES} of ` +
-          `${FILE} is wrong.\nThe hash of ${wrong} in criteria version ${num(version)} is ` +
-          `${wanted[wrong] === undefined ? 'none, as it is not live' : wanted[wrong]}.`);
+          `${FILE} is wrong.\nThe hash of ${short(wrong, 40)} in criteria version ` +
+          `${num(version)} is ${own(wanted, wrong) === undefined
+            ? 'none, as it is not live' : own(wanted, wrong)}.`);
       }
     }
     keptFiles(run, data, state);
@@ -398,7 +401,7 @@ module.exports = (lib) => {
     const last = state.newest.doc;
     if (!isObject(last)) {
       run.find(`Report to a member: the store lacks acceptance-lock version ${number}.\n` +
-        'The check cannot compare the checks that did not change, so it refuses the lock.');
+        'The check cannot compare the checks that did not change, so the lock is refused.');
       return;
     }
     const before = Array.isArray(last.checks) ? last.checks.filter(isObject) : [];

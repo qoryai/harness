@@ -392,12 +392,17 @@ module.exports = (lib) => {
     }
     const hashes = criterionHashes(readFile(now, `acceptance-criteria version ${version.number}`)
       .replace(/\r\n?/g, '\n'));
-    const recorded = isObject(last.doc.criteria) && isObject(last.doc.criteria[CRITERIA_HASHES])
-      ? last.doc.criteria[CRITERIA_HASHES] : null;
+    const member = isObject(last.doc.criteria) ? last.doc.criteria[CRITERIA_HASHES] : null;
+    // A member that is empty or has a value that is no SHA-256 counts as no member.
+    const recorded = isObject(member) && Object.keys(member).length > 0 &&
+      Object.values(member).every((hash) => typeof hash === 'string' && HEX64.test(hash))
+      ? member : null;
     const checks = Array.isArray(last.doc.checks) ? last.doc.checks.filter(isObject) : [];
+    // A check of a criterion that the member lacks counts as changed, as with no member.
     const changed = recorded === null
       ? [...Object.keys(hashes), ...checks.map((check) => check.criterion)]
-      : Object.keys(recorded).filter((id) => recorded[id] !== hashes[id]);
+      : [...Object.keys(recorded).filter((id) => recorded[id] !== hashOf(hashes, id)),
+        ...checks.map((check) => check.criterion).filter((id) => !Object.hasOwn(recorded, id))];
     const answers = answered(context, last.time);
     const open = [...new Set(changed)].filter((id) => !answers.has(id));
     if (!open.length) return null;
@@ -495,7 +500,7 @@ module.exports = (lib) => {
   // The first line has the action of the member alone, so that the run can pass it to a member.
   function askAbove(context, step, target, newest, detail = '') {
     const why = target === approvedNumber(context, 'acceptance-criteria')
-      ? `the approved version ${num(target)}` : `version ${num(target)}, a member's upload`;
+      ? `the approved version ${num(target)}` : `version ${num(target)}, which a member wrote`;
     const entry = versionsOf(context.index, 'acceptance-criteria')
       .find((one) => one.number === newest);
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
@@ -514,7 +519,7 @@ module.exports = (lib) => {
     }
     const reason = because.replace(/\.$/, '') || (byRun
       ? `the run stored version ${num(newest)} after ${why}`
-      : `no member uploaded the newer criteria version ${num(newest)}`);
+      : `no member wrote the newer criteria version ${num(newest)}`);
     return 'Ask a member to write the change in a request for changes.\n' +
       `Then ${step}: ${reason}.`;
   }
@@ -694,6 +699,12 @@ module.exports = (lib) => {
   // each live criterion of the locked version to its criterionHash. The schemas, the lock
   // verb and the question rule use this one name.
   const CRITERIA_HASHES = 'sha256';
+
+  const HEX64 = /^[0-9a-f]{64}$/;
+
+  // hashOf returns the hash of id in the object hashes that criterionHashes returns, or
+  // undefined when id is no key of it: an inherited name such as `constructor` has none.
+  const hashOf = (hashes, id) => (Object.hasOwn(hashes, id) ? hashes[id] : undefined);
 
   // criterionHashes returns an object of criterionHash by id for the live criteria with an id
   // in the acceptance-criteria.json text. The key order is the order of the file.

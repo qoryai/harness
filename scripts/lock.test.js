@@ -266,6 +266,14 @@ test('lock replaces a SHA-256 that the draft has with the one of the file', () =
   assert.equal(readJson(result.file).checks[0].sha256, sha(CHECK_TEXT));
 });
 
+test('lock replaces a /criteria/sha256 that the draft has with the hashes of the criteria', () => {
+  const draft = clone(LOCK);
+  draft.criteria.sha256 = { 'ac-9': 'f'.repeat(64), 'ac-4': 'e'.repeat(64) };
+  const result = lock(artifacts(), working(), draft);
+  exitsWith(result, 0);
+  assert.deepEqual(readJson(result.file).criteria.sha256, LOCK.criteria.sha256);
+});
+
 const PASS_VERSION = 'Pass --version the acceptance-lock version that a member approved.';
 const NO_REPOSITORY = 'Run lock from the repository\'s top folder: the working folder is in no ' +
   'repository.';
@@ -1323,7 +1331,7 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
   // push opens no lock by the approval, and cannot tell that the lock is version 1 again.
   const [, pushed] = both(make, SECOND, true);
   assert.equal(pushed.status, 1, pushed.out);
-  assert.deepEqual(pushed.lines.slice(0, -1), [ASK, `${THEN}: no member uploaded criteria ` +
+  assert.deepEqual(pushed.lines.slice(0, -1), [ASK, `${THEN}: no member wrote criteria ` +
     'after acceptance-lock version 1, the lock that counts.']);
   // A push store by number that also has version 1 reads version 1, as the check does.
   const root = make();
@@ -2014,7 +2022,7 @@ test('an answer binds a Demo criterion that the version rewords, removes or re-c
     },
     rechecked: (doc) => { doc.criteria.find((one) => one.id === demo).check = 'Demo: Another'; },
   };
-  for (const [name, edit] of Object.entries(edits)) {
+  for (const edit of Object.values(edits)) {
     const make = (...questions) => () => {
       const root = linkedRoot({ decision: 'an_1', edit });
       return questions.length ? questionsVersion(root, 1, questions) : root;
@@ -2023,7 +2031,66 @@ test('an answer binds a Demo criterion that the version rewords, removes or re-c
     answerRefused(make(), doc, 'Version 2 changes ac-2, and no question about ac-2 has an ' +
       'answer after acceptance-lock version 1.');
     answerPasses(make(answered(demo, LATER)), doc);
-    assert.ok(name);
+  }
+});
+
+test('an answer binds against the lock that counts, not the first lock', () => {
+  // Lock 1 locks version 1. A free-text note lets lock 2 lock version 2, which rewords ac-1.
+  // Version 3, linked to an answer, weakens ac-4: the member of lock 2 is compared with it.
+  const reword = (doc) => { doc.criteria.find((one) => one.id === 'ac-1').text += ' By noon.'; };
+  const both3 = (doc) => { reword(doc); REWORDED(doc); };
+  const AT3 = '2026-11-15T14:00:00Z';
+  const make = (...questions) => () => {
+    const root = linkedRoot({ decision: 'gd_1', edit: reword });
+    stored(root, 2, docFor(2, reword), { at: AFTER_ALL });
+    criteriaVersion(root, 3, { at: AT3, decision: 'an_1', decision_at: AT3 }, both3);
+    return questions.length ? questionsVersion(root, 1, questions) : root;
+  };
+  const doc = docFor(3, both3);
+  const why = 'Version 3 changes ac-4, and no question about ac-4 has an answer after ' +
+    'acceptance-lock version 2.';
+  answerRefused(make(), doc, why);
+  // An answer after lock 1 but before lock 2 binds nothing for lock 2.
+  answerRefused(make(answered('ac-4', LATEST)), doc, why);
+  answerPasses(make(answered('ac-4', AT3)), doc);
+});
+
+test('a /criteria/sha256 that is empty or has a value that is no hash counts as no member', () => {
+  const make = (member, ...questions) => () => {
+    const old = clone(LOCK);
+    old.criteria.sha256 = member;
+    const root = criteriaVersion(stored(artifacts(), 1, old), 2,
+      { at: LATER, decision: 'an_1', decision_at: LATEST });
+    return questions.length ? questionsVersion(root, 1, questions) : root;
+  };
+  const why = 'Version 2 changes ac-1, ac-2, ac-3 and more, and no question about ac-1 has an ' +
+    'answer after acceptance-lock version 1.';
+  const every = ['ac-1', 'ac-2', 'ac-3', 'ac-4'].map((id) => answered(id, LATER));
+  for (const member of [{}, { ...LOCK.criteria.sha256, 'ac-4': 'not a hash' },
+    { ...LOCK.criteria.sha256, 'ac-4': 7 }]) {
+    answerRefused(make(member), docFor(2), why);
+    answerPasses(make(member, ...every), docFor(2));
+  }
+  // A check of a criterion that the member lacks counts as changed.
+  const partial = { ...LOCK.criteria.sha256 };
+  delete partial['ac-4'];
+  answerRefused(make(partial), docFor(2), 'Version 2 changes ac-4, and no question about ' +
+    'ac-4 has an answer after acceptance-lock version 1.');
+});
+
+test('a hash record with a key that is a name of Object or has a line break is shown quoted', () => {
+  for (const key of ['__proto__', 'constructor', 'ac-9\nInjected line.']) {
+    const bad = docFor(2, REWORDED);
+    // JSON.parse makes `__proto__` an own key, as the file of the lock has it.
+    bad.criteria.sha256 = JSON.parse(JSON.stringify(bad.criteria.sha256).replace(/^\{/,
+      `{${JSON.stringify(key)}:"${'f'.repeat(64)}",`));
+    for (const result of both(() => linkedRoot({ decision: 'gd_1', edit: REWORDED }), bad)) {
+      assert.equal(result.status, 1, result.out);
+      assert.equal(result.lines[0], 'Lock the draft again with checks.cjs lock: ' +
+        '/criteria/sha256 of acceptance-lock.json is wrong.');
+      assert.equal(result.lines[1], `  The hash of "${key.replace('\n', ' ')}" in criteria version 2 ` +
+        'is none, as it is not live.');
+    }
   }
 });
 
@@ -2218,7 +2285,7 @@ test('a respelled path or repository of a support file is the same file', () => 
       sha256: sha('other bytes') };
     for (const result of both(() => twoRoot(REWORDED, folder), doc)) {
       assert.equal(result.status, 1, `${path_} ${repository}: ${result.out}`);
-      // The schema refuses a path with a `.` part before the lock reads it.
+      // A path with a `.` part fails the schema before the lock reads it.
       assert.equal(result.lines[0], path_.startsWith('./')
         ? 'Write /support/0/path of acceptance-lock.json in another form.'
         : 'Give the changed support file a new path in acceptance-lock.json.');
@@ -2270,9 +2337,8 @@ test('a newest lock that the push store lacks fails the kept-check rule closed',
   const pushed = both(make, docFor(2), true)[1];
   assert.equal(pushed.lines[0], 'Report to a member: the store lacks acceptance-lock version 1.');
   assert.equal(pushed.lines[1], '  The check cannot compare the checks that did not change, so ' +
-    'it refuses the lock.');
+    'the lock is refused.');
 });
-
 
 test('lock writes criterion_sha256 of each check from the criteria version of the draft', () => {
   const root = artifacts();

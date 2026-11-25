@@ -38,8 +38,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - An acceptance lock has `/criteria/sha256`, an object of the SHA-256 of the text and the
   check of each live criterion of the locked version, by criterion id. `lock` fills it, and
   the check recomputes it. The question rule compares it with the criteria version that is
-  linked to an answer, so a push needs no older criteria text. The contract stays at
-  revision 1, and a lock made before the member counts every criterion as changed.
+  linked to an answer, so a push needs no older criteria text. The schema stays at
+  version 1, and a lock made before the member counts every criterion as changed.
 - A new acceptance lock keeps the checks of each criterion that did not change, as a whole
   list, and keeps every support file of the newest lock at its path and hash. When the
   push store lacks the newest lock, the check fails closed.
@@ -1311,9 +1311,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   acceptance criteria they accept as a new version." The question of a locked check that
   does not fail has the same wording in its first option. The first line for withdrawn
   acceptance criteria is "Ask a member to approve the criteria again, then lock the checks:
-  the approval is withdrawn.", and a check of a build plan, verification or walkthrough
-  says "Write <what> after a member approves the acceptance criteria again." `acceptance-lock` reads `questions` besides
-  `acceptance-criteria`.
+  the approval is withdrawn.", and the finding of a check of a build plan, verification or
+  walkthrough is "Write <what> after a member approves the acceptance criteria again."
+  `acceptance-lock` reads `questions` besides `acceptance-criteria`.
 
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
   which Forager does not pass to a session. The end check reads it from the file of

@@ -1706,8 +1706,8 @@ const ASK = `${REQUEST}\nThen lock that version`;
 const askMounted = (target, newest, approved = true, byRun = true) =>
   `${REQUEST}\nThen lock that version: ` +
   `${byRun ? `the run stored version ${newest} after ` +
-    `${approved ? `the approved version ${target}` : `version ${target}, a member's upload`}`
-    : `no member uploaded the newer criteria version ${newest}`}.`;
+    `${approved ? `the approved version ${target}` : `version ${target}, which a member wrote`}`
+    : `no member wrote the newer criteria version ${newest}`}.`;
 
 // askAbove is the finding of askMounted for the check of what, such as "the build plan", which
 // the run pushes again after the member's upload.
@@ -1720,7 +1720,7 @@ const askLocked = (lock, version) => `${ASK}: acceptance-lock version ${lock} al
   `criteria version ${version}.`;
 
 // askAfter is the line of a lock when no person stored a criteria version after lock.
-const askAfter = (lock) => `${ASK}: no member uploaded criteria after acceptance-lock version ` +
+const askAfter = (lock) => `${ASK}: no member wrote criteria after acceptance-lock version ` +
   `${lock}, the lock that counts.`;
 
 // exactly asserts that result fails with line as its one finding: a line after \n in it is
@@ -2314,10 +2314,10 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     'Ask a member to approve the acceptance criteria, ',
     REQUEST, '  Then lock that version: the run stored version ',
     '  Then lock that version: acceptance-lock version 999 already locks ',
-    '  Then lock that version: no member uploaded criteria after ', 'Pull version 998 ']) {
+    '  Then lock that version: no member wrote criteria after ', 'Pull version 998 ']) {
     assert.ok([...lines].some((line) => line.startsWith(start)), start);
   }
-  for (const end of [' after version 998, a member\'s upload.', ' after the approved version 997.',
+  for (const end of [' after version 998, which a member wrote.', ' after the approved version 997.',
     ' after acceptance-lock version 999, the lock that counts.']) {
     assert.ok([...lines].some((line) => line.endsWith(end)), end);
   }

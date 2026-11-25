@@ -2519,7 +2519,7 @@ the lock check passes. A run's version never counts. A version is linked to a no
 the `decision` and the question rule of the lock check (see `acceptance-lock` below) pass
 it, so a refused link is never the target. The plan, the verification and the walkthrough
 may read an older version than the one that Qory Apiary feeds the run; a check that finds a
-newer version then asks a member, and fails closed.
+newer version stops with a finding for a member.
 One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
@@ -2537,7 +2537,7 @@ such as "Ask a member to write the change in a request for changes." with
 the line "Then push the build plan again: the run stored version 2 after the approved
 version 1." after it, with the verification or the walkthrough in place of the build plan,
 and "Then lock that version" for the lock. When the writer of that version is not of kind
-`run`, the reason is "no member uploaded the newer criteria version 2". When a note links
+`run`, the reason is "no member wrote the newer criteria version 2". When a note links
 that version and no lock opens for it, the reason is the one that the lock check gives, such
 as "Version 2 is linked to "xx_1", and no lock opens for a note of that kind.". Two criteria
 versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
@@ -2634,17 +2634,19 @@ find:
   criterion's text and check, made as `criterion_sha256` is made. `lock` fills it, and the
   check recomputes it. The rule compares the recorded hashes with the hashes of the
   version: an id with another hash, or an id that is no longer live, is changed or removed,
-  and a criterion that the version only adds needs no question. A lock without
-  `/criteria/sha256` counts every criterion as changed, with no migration. The time of an
-  answer can be trusted because the questions
-  store of Qory Apiary does not accept a run's write of an `answer`, so only a member's
-  answer has one, and the server sets its time. The rule does not apply when a counted version above
-  the locked one is linked to a free-text note newer than the lock, a known gap: such a note
-  can contain any change, and the check cannot bind it to a criterion. The rule fails
-  closed when the store lacks the newest lock or the version. A push store has the newest
-  lock and the newest criteria version only, and the rule needs no older criteria text, so a
-  push binds an answer as a check does. The rule
-  reads `questions`, so `acceptance-lock` reads `acceptance-criteria` and `questions`.
+  and a criterion that the version only adds needs no question. A lock counts every
+  criterion as changed, with no migration, when `/criteria/sha256` is missing, is empty or
+  has a value that is not 64 lower-case hexadecimal digits; a check of the lock whose
+  criterion the member lacks counts that criterion as changed too. The time of an answer
+  can be trusted because the questions store of Qory Apiary does not accept a run's write
+  of an `answer`, so only a member's answer has one, and the server sets its time. The
+  rule does not apply when a counted version above the locked one is linked to a free-text
+  note newer than the lock, a known gap: such a note can contain any change, and the check
+  cannot bind it to a criterion. The rule fails closed when the store lacks the newest
+  lock or the version. A push store has the newest lock and the newest criteria version
+  only, and the rule needs no older criteria text, so a push binds an answer as a check
+  does. The rule reads `questions`, so `acceptance-lock` reads `acceptance-criteria` and
+  `questions`.
   A version's `note` never counts, because the run that stores the version writes the note.
   `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
   lock that is older than the version. Each check of a lock has a `criterion_sha256`, the
@@ -2666,7 +2668,7 @@ find:
   approved version, the finding opens with its one action, "Ask a member to write the change
   in a request for changes.", and its second line has the next step and the reason after
   the colon: "Then lock that version: acceptance-lock version 1 already locks criteria
-  version 1." or "Then lock that version: no member uploaded criteria after acceptance-lock
+  version 1." or "Then lock that version: no member wrote criteria after acceptance-lock
   version 1, the lock that counts." or the reason that a linked note opens no lock, such as
   that it is from before the lock; a run passes the line
   to the member as a point, as `running-a-workflow` lists under "Locked files". A finding
@@ -4849,8 +4851,8 @@ The file has `mode`, and with the modes `changes` and `none` also `lock`, `crite
 `target`, `changed`, `added`, `removed`, `unchanged`, `tests`, `leaves` and `paths`. The verb
 pulls both criteria versions in a run, so that a file in the artifact folder cannot change
 the diff, and exits 3 with "Report to a member: acceptance-lock was withdrawn..." when the
-acceptance lock is withdrawn. `check build-plan` refuses a record whose lock number or
-target differs from the newest lock and the target that it reads.
+acceptance lock is withdrawn. A record whose lock number or target differs from the
+newest lock and the target that `check build-plan` reads is refused.
 
 - `mode` is `full` when no lock counts, the work item has no build plan or no criteria
   version is approved; the file then has only `reason`, and the last line is "Full run:

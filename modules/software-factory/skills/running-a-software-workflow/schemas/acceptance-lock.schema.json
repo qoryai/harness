@@ -29,7 +29,7 @@
           "pattern": "^[A-Za-z0-9_-]+$"
         },
         "sha256": {
-          "description": "The SHA-256 of each live criterion of the locked version, by criterion id, made from the JSON text [text, check] of the criterion.",
+          "description": "The SHA-256 of each live criterion, by criterion id.",
           "type": "object"
         }
       }
