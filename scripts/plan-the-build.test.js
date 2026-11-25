@@ -102,6 +102,8 @@ test('each change of the plan is reviewed again, also after the last review', ()
   'Start the same reviewer again with the input it got, the path of its text report and those ' +
     'lines, and tell it to write only its report file, with the findings of that text report. ' +
     'That start does not count toward the reviewer\'s start limit, so run no `starts` before it.',
+    'For the first script of a demo scenario it counts: run the two `starts` that ' +
+      '`scripting-demos` lists for it.',
   'When the line is still there after two such starts, run `step end <id> failed`',
   'a line that starts with "Fix the blocking findings" means that the report file has a ' +
     'blocking finding: push, lock and run nothing.']) {

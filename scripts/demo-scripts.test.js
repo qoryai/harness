@@ -1044,10 +1044,13 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'that the draft changes a script that passed, whether the author wrote it or it is a ' +
       'copy of the pushed file; for the first script there is no such line',
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
-    '`<skill folder>/checks.cjs starts <run> <name> 3`, as "Count the starts"',
-    '`implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for the ' +
-      'step `script:<id>#2` or `script:<id>#3`, so that each script and each ' +
-      'correction has 3 starts',
+    'Count the start, as "Count the starts" of `running-a-workflow` lists. For a correction, ' +
+      'run `<skill folder>/checks.cjs starts <run> implement-changes-<n>-check-reviewer 3`',
+    'When `<step>` is `script:<id>`, run `<skill folder>/checks.cjs starts <run> ' +
+      'implement-changes-check-reviewer-<id> 1`, then `<skill folder>/checks.cjs starts ' +
+      '<run> implement-changes-first-scripts 12`: the first script of a scenario has 1 ' +
+      'start, and the first scripts of a run have 12 together',
+    'Run both also before a start that writes only the report of a first script',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed', 'With `changes-needed`, do "Start the author again"',
