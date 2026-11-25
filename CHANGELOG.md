@@ -98,7 +98,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   to a `-reviewer` agent, as before.
 - The workflow `capture-demos` of `software-factory`, which films each approved demo
   scenario that has no `demo-evidence` for the commit of the work. The session runs
-  `preflight`, then `film <scenario>` for each scenario, starts the new agent `demo-reviewer`
+  `preflight`, then `film <scenario>` for each scenario, starts the agent `demo-reviewer`
   (tier `balanced`, skill `checking-demos`) on two frames of each step, pushes the
   `demo-video` or `screenshot`, and writes and pushes the `demo-evidence` with `film record`.
   The reviewer gives each step `passed`, `failed` or `not-reached`, and sorts a failed step
@@ -108,10 +108,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cause outside the repository ends with `escalate`. A rerun films only the scenarios with
   no `demo-evidence` for the commit and the script version, and `film todo` lists the
   `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
-  withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with no
-  `plan`: `film` and `preflight` read the approved `build-plan` from `qory.start_artifacts`. The workflow never starts `demo-author`, so a stack without `browser-screens`
-  composes it; `scripts/check.sh` uses a test workflow `fixture-demos` for the compose
-  failure of a role with no agent.
+  withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with
+  no `plan`: `film` and `preflight` read the approved `build-plan` from
+  `qory.start_artifacts`. The workflow never starts `demo-author`, so a stack without
+  `browser-screens` composes it; `scripts/check.sh` uses a test workflow `fixture-demos`
+  for the compose failure of a role with no agent.
 - One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap
   `min(1500, floor(0.8 x 25,153,536 x 8 / 1000 / seconds))` kbit/s, 300 for a film of 535 s.
   A film that is still over 32 MiB as qory counts it (base64 of the files and 16 KiB) exits 4
@@ -122,9 +123,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   unreadable at the cap. `film frames <scenario>` takes two pictures of each step for the
   reviewer, `film todo` lists what to film and withdraw, and `film record <scenario>` writes
   the `demo-evidence` file.
-- The push check of `demo-script` reads the newest `build-ledger`. It refuses a script that
+- The push check of `demo-script` reads the newest `build-ledger`. It fails a script that
   differs from the one that the newest done step `script:<id>` froze, unless the ledger has
-  the step of the next correction, and a change after 2 corrections. `demo check` treats a
+  the step of the next correction, and it fails a change after 2 corrections. `demo check` treats a
   frozen script that the newest `demo-evidence` faults with the class `script` as a fault to
   correct.
 - The module `browser-screens`, which the `software` stack lists after `software-factory`.

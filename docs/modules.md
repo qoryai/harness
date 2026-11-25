@@ -111,8 +111,8 @@ qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
 `plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
 `make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on
-`balanced`, and `capture-demos` on `light`: its verbs film, encode and record, and
-`demo-reviewer`, which runs on `balanced`, judges the frames.
+`balanced`, and `capture-demos` on `light`: the checks script films, encodes and records the
+evidence, and `demo-reviewer`, which runs on `balanced`, judges the frames.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
 a write entry with no `plan: build-plan`.
@@ -337,14 +337,14 @@ records the verdict.
 
 `workflow-capture-demos` films the demo scripts of the approved demo scenarios on the
 checkout of the work, with the access `write-no-push` and no `plan`: the stack entry is
-`capture-demos: {tier: light, access: write-no-push}`. qory refuses a `plan` on an entry
-that is not `write`, so `film` and `preflight` read the build plan from the folder of
-`qory.start_artifacts` of the input file, whose `build-plan` is the approved version; with
-no `build-plan` there, `preflight` exits 3 with the cause "the build plan is missing". The
-session pushes `demo-video`, `screenshot` and `demo-evidence`, and writes no outbox file and
-no commit. It starts only
-`demo-reviewer`, never the role `demo-author`, and loads no `scripting-demos`, so a stack
-without `browser-screens` composes it. Its steps, in order:
+`capture-demos: {tier: light, access: write-no-push}`. qory rejects a stack entry with a
+`plan` and an access other than `write`, so `film` and `preflight` read the build plan from
+the folder of `qory.start_artifacts` of the input file, whose `build-plan` is the approved
+version; with no `build-plan` there, `preflight` exits 3 with the cause "the build plan is
+missing". The session pushes `demo-video`, `screenshot` and `demo-evidence`, and writes no
+outbox file and no commit. It starts only `demo-reviewer`, never the role `demo-author`,
+and loads no `scripting-demos`, so a stack without `browser-screens` composes it. Its
+steps, in order:
 
 1. It pulls, runs `work-item show`, and runs `film todo`, which prints the scenarios to film
    and the artifacts to withdraw. A scenario is to film when the approved demo scenarios have
@@ -379,7 +379,8 @@ without `browser-screens` composes it. Its steps, in order:
 `demo-reviewer` has the tools Read, Grep, Glob and Skill, so it writes nothing: the session
 saves its text as `.reports/demo-reviewer-<n>.md`, and `film record` reads the step lines
 of that file. It runs on the tier `balanced`. The module does not list it under
-`provides.agents`, because compose refuses a role name that an entry of the module has.
+`provides.agents`, because the compose fails when a role name equals the name of an entry
+of the module.
 
 The size of a film. qory rejects a version when the files, each as base64, and a 16 KiB
 envelope are over 32 MiB, about 24 MiB of files. The first encode (pass 1) uses
@@ -3943,8 +3944,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   start of the runner: when it passes, the sign-in fails and the call stops. A run past
   the limit of the runner exits 3 with the fix "Shorten the waits or the steps of
   <scenario>.json, then film it again." (for pictures, "run it again") and the line "The
-  film ran past its limit of <n> s." ("The run ran past ..."). It stores nothing in Qory
-  Apiary and writes no `demo-evidence` and no ledger row: the session pushes the files.
+  film ran past its limit of <n> s." ("The run ran past ..."). `film <scenario>` and `film
+  pages` store nothing in Qory Apiary and write no `demo-evidence` and no ledger row: the
+  session pushes the files. Only `film record` writes `demo-evidence`, to a file.
   - `film <scenario>` runs the newest pushed `demo-script` of the scenario that counts, not
     a draft, in the runner of `preflight`: it starts the app of the `serve` row at the
     `App address:`, opens a page of 1280 x 720 px, replays the setup as a sign-in, then the
@@ -3960,15 +3962,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `/usr/bin/ffmpeg` or else the first `ffmpeg` on the `PATH`, makes `<scenario>.mp4` from
     them at 25 frames a second, and the last frame stays for 1 second. `<scenario>.vtt` has
     one cue per step, with the title of the step as its text, from the start of the step to
-    the start of the next; the first cue starts at `00:00:00.000`. The call removes the
-    frames, so the folder has the two files that the check of `demo-video` reads. With the
+    the start of the next; the first cue starts at `00:00:00.000`. When the film fits
+    one version of qory, the call removes the frames, so the folder has the two files that the
+    check of `demo-video` reads. When it is over the limit after pass 1, the call keeps the
+    frames, removes the film and exits 4 with "Run film recode <scenario>." With the
     evidence `pictures`, the replay records no video, and the folder has
     `<scenario>-step-<N>.png`, the page after the last action of step N, as the check of
-    `screenshot` reads them. It exits 0 and prints the folder. A step that fails stores
-    nothing: it exits 1 with the fix "Check step <k> against the app, then run film <id>
-    again." (for the sign-in, "the sign-in" in place of "step <k>"), the failed action with
-    no typed value, and the last line "Stored no film: it failed in step <k>." A film
-    scenario with no ffmpeg, a scenario with no pushed script that counts, a plan with no
+    `screenshot` reads them. A call that stores the files exits 0 and prints the folder. A step
+    that fails stores nothing: it exits 1 with the fix "Check step <k> against the app, then
+    run film <id> again." (for the sign-in, "the sign-in" in place of "step <k>"), the
+    failed action with no typed value, and the last line "Stored no film: it failed in step
+    <k>." ("Stored no pictures" for the evidence `pictures`). A film scenario with no ffmpeg,
+    a scenario with no pushed script that counts, a plan with no
     `serve` row, no browser, a `.film` that is a link, an app or a browser that does not
     run, and an ffmpeg that fails exit 3 with the fix first. A call that fails after it made
     `.film/<scenario>/` removes that folder, and a call with no browser exits before it
