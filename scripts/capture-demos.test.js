@@ -631,3 +631,40 @@ test('demo check: a frozen script that Verify faulted is a correction, and the t
   assert.equal(refused.out.split('\n')[0], 'Keep the script of scenario-2 as it is: it has had ' +
     '2 corrections, and a third is refused.');
 });
+
+// ---- the newest demo script that a check reads -----------------------------------------------
+
+test('demo-evidence check: a leftover demo-script folder above the newest version in index.json decides nothing', () => {
+  const here = checkout([script('scenario-1')]);
+  const file = path.join(here.root, 'scenario-1.json');
+  fs.writeFileSync(file, JSON.stringify(evidence('scenario-1', 'a'.repeat(40))));
+  assert.equal(call(['check', 'demo-evidence', file], here.deps).status, 0);
+  // An earlier pull left version 2, a script of two steps that index.json does not list.
+  const left = path.join(here.root, 'demo-script', 'scenario-1', 'v2');
+  fs.mkdirSync(left);
+  fs.writeFileSync(path.join(left, 'scenario-1.json'), JSON.stringify(two('scenario-1')));
+  const got = call(['check', 'demo-evidence', file], here.deps);
+  assert.equal(got.status, 0, got.out);
+  // Version 2 counts once index.json lists it, and then the one-step evidence is at fault.
+  const index = JSON.parse(fs.readFileSync(path.join(here.root, 'index.json'), 'utf8'));
+  index.artifacts[0] = artifact('demo-script', 'scenario-1', [1, 2]);
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify(index));
+  const counted = call(['check', 'demo-evidence', file], here.deps);
+  assert.equal(counted.status, 1, counted.out);
+  assert.match(counted.out, /Give scenario-1\.json 2 steps/);
+});
+
+test('demo-video check: the cues are those of the newest version that index.json lists', () => {
+  const here = checkout([script('scenario-1')]);
+  const left = path.join(here.root, 'demo-script', 'scenario-1', 'v2');
+  fs.mkdirSync(left);
+  fs.writeFileSync(path.join(left, 'scenario-1.json'), JSON.stringify(two('scenario-1')));
+  const folder = path.join(here.root, 'video');
+  fs.mkdirSync(folder);
+  fs.writeFileSync(path.join(folder, 'scenario-1.mp4'), 'x');
+  fs.writeFileSync(path.join(folder, 'scenario-1.vtt'), filmVerb.captions(
+    { steps: [{ title: 'Step 1 of scenario-1.' }] }, { starts: [0], end: 1000 }));
+  const got = call(['check', 'demo-video', path.join(folder, 'scenario-1.mp4'),
+    path.join(folder, 'scenario-1.vtt')], here.deps);
+  assert.equal(got.status, 0, got.out);
+});
