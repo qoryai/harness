@@ -1580,3 +1580,34 @@ test('a lock of a criteria version that a cancelled run wrote gets the fix to th
     ]);
   }
 });
+
+// ---- A removed criterion in the lock check ------------------------------------------------
+
+// REMOVED_TESTS is criteria version 1 with ac-2 planned as Tests and then removed, with a
+// reason, next to ac-4, which is planned as Tests.
+const REMOVED_TESTS = (() => {
+  const doc = readJson(path.join(TESTDATA, 'acceptance-criteria.json'));
+  doc.criteria[1].check = 'Tests';
+  doc.criteria[1].removed = { reason: 'The hours no longer differ at weekends.' };
+  return doc;
+})();
+
+test('a removed criterion planned as Tests needs no check, and a check of it is refused', () => {
+  const make = () => {
+    const root = artifacts();
+    writeJson(path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json'),
+      REMOVED_TESTS);
+    return root;
+  };
+  // A lock with no check for ac-2 passes.
+  for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
+  // A lock with a check for ac-2 is refused: a removed criterion is no criterion planned as Tests.
+  const planned = clone(LOCK);
+  planned.checks.push({ ...LOCK.checks[0], criterion: 'ac-2' });
+  for (const result of both(make, planned)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Set the criterion of check 2 of acceptance-lock.json to a ' +
+      'criterion planned as Tests.');
+    assert.equal(result.lines[1], '  Criteria version 1 does not plan ac-2 as Tests.');
+  }
+});

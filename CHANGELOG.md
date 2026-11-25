@@ -2078,6 +2078,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- `workflow-write-acceptance-checks` reads a live `Tests` criterion as one with no `removed`
+  member, an object `{reason}`. Before, the skill had "no `removed` member set to `true`",
+  but the checks read `removed` as an object, so a `true` is no removal.
 - The line `/.qory` in `.git/info/exclude`, which qory writes there, and a line that starts
   with `/.qory/` are no finding of `scope`, `freeze`, `run`, `diff` and `probe`. Such a line
   stopped each of these verbs, although qory leaves `.qory/` out of every commit. Any other
