@@ -13,8 +13,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
   `feedback` with its push check, the rule for the question of a point, and the verbs
   `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
-  file that a workflow gives it. No process entry starts the workflow yet. A criterion-change
-  point changes no criterion yet, and an answer to a question is no source yet.
+  file whose path it gets from a workflow. No process entry starts the workflow yet. A
+  criterion-change point changes no criterion yet, and an answer to a question is no source
+  yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

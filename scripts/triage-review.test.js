@@ -338,7 +338,7 @@ test('a push checks the items and the questions of new points against the types 
   fails(push(changed((d) => { d.points[1].item = 'ac-99'; })),
     'Set the item of point p2 to a criterion that the criteria have.');
   const data = clone(ASKED);
-  data.points[2].reply = 'The run asks which reading you mean.';
+  data.points[2].reply = 'A member picks the reading that the run builds.';
   const notes = [GD1, GD2];
   passes(push(data, { notes }));
   fails(push(data, { notes, types: { questions: [{ data: { questions: [Q5] } }] } }),

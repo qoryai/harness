@@ -39,8 +39,9 @@ A point has these members, and no other:
 Write no `reply`: another agent adds it, and a `reply` that a point already has stays. Write
 no other member, such as a state: the end of a point is read from the other outputs.
 
-Together, the points of a note cover each thing that it asks for. A note that asks for
-nothing, such as "Thank you.", gets no point: list it under "Left out:".
+Together, the points of a note cover each thing that the person asks for in it. A note in
+which the person asks for nothing, such as "Thank you.", gets no point: list it under "Left
+out:".
 
 ## The sort
 
@@ -53,11 +54,11 @@ code that the feedback is about. Then pick the first sort that fits:
    - It removes a criterion, the change already has a part built for that criterion, and the
      note does not mention that part. Write two points: a `criterion-change` that removes the
      criterion, and this `question`.
-   - It adds, changes or removes a criterion, or asks for other evidence, and the `id` of its
-     source starts with `cm_`. No version can link to such a source, so a member's answer is
-     the link.
-2. `criterion-change`, for a point that adds, changes or removes a criterion, or asks for
-   other evidence. `output` is `acceptance-criteria` or `demo-scenarios`. `item` is the id of
+   - It adds, changes or removes a criterion, or is a request for other evidence, and the
+     `id` of its source starts with `cm_`. No version can link to such a source, so a
+     member's answer is the link.
+2. `criterion-change`, for a point that adds, changes or removes a criterion, or is a request
+   for other evidence. `output` is `acceptance-criteria` or `demo-scenarios`. `item` is the id of
    the criterion or the scenario, such as `ac-2`. Leave out `item` for a new one.
 3. `fix`, for a point that changes the product inside the approved criteria.
 
@@ -113,7 +114,7 @@ Quote a criterion by its first sentence in double quotes, with no id.
   nothing for this point." with the explanation "The product stays as it is."
 
 **A criterion change in a comment or a reply.** "Change" here is "adds", "changes" or
-"removes", as the note asks.
+"removes", as the person asks in the note.
 
 - Question: Do you want to change the approved criteria for "<words>"?
 - Context: "<words>" changes the criterion "<criterion text>". The comment has no id that a
@@ -142,15 +143,16 @@ are the answers to a question of Verify.
 
 The work item is on the fast track when `index.json` lists no version of
 `acceptance-criteria`. Then no point is a `criterion-change`. Read `## Track` of the newest
-proposal: the kind of change comes after "Fast track:". When a point asks for a change that
-is not of that kind, write no file, and report the line "Blocked: outside the fast track:"
+proposal: the kind of change comes after "Fast track:". When a point is a change that is not
+of that kind, write no file, and report the line "Blocked: outside the fast track:"
 as the agent's "Expected output" lists.
 
 ## Check list
 
 - Each source line that you got is in `sources`, as it is, after the sources of the newest
   version.
-- Each thing that a note asks for is in one point, or its note is under "Left out:".
+- Each thing that the person asks for in a note is in one point, or the note is under "Left
+  out:".
 - Each `quote` is a part of the text of its source, word for word.
 - Each `fix` stays inside the approved criteria. Each `criterion-change` has an `output`.
 - Each `question` has an item in your list, with the words, each reading or the cause, and 2

@@ -133,7 +133,7 @@ module.exports = (lib) => {
   }
 
   // FORMS are the words that follow the quoted words: the readings, the proof, or the change
-  // of a criterion that a comment asks for.
+  // of a criterion in a comment.
   const FORMS =
     /^ (?:can mean \S.* or \S|cannot be built as written: \S|(?:adds|changes|removes) \S)/;
 

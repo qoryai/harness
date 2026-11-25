@@ -86,7 +86,7 @@ agents, and the hooks of the end check with their settings:
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
   against the check list of `checking-questions`, and reports findings as text.
 - `reply-writer`: an agent that drafts a run's replies to open review comments, or the reply
-  of each new entry of a file that a workflow gives it, by `replying-to-comments`.
+  of each new entry of a file whose path it gets from a workflow, by `replying-to-comments`.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, the checks script with its

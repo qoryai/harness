@@ -2370,11 +2370,11 @@ The checks:
   rule for the question of a point, for an `about` of the type `feedback` or
   `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as
   `question`, in the draft `feedback.json` in a check, else in the newest version, and any new
-  question with an `about` of the type `feedback`. It refuses a question with fewer than 2 or
-  more than 4 options, with a `context` that has no words of the point in double quotes, or
-  that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot be
-  built as written: <cause>" and "adds", "changes" or "removes", and with an `about` other
-  than that of the point. A push of questions reads no feedback, so there the rule checks only
+  question with an `about` of the type `feedback`. A question fails the rule when it has fewer
+  than 2 or more than 4 options, a `context` that has no words of the point in double quotes,
+  or that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot
+  be built as written: <cause>" and "adds", "changes" or "removes", or an `about` other than
+  that of the point. A push of questions reads no feedback, so there the rule checks only
   an `about` of the type `feedback`, with any words in double quotes;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;

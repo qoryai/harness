@@ -187,7 +187,7 @@ module.exports = (lib) => {
         run.find(`Add the question ${point.question} of point ${point.id} to questions.json.`);
       } else if (point.sort === 'question' && typeof point.quote === 'string' &&
         !old.has(point.question)) {
-        // The schema gives the id the form q<N>.
+        // The schema allows only an id of the form q<N>.
         for (const text of pointQuestion(question, point.question, point)) run.find(text);
       }
     }

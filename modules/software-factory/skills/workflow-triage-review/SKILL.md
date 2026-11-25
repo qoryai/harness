@@ -20,7 +20,8 @@ not load the rules it needs, so it pushed no feedback."
 
 `<folder>` is the artifact folder that the pull prints. Each command that starts with
 `<skill folder>/checks.cjs` is the checks script of `running-a-workflow`. A source is one
-note of a person, a comment or a reply. A point is one thing that a source asks for.
+note of a person, a comment or a reply. A point is one thing that the person asks for in a
+source.
 
 ## The order of the run
 
@@ -103,7 +104,7 @@ follow in the context:
   for each." With 3 or 4 readings, write that number.
 - "cannot be built as written": "The feedback "<words>" cannot be built as written: <the
   cause in one clause>."
-- "removes", in a question that asks whether to keep the part that is built: "The feedback
+- "removes", in a question whether to keep the part that is built: "The feedback
   removes "<criterion text>", and the change already has <the built part, in one clause>."
 - "adds", "changes" or "removes", in any other question: "The feedback "<words>" changes the
   approved criteria, so a member decides it."

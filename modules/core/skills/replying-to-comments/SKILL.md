@@ -67,7 +67,8 @@ has a decision, write nothing.
 
 ## Reply to an entry of a file
 
-A workflow can give you a file of entries in place of the review comments. Then add the
-member `reply` to each entry whose id you got: what the run does with the entry, as plain
-text on one line of at most 3 sentences, with no id of an item. For an entry with a question,
-write what the question asks. Change nothing else in the file, and write the whole file.
+A workflow can start you with the path of a file of entries in place of the review
+comments. Then add the member `reply` to each entry whose id you got: what the run does with
+the entry, as plain text on one line of at most 3 sentences, with no id of an item. For an
+entry with a question, write what a member decides in the question. Change nothing else in
+the file, and write the whole file.
