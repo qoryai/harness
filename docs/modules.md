@@ -919,19 +919,18 @@ of `points.json`, each `(run, list, context)`, which the check of points runs af
 check of each point, and `end`, the check at the end of a session. Only `check`, `push`,
 `report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
 `starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb that
-reads the registry with exit 3. A
-`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
-the harness: the verb stops with an error that names the file and exit 3, and `end
---offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
-`checks.cjs` stops the same way when the registry fails, and prints no usage. In
-`software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
-`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
-new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
-<the change>` of the writers of `implement-changes`, the rules of the build ledger that the
-verbs `step` and `resume` apply, and the check at the end of a Build write session. A stack
-without that module, such as `core`, checks `questions` and `review-comments`, and `report`
-accepts only `needs <type>`.
+reads the registry with exit 3. A `workflow-checks.cjs` that throws, exports no function or
+returns no object is a fault of the harness: the verb stops with an error that names the
+file and exit 3, and `end --offline`, `step` and `resume` exit 4 with the fix on stderr. A
+verb outside the verbs of `checks.cjs` stops the same way when the registry fails, and
+prints no usage. In `software-factory`, `running-a-software-workflow/workflow-checks.cjs`
+adds the types `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
+`demo-scenarios`, the 11 types of Build and Verify, the lines that start with `needs a
+change to criterion`, `needs a new criterion` or `needs a change to the spec`, the line
+`needs a change to the build plan: <the change>` of the writers of `implement-changes`, the
+rules of the build ledger that the verbs `step` and `resume` apply, and the check at the end
+of a Build write session. A stack without that module, such as `core`, checks `questions`
+and `review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1341,19 +1340,18 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has
   no `review`, `review_session` or `hook_session`. For each checkout of
   `qory.start_commits` that the session can write, a change is a path that `git status`
-  lists: a tracked, staged or
-  untracked file that git does not ignore, or a submodule whose commit or files changed,
-  whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
-  change in that checkout. The finding is `Commit these changes, then end the session: the
-  suite and the review read only committed work.`, then `Not committed:` with at most 20
-  paths, sorted, fewer when the line would pass 200 characters, with a path that has a key
-  shown as words, and `(<n> in all)`. It counts in `.reports/uncommitted.json` the checks
-  that found a change, and starts again at the first check after one that passed. The count
-  is at most the failed checks since then. At the third failed check, its point is "The
-  Build session ended <n> times with changes it did not commit, so the suite and the review
-  could not check them.", with that count. With no `inputs.json`, another stage, or a stack
-  of core alone, it finds nothing. The Build stage runs `implement-changes`,
-  `plan-the-build` and `write-acceptance-checks` in such sessions.
+  lists: a tracked, staged or untracked file that git does not ignore, or a submodule whose
+  commit or files changed, whatever its `ignore` setting, outside `.qory/`. When a git call
+  fails, the check finds no change in that checkout. The finding is `Commit these changes,
+  then end the session: the suite and the review read only committed work.`, then `Not
+  committed:` with at most 20 paths, sorted, fewer when the line would pass 200 characters,
+  with a path that has a key shown as words, and `(<n> in all)`. It counts in
+  `.reports/uncommitted.json` the checks that found a change, and starts again at the first
+  check after one that passed. The count is at most the failed checks since then. At the
+  third failed check, its point is "The Build session ended <n> times with changes it did
+  not commit, so the suite and the review could not check them.", with that count. With no
+  `inputs.json`, another stage, or a stack of core alone, it finds nothing. The Build stage
+  runs `implement-changes`, `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
@@ -2555,23 +2553,23 @@ The checks:
   `acceptance-check-writer` has the line `Blocked: needs a change to criterion
   <about.item>`. A report of `software-developer` or `software-debugger` does not count.
   A question fails the rule with other than 3 options, with other than one option of each
-  of the three titles, with the number of
-  `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on the
-  change option, with a `context` that has no paragraph starting `**Why:**` or none starting
-  `**Checked:**`, and with an `about.item` that is not the lower-case id, such as `ac-3`. A
-  push reads no report, so such a question with none of the three titles passes a push. In
-  a push, and in a folder with no such line, a question about a criterion with none of
-  those titles, such as a question of the spec, has no such rule. The
-  same skill adds the reader of `feedback`, whose items are the ids of its points, and the
-  rule for the question of a point, for an `about` of the type `feedback` or
-  `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as
-  `question`, in the draft `feedback.json` in a check, else in the newest version, and any new
-  question with an `about` of the type `feedback`. A question fails the rule when it has fewer
-  than 2 or more than 4 options, a `context` that has no words of the point in double quotes,
-  or that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot
-  be built as written: <cause>" and "adds", "changes" or "removes", or an `about` other than
-  that of the point. A push of questions reads no feedback, so there the rule checks only
-  an `about` of the type `feedback`, with any words in double quotes;
+  of the three titles, with the number of `Change AC-N` or `Withdraw AC-N` not the number of
+  `about.item`, with no `proposal` on the change option, with a `context` that has no
+  paragraph starting `**Why:**` or none starting `**Checked:**`, and with an `about.item`
+  that is not the lower-case id, such as `ac-3`. A push reads no report, so such a question
+  with none of the three titles passes a push. In a push, and in a folder with no such line,
+  a question about a criterion with none of those titles, such as a question of the spec,
+  has no such rule. The same skill adds the reader of `feedback`, whose items are the ids of
+  its points, and the rule for the question of a point, for an `about` of the type
+  `feedback` or `acceptance-criteria`. The rule reads a new question whose id a point of the
+  feedback has as `question`, in the draft `feedback.json` in a check, else in the newest
+  version, and any new question with an `about` of the type `feedback`. A question fails the
+  rule when it has fewer than 2 or more than 4 options, a `context` that has no words of the
+  point in double quotes, or that goes on after them in none of the forms "can mean
+  <reading> or <reading>", "cannot be built as written: <cause>" and "adds", "changes" or
+  "removes", or an `about` other than that of the point. A push of questions reads no
+  feedback, so there the rule checks only an `about` of the type `feedback`, with any words
+  in double quotes;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:

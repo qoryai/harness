@@ -373,21 +373,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   rests on a type that cannot be pulled is not verified. `matrix` counts only the newest
   record of `run locked` for the lock and commit and the run id of the session, and only
   when it is a full, clean run with results; `run locked` exits 3 for a commit that tracks a
-  file under
-  `.reports/`. The two agents are the group role `verify-reviewers` of `software-factory`,
-  with no `paths`. `workflow-verify-a-ticket` and the stack entry `verify-a-ticket`
-  (`write-no-push`, `review_group: verify-reviewers`) run Verify as a review session: the
-  lock at the approved version, `run locked`, `matrix`, both reviewers, the round, the push
-  of the verification, and the verdict, with no question: a criterion that is not met makes
-  the verdict `changes-requested`. It
-  records `passed` only when every criterion is met, no scenario of the commit has a failed
-  verdict and no finding is blocking. `judging-criteria` and `verification-reviewer` read
-  the draft `verification.json` at the top of the artifact folder, not a `verification`
-  version of `qory.start_artifacts`, and read `suite_result` as optional. `checks.cjs
-  findings round` takes `--suite` as optional: with no flag the round has no suite finding,
-  and a given file that is missing, unreadable, failed or all skipped is still one blocking
-  finding. The check of `scripts/check.sh` for the group of Verify reads `review_group` of
-  the stack entry. Verify's stage in `process.yaml` is not built yet.
+  file under `.reports/`. The two agents are the group role `verify-reviewers` of
+  `software-factory`, with no `paths`. `workflow-verify-a-ticket` and the stack entry
+  `verify-a-ticket` (`write-no-push`, `review_group: verify-reviewers`) run Verify as a
+  review session: the lock at the approved version, `run locked`, `matrix`, both reviewers,
+  the round, the push of the verification, and the verdict, with no question: a criterion
+  that is not met makes the verdict `changes-requested`. It records `passed` only when every
+  criterion is met, no scenario of the commit has a failed verdict and no finding is
+  blocking. `judging-criteria` and `verification-reviewer` read the draft
+  `verification.json` at the top of the artifact folder, not a `verification` version of
+  `qory.start_artifacts`, and read `suite_result` as optional. `checks.cjs findings round`
+  takes `--suite` as optional: with no flag the round has no suite finding, and a given file
+  that is missing, unreadable, failed or all skipped is still one blocking finding. The
+  check of `scripts/check.sh` for the group of Verify reads `review_group` of the stack
+  entry. Verify's stage in `process.yaml` is not built yet.
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
