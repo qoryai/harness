@@ -8,7 +8,7 @@ description: Film each approved demo scenario that has no demo evidence for the 
 This workflow requires subagents. The session films the demo scripts of the approved demo
 scenarios on the checkout of the work, has `demo-reviewer` judge the frames, and stores one
 `demo-evidence` for each scenario. It changes no code, and it never starts
-`demo-author` or loads `scripting-demos`: the demo scripts exist already.
+`demo-author`, the agent that writes demo scripts: the demo scripts exist already.
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
@@ -16,11 +16,9 @@ scenarios on the checkout of the work, has `demo-reviewer` judge the frames, and
   evidence".
 - ${qory:skills/running-a-software-workflow}: before step 1, in every run, after
   `running-a-workflow`.
-- ${qory:skills/running-checks}: before step 3, in every run, for its sections "Preflight"
-  and "Film".
 
 When your runtime offers no way to load a skill, read each `SKILL.md` where your runtime
-lists it. When one of the first three skills cannot be loaded, start nothing and end with
+lists it. When one of these skills cannot be loaded, start nothing and end with
 "The run could not load the rules it needs, so no demo was filmed."
 
 Each command of this skill that starts with `<skill folder>/checks.cjs` is the checks script
@@ -59,10 +57,10 @@ types. Start no agent that is not `demo-reviewer`.
    "Failures" lists, with "The run could not withdraw the evidence of a removed demo
    scenario."
 4. With "To film: none", go to "The end".
-5. Run `<skill folder>/checks.cjs preflight --inputs <inputs>`, as the section "Preflight"
-   of `running-checks` lists. With 0, go on. With 1, `preflight` wrote `<folder>/points.json`
-   with one `run_again` point for each missing part, and the first lines of its findings
-   each end with the line "Kind: outside" or "Kind: setup":
+5. Run `<skill folder>/checks.cjs preflight --inputs <inputs>`. With 0, go on. With 1,
+   `preflight` wrote `<folder>/points.json` with one `run_again` point for each missing part,
+   and the first lines of its findings each end with the line "Kind: outside" or
+   "Kind: setup":
    - When one finding has "Kind: outside", do "An outside cause" with the points that
      `preflight` wrote, also when another finding has "Kind: setup".
    - When every finding has "Kind: setup", do "A setup fault" with the first finding. Its
@@ -110,11 +108,13 @@ types. Start no agent that is not `demo-reviewer`.
    `pictures`, the pictures `<folder>/.film/<id>/<id>-step-<N>.png` are the frames.
 3. Review the frames, as "The review" lists. The review gives each step a verdict, and a
    class for a failed step.
-4. Push the media, once, with the type that fits the evidence, as the section "Film" of
-   `running-checks` lists, and take the number that the push printed. When the push is
-   still refused after the third attempt, end with "The run could not push its demo
-   evidence." and record no verdict. A scenario with no film has no media, and so has a run
-   that failed in a step (exit 5 of `film`): skip this step.
+4. Push the media once, and take the number that the push printed. With the evidence `film`,
+   run `<qory> artifact push demo-video --name <id> <folder>/.film/<id>/<id>.mp4
+   <folder>/.film/<id>/<id>.vtt`. With the evidence `pictures`, run `<qory> artifact push
+   screenshot --name <id> <folder>/.film/<id>/<id>-step-*.png`. When the push is still
+   refused after the third attempt, end with "The run could not push its demo evidence."
+   and record no verdict. A scenario with no film has no media, and so has a run that
+   failed in a step (exit 5 of `film`): skip this step.
 5. Run `<skill folder>/checks.cjs film record <id> --review <report> --media <number>`,
    where `<report>` is `<folder>/.reports/demo-reviewer-<n>.md` of the review. For a run
    that failed in a step, leave out `--media`. For a scenario that has no film, run

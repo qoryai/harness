@@ -230,8 +230,8 @@ each step. A run that fails in a step after it recorded something exits 5 and ke
 up to that step or the pictures before it, for the review: push no file of it. When ffmpeg
 runs out of time on that film, or the disk is full while the runner writes it, it exits 3 with
 "Kind: outside". A finding that ends with the line "Kind: outside" has a cause that no change
-to the repository repairs, and "Kind: setup" one that a change repairs. Push the files of the scenario once, with the type
-that fits its evidence:
+to the repository repairs, and "Kind: setup" one that a change repairs. Push the files of the
+scenario once, with the type that fits its evidence:
 
 ```
 <qory> artifact push demo-video --name <id> \
