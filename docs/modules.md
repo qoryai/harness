@@ -2561,7 +2561,10 @@ find:
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
-  `expected` other than the scenario's title and step table. A demo evidence with no
+  `expected` other than the scenario's title and step table. A demo script that differs from
+  the one that the newest done step `script:<id>` of the newest `build-ledger` froze, unless
+  the ledger has the next step `script:<id>#2` or `#3`, in any state, and any change after
+  the third done step. A demo evidence with no
   demo-script version of its scenario, a step count or a step `title` other than the
   script's, where a step that the run did not reach has the verdict `not-reached`, and a
   `script` or `media` of another name, or `media` of another type than the evidence;
@@ -2851,7 +2854,7 @@ push_checks:
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
-`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios]`, `demo-evidence`,
+`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios, build-ledger]`, `demo-evidence`,
 `demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
 `[verification, acceptance-criteria]`, and the other types read nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
@@ -4769,10 +4772,13 @@ The check and the freeze of a script:
   fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
   file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
   fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
-  or to push the frozen script again. The limits: the push check of `demo-script` does not
-  read the ledger, so a changed frozen script is found by the next `demo check`, not at
-  the push; and `demo check` finds no correction that Verify asks for when the script is
-  unchanged, because it compares only the script with the scenario and the ledger.
+  or to push the frozen script again. The push check of `demo-script` reads the newest
+  `build-ledger` too: a changed frozen script is refused at the push, unless the ledger has
+  the step of the next correction, and a change after 2 corrections is refused. A frozen
+  script that the newest `demo-evidence` of the scenario faults, with the verdict `failed`,
+  the class `script` and the version of the script that counts, is a fault of `demo check`
+  too, and its fix is a correction: "Fix the actions of <id>: Verify found the script at
+  fault in step <N>." The third correction is refused as for any other fault.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.

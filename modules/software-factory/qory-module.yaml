@@ -93,7 +93,7 @@ push_checks:
     reads: [acceptance-criteria]
   - type: demo-script
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-script]
-    reads: [demo-scenarios]
+    reads: [demo-scenarios, build-ledger]
   - type: demo-evidence
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-evidence]
     reads: [demo-script]

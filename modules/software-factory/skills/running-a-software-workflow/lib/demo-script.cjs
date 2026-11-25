@@ -14,6 +14,8 @@ const { SCHEMAS } = require('./template.cjs');
 // the script.
 const FOLDER = '.demo';
 const EVIDENCE = /^Evidence: (film|pictures)$/;
+// The most done script steps of a scenario in the build ledger: the first pass and 2 corrections.
+const MOST_ROWS = 3;
 
 module.exports = (lib) => {
   const { MAX_BYTES, Missing, isObject, parseJson, readFile, schema, short, stepRows } = lib;
@@ -149,6 +151,33 @@ module.exports = (lib) => {
       .map((one) => one.data);
   }
 
-  return { DEMO_FOLDER: FOLDER, boundedText, draftScript, draftScripts, evidenceOf,
-    scriptFindings, within };
+  // doneRows returns one done row for each step id of the script steps of scenario id in ledger,
+  // which may be null: script:<id>, script:<id>#2 and script:<id>#3, the newest pass of an id
+  // when it has more, in the order of the ids.
+  function doneRows(ledger, id) {
+    const rows = new Map();
+    for (const row of ledger ? ledger.steps : []) {
+      const mine = row.kind === 'script' && row.id.split('#')[0] === `script:${id}`;
+      if (row.state === 'done' && mine) rows.set(row.id, row);
+    }
+    return [...rows.values()].sort((a, b) => Number(a.id.split('#')[1] || 1) -
+      Number(b.id.split('#')[1] || 1));
+  }
+
+  // ledgerOf returns the data of the newest build-ledger version in the store of context, or
+  // null when there is none or it is no ledger.
+  function ledgerOf(context) {
+    const newest = context.newest('build-ledger', 'build-ledger.json');
+    if (!newest) return null;
+    try {
+      const data = JSON.parse(newest.text);
+      return isObject(data) && Array.isArray(data.steps) && data.steps.every(isObject)
+        ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  return { DEMO_FOLDER: FOLDER, MOST_ROWS, boundedText, doneRows, draftScript, draftScripts,
+    evidenceOf, ledgerOf, scriptFindings, within };
 };

@@ -514,3 +514,120 @@ test('film record: pictures have one frame per step, and a wrong form exits 2', 
     assert.equal(call(argv, here.deps).status, 2, argv.join(' '));
   }
 });
+
+// ---- the build ledger at the push of a demo script -------------------------------------------
+
+const crypto = require('node:crypto');
+
+const SCENARIOS = fs.readFileSync(path.join(MODULES,
+  'software-factory/testdata/demo-scenarios.md'), 'utf8');
+const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
+
+// The demo script of scenario-2 of the test data, with the click of the action.
+const scriptTwo = (target) => ({ scenario: 'scenario-2', title: 'Read the closed day',
+  evidence: 'pictures', source: { version: 1 }, setup: [{ do: 'open', url: '/sign-in' }],
+  steps: [{ step: 1, title: 'Open the saved reply for delayed orders.',
+    expected: 'The reply states that support is closed on 25 December.',
+    actions: [{ do: 'click', target }] }] });
+
+// A step of the build ledger with the members that its schema requires.
+const row = (id, state, extra = {}) => ({ id, pass: 1, kind: 'script',
+  workflow: 'implement-changes', inputs: '1'.repeat(64), state, base: '2'.repeat(40),
+  attempts: [], replays: 0, started_at: '2026-11-22T09:00:00Z', ...extra });
+
+// A done step script:scenario-2 or its corrections, with the sha256 of the file that it froze.
+const done = (id, text) => row(id, 'done', { commit: '3'.repeat(40),
+  ended_at: '2026-11-22T09:10:00Z', script_sha256: sha256(text) });
+
+// ledgered returns an artifact folder with the approved demo scenarios, the pushed script FIRST
+// as version 1, and the build ledger with rows, a list of steps.
+function ledgered(rows, first = JSON.stringify(scriptTwo('text=Delayed order'))) {
+  const root = next('ledger');
+  const entries = [
+    stored(root, 'demo-scenarios', 'main', { 'demo-scenarios.md': SCENARIOS }, true),
+    stored(root, 'demo-script', 'scenario-2', { 'scenario-2.json': first }),
+  ];
+  if (rows) {
+    const text = JSON.stringify({ steps: rows, escalations: [] });
+    entries.push(stored(root, 'build-ledger', 'main', { 'build-ledger.json': text }));
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+    fs.writeFileSync(path.join(root, '.reports', 'build-ledger.json'), text);
+  }
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify({ artifacts: entries }));
+  return root;
+}
+
+// pushing runs the push check of demo-script on the file of a script in root.
+function pushing(root, data) {
+  const file = path.join(root, 'draft', 'scenario-2.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data));
+  return call(['check', 'demo-script', file], { cwd: tmp, artifacts: [root] });
+}
+
+test('push check of demo-script: a changed frozen script needs the next step in the ledger', () => {
+  const frozenText = JSON.stringify(scriptTwo('text=Delayed order'));
+  const changed = scriptTwo('text=Delayed order reply');
+  const rows = [done('script:scenario-2', frozenText)];
+  // No ledger, or a script that is the frozen one: no finding.
+  assert.equal(pushing(ledgered(null), changed).status, 0);
+  assert.equal(pushing(ledgered(rows), frozenText).status, 0);
+  const refused = pushing(ledgered(rows), changed);
+  assert.equal(refused.status, 1, refused.out);
+  assert.deepEqual(refused.out.split('\n').slice(0, 2), [
+    'Run the step script:scenario-2#2, then push scenario-2.json again.',
+    '  scenario-2.json has another sha256 than the done step script:scenario-2, and the build ' +
+      'ledger has no step script:scenario-2#2.']);
+  // The step is begun: the push passes, and it stays refused with the row of another scenario.
+  const begun = [...rows, row('script:scenario-2#2', 'running')];
+  assert.equal(pushing(ledgered(begun), changed).status, 0);
+  const other = [...rows, row('script:scenario-1#2', 'running')];
+  assert.equal(pushing(ledgered(other), changed).status, 1);
+});
+
+test('push check of demo-script: a third correction is refused', () => {
+  const frozenText = JSON.stringify(scriptTwo('text=Delayed order'));
+  const rows = [done('script:scenario-2', frozenText),
+    done('script:scenario-2#2', JSON.stringify(scriptTwo('text=a'))),
+    done('script:scenario-2#3', JSON.stringify(scriptTwo('text=b')))];
+  const last = JSON.stringify(scriptTwo('text=b'));
+  assert.equal(pushing(ledgered(rows), last).status, 0);
+  const refused = pushing(ledgered(rows), scriptTwo('text=c'));
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.out.split('\n')[0], 'Keep the script of scenario-2 as it is: it has had 2 ' +
+    'corrections, and a third is refused.');
+});
+
+test('demo check: a frozen script that Verify faulted is a correction, and the third is refused', () => {
+  const frozenText = JSON.stringify(scriptTwo('text=Delayed order'));
+  const fault = { scenario: 'scenario-2', verdict: 'failed', class: 'script',
+    script: { type: 'demo-script', name: 'scenario-2', version: 1 },
+    steps: [{ step: 1, verdict: 'failed', finding: 'The target matches no element.' }] };
+  const checking = (rows, evidenceData) => {
+    const root = ledgered(rows, frozenText);
+    if (evidenceData) {
+      const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+      index.artifacts.push(stored(root, 'demo-evidence', 'scenario-2',
+        { 'scenario-2.json': JSON.stringify(evidenceData) }));
+      fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index));
+    }
+    return call(['demo', 'check', 'scenario-2'], { cwd: tmp, artifacts: [root] });
+  };
+  const rows = [done('script:scenario-2', frozenText)];
+  const faulted = checking(rows, fault);
+  assert.equal(faulted.status, 1, faulted.out);
+  assert.deepEqual(faulted.out.split('\n').slice(0, 3), [
+    'Fix the actions of scenario-2: Verify found the script at fault in step 1.',
+    '  "The target matches no element."',
+    'Write scenario-2 again as the step script:scenario-2#2, then run demo check scenario-2.']);
+  // Evidence of a product fault, of another script version or a passed one is no correction.
+  for (const other of [{ ...fault, class: 'product' }, { ...fault, verdict: 'passed' },
+    { ...fault, script: { ...fault.script, version: 2 } }]) {
+    assert.equal(checking(rows, other).status, 0);
+  }
+  const three = [...rows, done('script:scenario-2#2', 'b'), done('script:scenario-2#3', 'c')];
+  const refused = checking(three, fault);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.out.split('\n')[0], 'Keep the script of scenario-2 as it is: it has had ' +
+    '2 corrections, and a third is refused.');
+});
