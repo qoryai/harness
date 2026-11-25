@@ -46,6 +46,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in the folder, or has another track leaves the build plan as the source. The track is the
   one in `## Track` of the approved proposal: it is still "Fast track" after a switch to
   the standard track, until the track comes from `inputs.json`.
+- The verb `revert-attempt --base <commit>` of `running-a-software-workflow`. It makes one
+  commit, with HEAD as its parent, whose tree is the tree of the base, and moves HEAD, the index
+  and the files to it, so that nothing is left uncommitted and no push needs a force. It exits 3
+  with the fix first when the checkout has a change that is not committed, when the base is no
+  commit of the checkout, and when HEAD has the tree of the base already. Nothing calls it yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

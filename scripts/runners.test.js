@@ -1324,6 +1324,100 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
   assert.equal(call(dir, ['diff', '--from', 'abcdef1'.repeat(6).slice(0, 40)]).status, 3);
 });
 
+// ---- revert-attempt ----------------------------------------------------------------------
+
+// attempted makes a checkout whose later commit changes, adds and deletes files, and returns its
+// folder, the commit that the attempt started from, and the head after the attempt.
+function attempted() {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+  write(dir, 'lib/new.js', 'exports.x = 1;\n');
+  fs.rmSync(path.join(dir, 'tests/a.test.js'));
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
+  return { dir, start, head: sh(dir, 'rev-parse', 'HEAD') };
+}
+
+test('revert-attempt: one commit with the tree of --base on top of HEAD, nothing left uncommitted', () => {
+  const { dir, start, head } = attempted();
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 0, got.out + got.err);
+  const made = sh(dir, 'rev-parse', 'HEAD');
+  assert.deepEqual(got.lines, [`Reverted to the tree of ${start.slice(0, 12)} in commit ${made}.`]);
+  assert.notEqual(made, head);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD^'), head);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD^{tree}'), sh(dir, 'rev-parse', `${start}^{tree}`));
+  assert.equal(sh(dir, 'rev-list', '--count', `${head}..HEAD`), '1');
+  assert.equal(sh(dir, 'log', '-1', '--format=%an <%ae>|%cn <%ce>'),
+    'qory <qory@localhost>|qory <qory@localhost>');
+  assert.equal(sh(dir, 'log', '-1', '--format=%s'), `Revert the attempt to commit ${start.slice(0, 12)}`);
+  assert.equal(sh(dir, 'status', '--porcelain'), '');
+  assert.equal(fs.existsSync(path.join(dir, 'lib/new.js')), false);
+  assert.equal(fs.readFileSync(path.join(dir, 'src/a.js'), 'utf8'), 'exports.add = (a, b) => a + b;\n');
+  assert.equal(fs.existsSync(path.join(dir, 'tests/a.test.js')), true);
+  // An ignored file stays: .qory is no part of a commit.
+  assert.equal(fs.existsSync(path.join(dir, '.qory/artifacts/index.json')), true);
+});
+
+test('revert-attempt: a change that is not committed stops it, and HEAD stays', () => {
+  const { dir, start, head } = attempted();
+  for (const change of [() => write(dir, 'src/a.js', 'changed\n'),
+    () => write(dir, 'lib/untracked.js', 'x\n')]) {
+    change();
+    const got = call(dir, ['revert-attempt', '--base', start]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'Commit or undo each change, then run revert-attempt again.');
+    assert.match(got.lines[1], /^ {2}The checkout has 1 changed path, such as "(src\/a|lib\/untracked)\.js"\.$/);
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+    sh(dir, 'checkout', '-q', '--', 'src/a.js');
+    fs.rmSync(path.join(dir, 'lib/untracked.js'), { force: true });
+  }
+  assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
+});
+
+test('revert-attempt: a pattern in .git/info/exclude stops it, and HEAD stays', () => {
+  const { dir, start, head } = attempted();
+  fs.appendFileSync(path.resolve(dir, sh(dir, 'rev-parse', '--git-path', 'info/exclude')),
+    'tests/setup.js\n');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, '  "tests/setup.js"']);
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('revert-attempt: a --base that is no commit of the checkout exits 3, a short id or none exits 2', () => {
+  const { dir, start, head } = attempted();
+  const tree = sh(dir, 'rev-parse', `${start}^{tree}`);
+  for (const base of ['abcdef1'.repeat(6).slice(0, 40), tree]) {
+    const got = call(dir, ['revert-attempt', '--base', base]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'Give --base a commit of this checkout, then run revert-attempt again.');
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  }
+  for (const argv of [['revert-attempt'], ['revert-attempt', '--base'],
+    ['revert-attempt', '--base', start.slice(0, 7)], ['revert-attempt', '--base', 'HEAD'],
+    ['revert-attempt', start], ['revert-attempt', '--base', start, 'x']]) {
+    assert.equal(call(dir, argv).status, 2, argv.join(' '));
+  }
+});
+
+test('revert-attempt: a HEAD with the tree of --base already exits 3 and makes no commit', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  for (const empty of [false, true]) {
+    if (empty) {
+      sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q',
+        '--allow-empty', '-m', 'same tree');
+    }
+    const head = sh(dir, 'rev-parse', 'HEAD');
+    const got = call(dir, ['revert-attempt', '--base', start]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'Leave the checkout as it is: HEAD has the tree of the base.');
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  }
+});
+
 // ---- run locked --------------------------------------------------------------------------
 
 const sha256 = (file) => require('crypto').createHash('sha256').update(fs.readFileSync(file)).digest('hex');
