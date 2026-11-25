@@ -86,8 +86,8 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
     feedback: <k> to fix in Build."
 
 "Notes in a start" of `running-a-workflow` applies to each start. The questions writer and
-the reply writer get one start each, besides the start with the time and the starts for a
-finding of a check.
+the reply writer get one start each, besides the start with the time, the starts for a
+finding of a check, and the start for the points that the triager adds after a finding.
 
 ## Questions with no answer
 
@@ -95,7 +95,8 @@ Write `points.json` with one `answer` point per line "Waiting for an answer:", a
 `running-a-workflow` lists, then end as that section lists. The `question` of the point is
 the id of the question on that line. Read the question in `<folder>/questions.json`, else in
 the newest version, with the file tool of your runtime. `<words>` is what the context has in
-its first double quotes, unchanged. The text of the point is one of these, by the words that
+its first double quotes, unchanged, and `<criterion text>` what it has in its second double
+quotes. The text of the point is one of these, by the words that
 follow in the context:
 
 - "can mean": "The feedback "<words>" can be read 2 ways, and a user sees a different result

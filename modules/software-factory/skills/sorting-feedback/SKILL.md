@@ -51,7 +51,8 @@ code that the feedback is about. Then pick the first sort that fits:
    - It can be read in two or more ways, and a user sees a different result for each.
    - It cannot be built as written, and you can state the cause.
    - It removes a criterion, the change already has a part built for that criterion, and the
-     note does not mention that part. Write this point beside the `criterion-change`.
+     note does not mention that part. Write two points: a `criterion-change` that removes the
+     criterion, and this `question`.
    - It adds, changes or removes a criterion, or asks for other evidence, and the `id` of its
      source starts with `cm_`. No version can link to such a source, so a member's answer is
      the link.
