@@ -4385,7 +4385,7 @@ Exit status:
 - 1: a path outside the Files, including a path under `.qory`; any changed path when the
   folder has no build plan; a key; more than 500 commits since the start commit; or a
   pattern in `.git/info/exclude` other than `/.qory` or a line that starts with `/.qory/`.
-  One line per finding, the fix first, and never the value of a key.
+  One or more lines per finding, the fix first, and never the value of a key.
 - 2: wrong arguments, with the usage on stderr.
 - 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
   plan that cannot be read, a Files cell that is no list of paths, or a start commit that
