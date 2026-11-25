@@ -681,3 +681,51 @@ test('demo-video check: the cues are those of the newest version that index.json
     path.join(folder, 'scenario-1.vtt')], here.deps);
   assert.equal(got.status, 0, got.out);
 });
+
+// ---- the report of demo-reviewer -------------------------------------------------------------
+
+// PLUGIN_COPY has the layout of the composed plugin for the agents of software-factory.
+const PLUGIN_COPY = path.join(tmp, 'plugin');
+fs.mkdirSync(path.join(PLUGIN_COPY, 'agents'), { recursive: true });
+fs.cpSync(path.join(MODULES, 'software-factory', 'agents'), path.join(PLUGIN_COPY, 'agents'),
+  { recursive: true });
+
+// reviewed runs the report check of demo-reviewer on text.
+function reviewed(text) {
+  const root = next('report');
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  const file = path.join(root, '.reports', 'demo-reviewer-1.md');
+  fs.writeFileSync(file, text);
+  return call(['report', 'demo-reviewer', file], { cwd: tmp, artifacts: [root],
+    plugin: PLUGIN_COPY });
+}
+
+test('report: demo-reviewer ends with done or blocked, and its step lines are the lines that film record reads', () => {
+  const body = ['What you read:', '- /tmp/qory-artifacts/demo-script/scenario-1/v1/scenario-1.json',
+    '- /tmp/qory-artifacts/.film/scenario-1/frames/step-1-start.png', ''];
+  const passed = reviewed([...body, 'Step 1: passed', 'Step 2: passed', '', 'done', ''].join('\n'));
+  assert.equal(passed.status, 0, passed.out + passed.err);
+  const failed = reviewed([...body, 'Step 1: passed',
+    'Step 2: failed: The page shows no date, and the step expects 2026-11-24.',
+    'Class: product', '', 'done', ''].join('\n'));
+  assert.equal(failed.status, 0, failed.out + failed.err);
+  const film = reviewed([...body, 'Step 1: not-reached', 'Needs film: 1', '', 'done', ''].join('\n'));
+  assert.equal(film.status, 0, film.out + film.err);
+  const clean = reviewed([...body, 'Step 1: passed', '', 'clean', ''].join('\n'));
+  assert.equal(clean.status, 1);
+  assert.match(clean.out, /End the report with one word, done, blocked\./);
+  const blocked = reviewed(['Blocked: /tmp/x.png is no image.', '', 'blocked', ''].join('\n'));
+  assert.equal(blocked.status, 0, blocked.out + blocked.err);
+});
+
+test('film record reads the lines that demo-reviewer writes', () => {
+  const here = filmed();
+  const text = ['What you read:', '- x', '', 'Step 1: passed',
+    'Step 2: failed: The page shows no date.', 'Class: script', '', 'done', ''].join('\n');
+  const file = path.join(here.dir, 'report.md');
+  fs.writeFileSync(file, text);
+  const done = call(['film', 'record', 'scenario-1', '--review', file, '--media', '1'], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.deepEqual([here.written().class, here.written().steps[1].finding],
+    ['script', 'The page shows no date.']);
+});
