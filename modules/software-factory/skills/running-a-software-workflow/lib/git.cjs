@@ -21,6 +21,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const secrets = require('./secrets.cjs');
+const { shown } = require('./shown.cjs');
 
 const SAFE = [
   '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'diff.external=',
@@ -275,9 +276,9 @@ function hidden(Missing, cwd, env, fix, listed) {
   return found;
 }
 
-// excluded returns '.git/info/exclude' when that file of the checkout has a pattern, a line
-// that is neither blank nor a comment, else null. Its patterns hide untracked files from git
-// status, so a check counts a pattern there as a change.
+// excluded returns the finding of the first pattern in .git/info/exclude, as it hides files from
+// git status, else null. /.qory, which qory writes, and a line that starts with /.qory/ are no
+// finding. A line is blank when it is empty or only ASCII spaces, as in git; none is trimmed.
 function excluded(Missing, cwd, env) {
   const file = ok(Missing, cwd, ['rev-parse', '--git-path', 'info/exclude'],
     'Run the verb in the checkout of the work', { env }).trim();
@@ -287,13 +288,42 @@ function excluded(Missing, cwd, env) {
   } catch {
     return null;
   }
-  return text.split(/\r?\n/).some((line) => line.trim() && !line.startsWith('#'))
-    ? '.git/info/exclude' : null;
+  // shortcut: with core.ignorecase such a line also hides a folder .QORY, as .qory/ is hidden in
+  // any case; read core.ignorecase here when a checkout has files to check in a folder .QORY.
+  const found = text.split(/\r?\n/).find((line) => !/^ *$/.test(line) && !line.startsWith('#') &&
+    line !== '/.qory' && !line.startsWith('/.qory/'));
+  if (found === undefined) return null;
+  // shortcut: the scan reads 65536 characters, as a line of megabytes overflows its stack, so a
+  // secret value of more than 65000 characters can show its start; read more when one exists.
+  const name = secrets.shown(found.slice(0, 65536), secrets.secretValues(env));
+  return `${EXCLUDED}\n${shownPattern(name, 80)}`;
 }
 
-// EXCLUDED is the line of a checkout with a pattern in .git/info/exclude.
-const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns hide files ' +
-  'from git status.';
+// UNSEEN is each character that shows nothing and that checks.cjs removes from a line that it
+// prints. shown escapes the format characters among them.
+const UNSEEN = /[\p{Default_Ignorable_Code_Point}\ufffc]/gu;
+
+// shownPattern returns text as shown does, with each UNSEEN character as an escape too, cut to
+// limit characters, with no escape cut.
+function shownPattern(text, limit) {
+  const units = [...text].map((char) => shown(char).slice(1, -1).replace(UNSEEN, (one) => {
+    const code = one.codePointAt(0).toString(16);
+    return code.length > 4 ? `\\u{${code}}` : `\\u${code.padStart(4, '0')}`;
+  }));
+  const first = (size) => {
+    let used = 0;
+    return units.filter((unit) => {
+      used += [...unit].length;
+      return used <= size;
+    });
+  };
+  const whole = first(limit);
+  return whole.length === units.length ? `"${whole.join('')}"`
+    : `"${first(limit - 3).join('')}..."`;
+}
+
+// EXCLUDED is the first line of the finding of excluded; the pattern is on the line after it.
+const EXCLUDED = 'Remove this line from .git/info/exclude, then run the verb again.';
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
@@ -350,6 +380,6 @@ function checkout(Missing, io) {
 }
 
 module.exports = {
-  SAFE, COMMIT, EXCLUDED, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
+  SAFE, COMMIT, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
   emptyBlob, names, isQory, checkout,
 };

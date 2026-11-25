@@ -306,6 +306,15 @@ test('scope --plan: a fast-track proposal proves the commits of its kind', () =>
   const key = scene(BASE);
   commit(key.dir, { 'docs/hours.md': `Key ghp_${'A1b2C3d4E5'.repeat(4)}\n` });
   fails(scope(key), /^Rewrite commit [0-9a-f]{12} without /);
+  // A pattern in .git/info/exclude stops it, and the line that qory writes there does not.
+  const exclude = path.resolve(good.dir, '.git/info/exclude');
+  fs.writeFileSync(exclude, '/.qory\n');
+  passes(scope(good));
+  fs.writeFileSync(exclude, '/.qory\ntests/setup.js\n');
+  const hides = scope(good);
+  fails(hides, /^Remove this line from \.git\/info\/exclude, then run the verb again\./);
+  assert.equal(hides.lines[1], '  "tests/setup.js"');
+  fs.writeFileSync(exclude, '');
   // A start commit that is not the base of HEAD, and a call with no commit, still exit 3 and 2.
   const wrong = scope(good, 'a'.repeat(40));
   assert.equal(wrong.status, 3, wrong.out);
