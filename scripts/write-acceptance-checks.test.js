@@ -90,7 +90,7 @@ test('the skill reads the criteria, and ends with run_again for a Tests criterio
   says(order, 'The criteria: take `<M>`, the `newest_version` of `acceptance-criteria` in ' +
     '`index.json`, and read `<folder>/acceptance-criteria/main/v<M>/acceptance-criteria.json`');
   says(order, 'each entry of `criteria` in the JSON whose `check` is `Tests` and that has no ' +
-    '`removed` member set to `true`');
+    '`removed` member (an object `{reason}`)');
   // A live Tests criterion that no row with a check path lists: no agent, no push, no passed.
   says(order, 'When a live Tests criterion is in the Criteria cell of no row with a check ' +
     'path, start no agent, push nothing, and do not end the run as `passed`. End as "Points" ' +

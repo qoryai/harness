@@ -1580,3 +1580,113 @@ test('a lock of a criteria version that a cancelled run wrote gets the fix to th
     ]);
   }
 });
+
+// ---- A removed criterion in the lock check ------------------------------------------------
+
+// REMOVED_TESTS is criteria version 1 with ac-2 planned as Tests and then removed, with a
+// reason, next to ac-4, which is planned as Tests.
+const REMOVED_TESTS = (() => {
+  const doc = readJson(path.join(TESTDATA, 'acceptance-criteria.json'));
+  doc.criteria[1].check = 'Tests';
+  doc.criteria[1].removed = { reason: 'The hours no longer differ at weekends.' };
+  return doc;
+})();
+
+test('a removed criterion planned as Tests needs no check, and a check of it is refused', () => {
+  const make = () => {
+    const root = artifacts();
+    writeJson(path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json'),
+      REMOVED_TESTS);
+    return root;
+  };
+  // A lock with no check for ac-2 passes.
+  for (const result of both(make, LOCK)) assert.equal(result.status, 0, result.out);
+  // A lock with a check for ac-2 is refused: a removed criterion is no criterion planned as Tests.
+  const planned = clone(LOCK);
+  planned.checks.push({ ...LOCK.checks[0], criterion: 'ac-2' });
+  for (const result of both(make, planned)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Set the criterion of check 2 of acceptance-lock.json to a ' +
+      'criterion planned as Tests.');
+    assert.equal(result.lines[1], '  Criteria version 1 does not plan ac-2 as Tests.');
+  }
+});
+
+// ---- The ids that two criteria files add, change, remove and keep --------------------------
+
+// criteriaText returns an acceptance-criteria.json with entries, each [id, text, check, removed].
+const criteriaText = (entries) => JSON.stringify({ summary: 'S.',
+  criteria: entries.map(([id, text, check, removed]) => ({ id, text, check,
+    ...(removed ? { removed: { reason: 'No longer needed.' } } : {}) })) });
+
+test('criteriaDiff lists the added, changed, removed and unchanged ids', () => {
+  const before = criteriaText([
+    ['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests'], ['ac-3', 'Three.', 'Demo: Three'],
+    ['ac-4', 'Four.', 'Tests'], ['ac-5', 'Five.', 'Tests', true], ['ac-6', 'Six.', 'Tests'],
+  ]);
+  const after = criteriaText([
+    ['ac-1', 'One.', 'Tests'], ['ac-2', 'Two, changed.', 'Tests'],
+    ['ac-3', 'Three.', 'Tests'], ['ac-4', 'Four.', 'Tests', true],
+    ['ac-5', 'Five.', 'Tests', true], ['ac-7', 'Seven.', 'Tests'],
+  ]);
+  assert.deepEqual(LIB.criteriaDiff(before, after), {
+    added: ['ac-7'], changed: ['ac-2', 'ac-3'], removed: ['ac-4', 'ac-6'], unchanged: ['ac-1'],
+  });
+});
+
+test('criteriaDiff of equal files has only unchanged ids, in the order of the file', () => {
+  const text = criteriaText([['ac-2', 'Two.', 'Tests'], ['ac-1', 'One.', 'Tests'],
+    ['ac-3', 'Three.', 'Tests', true]]);
+  assert.deepEqual(LIB.criteriaDiff(text, text),
+    { added: [], changed: [], removed: [], unchanged: ['ac-2', 'ac-1'] });
+  // A file that differs only in its summary and in its spacing has the same ids.
+  const spaced = JSON.stringify(JSON.parse(text), null, 2).replace('"S."', '"Another summary."');
+  assert.deepEqual(LIB.criteriaDiff(text, spaced), LIB.criteriaDiff(text, text));
+});
+
+test('criteriaDiff counts the criteria of an empty file as added, or as removed', () => {
+  const text = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  const empty = criteriaText([]);
+  assert.deepEqual(LIB.criteriaDiff(empty, text),
+    { added: ['ac-1', 'ac-2'], changed: [], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(text, empty),
+    { added: [], changed: [], removed: ['ac-1', 'ac-2'], unchanged: [] });
+});
+
+test('criteriaDiff counts an id removed before and live after as added', () => {
+  const before = criteriaText([['ac-1', 'One.', 'Tests', true], ['ac-2', 'Two.', 'Tests']]);
+  const after = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff(before, after),
+    { added: ['ac-1'], changed: [], removed: [], unchanged: ['ac-2'] });
+});
+
+test('criteriaDiff of a text that is no JSON has no criteria', () => {
+  const text = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff('{', text),
+    { added: ['ac-1', 'ac-2'], changed: [], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(text, '{'),
+    { added: [], changed: [], removed: ['ac-1', 'ac-2'], unchanged: [] });
+});
+
+test('criteriaDiff leaves a criterion live when removed is not an object', () => {
+  const entry = (removed) => JSON.stringify({ criteria: [{ id: 'ac-1', text: 'One.',
+    check: 'Tests', removed }] });
+  assert.deepEqual(LIB.criteriaDiff(entry(true), entry(true)),
+    { added: [], changed: [], removed: [], unchanged: ['ac-1'] });
+  assert.deepEqual(LIB.criteriaDiff(entry(true), entry({ reason: 'Gone.' })),
+    { added: [], changed: [], removed: ['ac-1'], unchanged: [] });
+});
+
+test('criteriaDiff lists a duplicate id once and skips an entry with no id', () => {
+  const doubled = JSON.stringify({ criteria: [
+    { id: 'ac-1', text: 'One.', check: 'Tests' }, { text: 'No id.', check: 'Tests' },
+    { id: 'ac-1', text: 'One, again.', check: 'Tests' }, { id: 7, text: 'Bad id.', check: 'Tests' },
+  ] });
+  const text = criteriaText([['ac-1', 'One.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff(text, doubled),
+    { added: [], changed: ['ac-1'], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(doubled, doubled),
+    { added: [], changed: [], removed: [], unchanged: ['ac-1'] });
+  assert.deepEqual(LIB.criteriaDiff(criteriaText([]), doubled),
+    { added: ['ac-1'], changed: [], removed: [], unchanged: [] });
+});
