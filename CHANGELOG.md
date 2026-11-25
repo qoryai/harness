@@ -35,13 +35,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   a lock without `/criteria/sha256` counts every criterion as changed. A free-text note
   binds to no criterion, a known gap. The check and the push of `acceptance-lock` apply the
   same rule, and `criteriaTarget` uses the same test, so a refused link is never the target.
-- `build-plan`, `verification` and `walkthrough` read `acceptance-lock` in a push, and
-  count a version that is linked to an answer only when the newest acceptance lock locks it:
-  that lock passed the question rule when it was pushed, so these types need no `questions`.
-  Before that lock, the target stays at the earlier version and the finding is "Version <N>
-  is linked to an answer, and no acceptance lock locks it." When the store lacks the newest
-  lock, the check stops with "Report to a member: the store lacks acceptance-lock version
-  <N>." A check and a push of these types give the same result for the same facts.
+- `build-plan`, `verification` and `walkthrough` read `acceptance-lock` and `questions`, as
+  `acceptance-lock` does, and count a version that is linked to an answer by the same rule:
+  the question rule passes, or the newest acceptance lock locks that version. A plan can
+  then be written for a version that an answer opens before its lock exists, and `changes`
+  lists the criteria that the answer changes. A check and a push give the same result for
+  the same facts. When the store lacks the lock that the rule compares, a push reports it
+  and a check gets the `qory artifact pull acceptance-lock --version <N>` line. The target
+  reads the locks that no cancelled run wrote and that are no withdrawal, also while the
+  lock is withdrawn, and `matrix` pulls the lock and the questions beside the criteria.
 - An acceptance lock has `/criteria/sha256`, an object of the SHA-256 of the text and the
   check of each live criterion of the locked version, by criterion id. `lock` fills it, and
   the check recomputes it. The question rule compares it with the criteria version that is

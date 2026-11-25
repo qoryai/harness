@@ -651,13 +651,13 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
-    'pull-request': null, 'build-plan': 'acceptance-criteria, acceptance-lock',
+    'pull-request': null, 'build-plan': 'acceptance-criteria, acceptance-lock, questions',
     'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria, questions',
     'demo-script': 'demo-scenarios, build-ledger', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script',
-    verification: 'acceptance-criteria, acceptance-lock',
-    walkthrough: 'verification, acceptance-criteria, acceptance-lock',
+    verification: 'acceptance-criteria, acceptance-lock, questions',
+    walkthrough: 'verification, acceptance-criteria, acceptance-lock, questions',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -3123,10 +3123,10 @@ test("build-plan, verification, walkthrough and acceptance-lock: a run's version
   }
 });
 
-// answerStore returns a fixture in which lock 1 locks version 1, a member answered a question
-// about ac-4, and the run's version 2 changes ac-4 and is linked to `decision`. With locked,
-// lock 2 locks version 2, as the lock check passed it after the answer.
-function answerStore(decision, locked2) {
+// answerStore returns a fixture in which lock 1 locks version 1, the run's version 2 changes
+// ac-4 and is linked to `decision`, and, with question, a member answered a question about
+// ac-4 after lock 1. With locked2, lock 2 locks version 2, as the lock check passed it.
+function answerStore(decision, { locked2 = false, question = true } = {}) {
   const folder = inVerify();
   const second = criteriaDoc((list) => { criterionOf(list, 'ac-4').text += ' Within a day.'; });
   version(folder, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
@@ -3134,10 +3134,12 @@ function answerStore(decision, locked2) {
   version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json', second);
   listed(folder, 'acceptance-criteria', 2, 'av_ac2',
     { at: LATER, decision, decision_at: LATEST });
-  version(folder, 'questions', 'main', 1, 'questions.json', { questions: [{ id: 'q-1',
-    question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
-    state: 'answered', answer: { option: 'A', by: PERSON, at: LATEST } }] });
-  listed(folder, 'questions', 1, 'av_q1', { at: LATEST });
+  if (question) {
+    version(folder, 'questions', 'main', 1, 'questions.json', { questions: [{ id: 'q-1',
+      question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main',
+        item: 'ac-4' }, state: 'answered', answer: { option: 'A', by: PERSON, at: LATEST } }] });
+    listed(folder, 'questions', 1, 'av_q1', { at: LATEST });
+  }
   if (locked2) {
     const lock = lockOf(LOCK_DOC, 2);
     lock.criteria.sha256 = hashesOf(second);
@@ -3147,33 +3149,55 @@ function answerStore(decision, locked2) {
   return folder;
 }
 
-test('build-plan, verification, walkthrough: an answer counts after the newest lock locks it', () => {
+test('build-plan, verification, walkthrough: an answer opens the version before lock 2', () => {
   for (const mode of [check, push]) {
-    for (const [type, file, what] of READERS) {
-      // Before lock 2 the target stays version 1, and the finding is the one for a version
-      // that no lock locks: the push has no questions, and needs none.
-      exactly(mode(answerStore('an_1', false), type, file), `${REQUEST}\nThen push ${what} ` +
-        'again: Version 2 is linked to an answer, and no acceptance lock locks it.');
-      // After lock 2 the target is version 2.
-      passes(mode(answerStore('an_1', true), type, file), type);
-      // A free-text note counts with no lock, as before.
-      passes(mode(answerStore('gd_1', false), type, file), type);
+    for (const [type, file] of READERS) {
+      // The question rule passes, so the target is version 2 with no lock of it, and with the
+      // lock that the lock check passed. A push store has the newest lock only.
+      passes(mode(answerStore('an_1'), type, file), type);
+      passes(mode(answerStore('an_1', { locked2: true }), type, file), type);
+      // A free-text note counts as before.
+      passes(mode(answerStore('gd_1'), type, file), type);
     }
   }
 });
 
-test('build-plan, verification, walkthrough: a missing newest lock stops the check', () => {
-  const missing = () => {
-    const folder = answerStore('an_1', true);
-    fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v2'), { recursive: true });
-    return folder;
-  };
+test('build-plan, verification, walkthrough: an answer with no question is refused', () => {
+  const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
+    'acceptance-lock version 1.';
   for (const mode of [check, push]) {
-    for (const [type, file] of READERS) {
-      exactly(mode(missing(), type, file), 'Report to a member: the store lacks ' +
-        'acceptance-lock version 2.\nThe check cannot tell which criteria version that lock ' +
-        'locks, so it stops.');
+    for (const [type, file, what] of READERS) {
+      exactly(mode(answerStore('an_1', { question: false }), type, file),
+        `${REQUEST}\nThen push ${what} again: ${why}`);
     }
+  }
+});
+
+test('build-plan, verification, walkthrough: a lock or questions missing from the store', () => {
+  for (const [type, file, what] of READERS) {
+    // The newest lock before version 2 is lock 1, which a push store lacks: the push reports
+    // it, and a check gets the pull of that lock.
+    const nolock = () => {
+      const folder = answerStore('an_1');
+      fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+      return folder;
+    };
+    const reason = 'Version 2 is linked to an answer, and acceptance-lock version 1 is not in ' +
+      'the store, so the check cannot bind it to a criterion.';
+    exactly(push(nolock(), type, file), `${REQUEST}\nThen push ${what} again: ${reason}`);
+    exactly(check(nolock(), type, file), `${REQUEST}\nThen push ${what} again: Run ` +
+      '`qory artifact pull acceptance-lock --version 1`, then check again: version 2 is linked ' +
+      'to an answer, and the store lacks that lock.');
+    // Questions that index.json lists and the store lacks are no answers.
+    const noquestions = () => {
+      const folder = answerStore('an_1');
+      fs.rmSync(path.join(folder, 'questions'), { recursive: true });
+      return folder;
+    };
+    const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
+      'acceptance-lock version 1.';
+    exactly(push(noquestions(), type, file), `${REQUEST}\nThen push ${what} again: ${why}`);
+    exactly(check(noquestions(), type, file), `${REQUEST}\nThen push ${what} again: ${why}`);
   }
 });
 

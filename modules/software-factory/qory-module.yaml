@@ -85,7 +85,7 @@ push_checks:
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, pull-request]
   - type: build-plan
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-plan]
-    reads: [acceptance-criteria, acceptance-lock]
+    reads: [acceptance-criteria, acceptance-lock, questions]
   - type: build-report
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-report]
   - type: build-ledger
@@ -107,10 +107,10 @@ push_checks:
     reads: [demo-script]
   - type: verification
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, verification]
-    reads: [acceptance-criteria, acceptance-lock]
+    reads: [acceptance-criteria, acceptance-lock, questions]
   - type: walkthrough
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, walkthrough]
-    reads: [verification, acceptance-criteria, acceptance-lock]
+    reads: [verification, acceptance-criteria, acceptance-lock, questions]
 # The check of what a write workflow's session may push, for `plan: build-plan`. The command
 # takes --base <start commit> --artifacts <folder> last. It checks each path of the commits since
 # the base against the Files of the build plan, and scans the commits for keys and repositories.

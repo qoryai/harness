@@ -635,7 +635,7 @@ test('matrix: it pulls the lock, so a version that lock 2 locks is the criteria 
   // ac-5 is a criterion of version 2 only.
   assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-5'));
   const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
-  assert.ok(pulls.includes('acceptance-lock'), pulls.join(','));
+  assert.ok(pulls.includes('acceptance-lock') && pulls.includes('questions'), pulls.join(','));
   // A lock that cannot be pulled exits 3, as a criteria pull does.
   const down = work({ served: answerServed, down: ['acceptance-lock'] });
   const failed = call(down, ['matrix', '--version', '2']);

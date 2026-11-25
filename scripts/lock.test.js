@@ -2056,8 +2056,7 @@ test('an answer binds against the lock that counts, not the first lock', () => {
 });
 
 test('a withdrawal of the lock leaves the lock that counts as it was for the target', () => {
-  const target = (root, withQuestions = false) =>
-    LIB.criteriaTarget(contextOf(root), 'the build plan', withQuestions);
+  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the build plan');
   // Lock 2 locks version 2, which a member's answer links; then the lock is withdrawn.
   const answer = () => {
     const root = linkedRoot({ decision: 'an_1', edit: REWORDED });
@@ -2066,13 +2065,11 @@ test('a withdrawal of the lock leaves the lock that counts as it was for the tar
   };
   assert.equal(target(answer()), 2);
   assert.equal(target(withdrawn(answer(), 3)), 2);
-  assert.equal(target(withdrawn(answer(), 3), true), 2);
   // A free-text note from before lock 1 never opens a version, also while the lock is
   // withdrawn: lock 1 still counts.
   const stale = () => linkedRoot({ decision: 'gd_1', decisionAt: BEFORE_ALL });
   assert.equal(target(stale()), 1);
   assert.equal(target(withdrawn(stale(), 2)), 1);
-  assert.equal(target(withdrawn(stale(), 2), true), 1);
 });
 
 test('a /criteria/sha256 that is empty or has a value that is no hash counts as no member', () => {
@@ -2115,8 +2112,7 @@ test('a hash record with a key that is a name of Object or has a line break is s
 });
 
 test('criteriaTarget leaves out a refused link, and takes an answer that its question binds', () => {
-  // The lock check applies the question rule: withQuestions is true.
-  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the lock', true);
+  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the lock');
   const make = (decision, ...questions) => {
     const root = linkedRoot({ decision, edit: REWORDED });
     return questions.length ? questionsVersion(root, 1, questions) : root;
@@ -2132,7 +2128,12 @@ test('an answer is not bound when the lock or a criteria file is not in the stor
   const context = contextOf(linkedRoot({ decision: 'an_1', edit: REWORDED }));
   const version = context.counts('acceptance-criteria').find((one) => one.number === 2);
   const last = { number: 1, at: LOCKED, time: Date.parse(LOCKED), criteria: 1, doc: null };
-  assert.equal(LIB.linkProblem(context, version, last, last.time),
+  // A check gets the pull of the lock, a push the report.
+  assert.equal(LIB.linkProblem(context, version, last, last.time), 'Run `qory artifact pull ' +
+    'acceptance-lock --version 1`, then check again: version 2 is linked to an answer, and ' +
+    'the store lacks that lock.');
+  const pushing = new LIB.Context(context.store, 'push', '/tmp');
+  assert.equal(LIB.linkProblem(pushing, version, last, last.time),
     'Version 2 is linked to an answer, and acceptance-lock version 1 is not in the store, so ' +
     'the check cannot bind it to a criterion.');
   fs.rmSync(path.join(context.store, 'acceptance-criteria', 'main', 'v2'), { recursive: true });
@@ -2419,6 +2420,23 @@ test('changes lists the added, changed and removed criteria, and the paths of th
   assert.deepEqual(result.record, { mode: 'changes', lock: 1, criteria: 1, target: 2,
     changed: ['ac-4'], added: ['ac-5'], removed: ['ac-2'], unchanged: ['ac-1', 'ac-3'],
     tests: ['ac-4', 'ac-5'], leaves: ['ac-2'], paths: [CHECK_PATH] });
+});
+
+test('changes reads the target that an answer opens before lock 2, and no other', () => {
+  const make = (...questions) => {
+    const root = linkedRoot({ decision: 'an_1', edit: REWORDED });
+    return planned(questions.length ? questionsVersion(root, 1, questions) : root);
+  };
+  const opened = changes(make(answered('ac-4', LATER)));
+  exitsWith(opened, 0);
+  assert.equal(opened.record.mode, 'changes');
+  assert.equal(opened.record.target, 2);
+  assert.deepEqual(opened.record.changed, ['ac-4']);
+  // With no answer about ac-4, version 2 does not open, and nothing changed since lock 1.
+  const none = changes(make());
+  exitsWith(none, 0);
+  assert.equal(none.record.mode, 'none');
+  assert.equal(none.record.target, 1);
 });
 
 test('changes lifts no path that another check or a support file shares', () => {

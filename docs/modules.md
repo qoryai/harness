@@ -2516,15 +2516,18 @@ writer of kind `person` in `index.json`), or the newest version that a note link
 the check passes. A run's version never counts. A version is linked to a note when its
 `decision` is a non-empty string and its `decision_at` parses as a time; it counts when
 `decision_at` is later than the newest lock that is older than the version, and the kind of
-the `decision` passes. For an answer (`an_`), `acceptance-lock` also applies the question
-rule (see `acceptance-lock` below). `build-plan`, `verification` and `walkthrough` read no
-`questions`: they count that version only when the newest lock locks it, because that lock
-passed the question rule when it was pushed. They read `acceptance-lock` for that, and the
-check stops with "Report to a member: the store lacks acceptance-lock version <N>." when the
-store lacks that lock. Before that lock the target stays at the earlier version, and the
-finding is "Then push the build plan again: Version 2 is linked to an answer, and no
-acceptance lock locks it." A check and a push give the same result for the same facts, and a
-refused link is never the target. The plan, the verification and the walkthrough
+the `decision` passes. For an answer (`an_`), the question rule also passes (see
+`acceptance-lock` below), or the newest lock locks that version: that lock passed the rule
+when it was pushed, and a push store has the newest lock only, not the lock before the
+version that the rule compares. `build-plan`, `verification` and `walkthrough` read
+`acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
+apply one rule, and a check and a push give the same result for the same facts. A version
+that the rule refuses is never the target, and the finding gives the reason: a criterion that
+the version changes with no answered question about it, or a lock that the store lacks (a
+push reports it, a check gets the `qory artifact pull acceptance-lock --version <N>` line).
+The target reads the locks of `index.json` that no cancelled run wrote and that are no
+withdrawal, also while `acceptance-lock` is withdrawn. `matrix` pulls `acceptance-lock` and
+`questions` beside the criteria, for the same target. The plan, the verification and the walkthrough
 may read an older version than the one that Qory Apiary feeds the run; a check that finds a
 newer version stops with a finding for a member.
 One function, `criteriaTarget` of
@@ -2656,8 +2659,7 @@ find:
   `questions`.
   A version's `note` never counts, because the run that stores the version writes the note.
   `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
-  lock that is older than the version, and applies the question rule for `acceptance-lock`
-  alone, as above. Each check of a lock has a `criterion_sha256`, the
+  lock that is older than the version, for all four types. Each check of a lock has a `criterion_sha256`, the
   SHA-256 of the criterion's text and check in the version that the lock locks, which `lock`
   fills and the check recomputes. A new lock keeps the checks of each criterion that did not
   change, as a whole list, because the push store has only the newest lock and the newest
@@ -3011,10 +3013,11 @@ push_checks:
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
 `[questions]`, `acceptance-lock` reads `[acceptance-criteria, questions]`, `build-plan` and
-`verification` read `[acceptance-criteria, acceptance-lock]`, `demo-script` reads
+`verification` read `[acceptance-criteria, acceptance-lock, questions]`, `demo-script` reads
 `[demo-scenarios, build-ledger]`, `demo-evidence`, `demo-video` and `screenshot` read
-`[demo-script]`, `walkthrough` reads `[verification, acceptance-criteria, acceptance-lock]`,
-and the other types read nothing. A module without
+`[demo-script]`, `walkthrough` reads
+`[verification, acceptance-criteria, acceptance-lock, questions]`, and the other types read
+nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
 the entries of its 16 types, with the program `workflow-checks.cjs`. Neither declares one

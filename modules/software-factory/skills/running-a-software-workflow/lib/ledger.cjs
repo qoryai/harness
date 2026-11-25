@@ -220,13 +220,7 @@ module.exports = (lib) => {
   // targetCriteria returns the live criteria of the version that criteriaTarget returns, or
   // null when there is none or its file cannot be read.
   function targetCriteria(context) {
-    let target;
-    try {
-      target = lib.criteriaTarget(context, 'the build plan');
-    } catch (error) {
-      if (!(error instanceof lib.LockMissing)) throw error;
-      return null;
-    }
+    const target = lib.criteriaTarget(context, 'the build plan');
     if (target === null) return null;
     const file = lib.criteriaFile(context, target);
     if (file === null) return null;

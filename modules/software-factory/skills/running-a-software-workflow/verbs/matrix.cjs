@@ -177,9 +177,15 @@ module.exports = (lib) => {
         return null;
       }
     };
-    // The target of the criteria reads the newest lock beside the criteria, so the lock is
-    // pulled too; a pull that fails exits 3.
+    // The target of the criteria reads the locks and the answered questions beside the
+    // criteria, so they are pulled too; a pull of the lock that fails exits 3.
     pull(io, 'acceptance-lock', null, 'matrix');
+    try {
+      pull(io, 'questions', null, 'matrix');
+    } catch (error) {
+      // A work item may have no questions, and then there is nothing to pull.
+      if (!(error instanceof Missing)) throw error;
+    }
     const context = pulled('acceptance-criteria', true);
     const finds = [];
     const probe = { context, did() {}, find: (line) => finds.push(line) };
