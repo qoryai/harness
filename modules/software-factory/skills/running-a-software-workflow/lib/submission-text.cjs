@@ -1,9 +1,11 @@
 // The rules of the text of a pull request that the type pull-request and the verb report-build
 // share: the characters of a title that qory drops, the four parts of the text, and the
-// forms of a secret that no text contains.
+// forms of a secret that no text contains: the key shapes and the private key of the scan for
+// keys (lib/secrets.cjs).
 'use strict';
 
 const TITLE_REFUSED = require('./refused.cjs');
+const secrets = require('./secrets.cjs');
 
 module.exports = (lib) => {
   const { lines, sections } = lib;
@@ -22,17 +24,6 @@ module.exports = (lib) => {
   // change, how it was tested, and what is disclosed.
   const PARTS = ['Problem', 'Change', 'Tests', 'Disclosed'];
 
-  // The forms of a secret that no text of a pull request contains: a private key, and the
-  // tokens and keys of common services, by their fixed start.
-  const SECRETS = [
-    [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, 'a private key'],
-    [/\bAKIA[0-9A-Z]{16}\b/, 'an access key id'],
-    [/\b(?:gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,}|glpat-[A-Za-z0-9_-]{20,})/,
-      'an access token'],
-    [/\bxox[abprs]-[A-Za-z0-9-]{10,}/, 'a chat token'],
-    [/\bsk-[A-Za-z0-9_-]{20,}/, 'an API key'],
-  ];
-
   // partFindings returns the finding of a text that lacks the four parts in their
   // order, or that has text before the first part, or none. where is the words for the
   // text in the fix.
@@ -48,14 +39,16 @@ module.exports = (lib) => {
   }
 
   // secretFindings returns one finding for each member of parts, { title, text },
-  // that has the form of a secret. place(member) is the words for the member in the fix.
-  function secretFindings(parts, place) {
+  // that has the form of a secret, with the key shapes of env. place(member) is the words for
+  // the member in the fix. A fix of more than 100 characters has the form on the line after it.
+  function secretFindings(parts, place, env) {
     const out = [];
     for (const member of ['title', 'text']) {
-      const found = SECRETS.find(([form]) => form.test(parts[member]));
-      if (found) {
-        out.push(`Remove the secret from ${place(member)}: it has the form of ${found[1]}.`);
-      }
+      const kind = typeof parts[member] === 'string' ? secrets.keyKind(parts[member], env) : null;
+      if (!kind) continue;
+      const line = `Remove the secret from ${place(member)}: it has the form of ${kind}.`;
+      out.push(line.length <= 100 ? line
+        : `Remove the secret from ${place(member)}.\nIt has the form of ${kind}.`);
     }
     return out;
   }

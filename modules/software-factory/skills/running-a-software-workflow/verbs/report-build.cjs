@@ -45,8 +45,9 @@ module.exports = (lib) => {
   const SCHEMA = schema.load(SCHEMAS, 'pull-request');
 
   // readText returns { title, text } of .reports/submission.md in root, or the findings of a
-  // text that is missing or breaks a rule.
-  function readText(root) {
+  // text that is missing or breaks a rule. env is the environment, whose key shapes the check
+  // of a secret uses.
+  function readText(root, env) {
     const file = path.join(root, '.reports', 'submission.md');
     let stat;
     try {
@@ -76,7 +77,7 @@ module.exports = (lib) => {
     // The shared checks of the text: the four parts, and the forms of a secret.
     findings.push(...lib.partFindings(value.text, `the text of ${TEXT}`));
     findings.push(...lib.secretFindings({ title: value.title, text: value.text },
-      (member) => `the ${member} of ${TEXT}`));
+      (member) => `the ${member} of ${TEXT}`, env));
     return findings.length ? { findings } : { value };
   }
 
@@ -209,7 +210,7 @@ module.exports = (lib) => {
       throw new Missing('Run checks.cjs resume first.\n.reports/build-ledger.json does not exist.');
     }
     const written = path.join(root, lib.BUILD_REPORT_FILE);
-    const got = readText(root);
+    const got = readText(root, io.env);
     if (got.findings) {
       io.print(got.findings, `Wrote no file: ${plural(got.findings.length, 'finding')} ` +
         `on ${TEXT}.`);
