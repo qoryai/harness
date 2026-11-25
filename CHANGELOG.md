@@ -30,9 +30,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A criteria version that a person's note links, with a `decision` and a `decision_at`,
   opens a new acceptance lock when `decision_at` is later than the newest lock. The
   prefixes `gd_`, `es_` and `rc_` are free text, `an_` is the answer to a question, and any
-  other prefix is refused. For an answer, each criterion that the version changes or removes
-  needs an answered question about it after the lock; a free-text note binds to no
-  criterion, a known gap. `criteriaTarget` counts such a version too.
+  other prefix is refused. For an answer, each live criterion that the version changes or
+  removes, a Demo criterion included, needs an answered question about it after the lock;
+  a lock whose checks have no `criterion_sha256` counts every check as changed. A free-text
+  note binds to no criterion, a known gap. A push store has the newest criteria version
+  only, so the rule fails closed there with a finding that the store lacks the criteria
+  version. `criteriaTarget` uses the same test, so a refused link is never the target.
+- A new acceptance lock keeps the checks of each criterion that did not change, as a whole
+  list, and keeps every support file of the newest lock at its path and hash. When the
+  push store lacks the newest lock, the check fails closed.
 
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
@@ -1299,8 +1305,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The first line of a lock finding that no lock of the target can pass is "Ask a member to
   write the change in a request for changes.", where it was "Ask a member to upload the
   acceptance criteria they accept as a new version." The question of a locked check that
-  does not fail has the same wording in its first option. `acceptance-lock` reads
-  `questions` besides `acceptance-criteria`.
+  does not fail has the same wording in its first option. The first line for withdrawn
+  acceptance criteria is "Ask a member to approve the acceptance criteria again, then lock:
+  the approval is withdrawn." `acceptance-lock` reads `questions` besides
+  `acceptance-criteria`.
 
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
   which Forager does not pass to a session. The end check reads it from the file of
