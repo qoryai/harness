@@ -560,10 +560,12 @@ function caseless(dir) {
   return one !== null && one === disk.realpath(dir);
 }
 
-// lockedFiles returns { what, files } of the lock that counts: files are the real paths of
-// the files it lists under root, the working folder. It returns { files: [] } when no type
-// of the registry has a lock, or no version of it counts, and { type, problem } when the
-// lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run, it
+// lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
+// real paths of the files it lists under root, the working folder, number is the version of
+// the lock, and checks lists each file as { file, criterion }, with criterion the id that the
+// lock gives the check at that file, or null for a support file. It returns { files: [] }
+// when no type of the registry has a lock, or no version of it counts, and { type, problem }
+// when the lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run, it
 // pulls the lock.
 function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts }) {
   const home = path.resolve(path.dirname(script), '..');
@@ -593,12 +595,64 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
         problem: `The stored ${lock.what} differs from index.json.` }
         : { files: [] };
     }
-    return { what: lock.what, files: lock.files.filter((one) => !one.problem)
-      .map((one) => real(path.resolve(root, one.folder || '.', one.path))) };
+    const listed = lock.files.filter((one) => !one.problem).map((one) => ({
+      file: real(path.resolve(root, one.folder || '.', one.path)),
+      criterion: Array.isArray(lock.data.checks) && lock.data.checks.includes(one.entry)
+        ? one.entry.criterion : null }));
+    return { what: lock.what, files: listed.map((one) => one.file), number: lock.number,
+      checks: listed };
   } catch (error) {
     if (error instanceof base.Missing) return { type: def.type, problem: error.message };
     throw error;
   }
+}
+
+// The record of `checks.cjs changes` below the working folder, which only that verb writes:
+// the BUILT rule denies a call that writes below .qory/build/.
+const CHANGES = path.join(BUILD, 'changes.json');
+// The most bytes of the record that the guard reads.
+const CHANGES_BYTES = 1024 * 1024;
+
+// changesOf returns the parsed record of changes below root, or null when there is none, a
+// link stands on its way or in its place, or it is no JSON object of at most CHANGES_BYTES.
+function changesOf(root) {
+  let at = root;
+  for (const part of CHANGES.split(path.sep)) {
+    at = path.join(at, part);
+    const stat = disk.lstat(at);
+    if (!stat || stat.isSymbolicLink()) return null;
+  }
+  const stat = disk.lstat(at);
+  if (!stat.isFile() || stat.size > CHANGES_BYTES) return null;
+  const record = read(at, () => JSON.parse(fs.readFileSync(at, 'utf8')), null);
+  return record !== null && typeof record === 'object' && !Array.isArray(record) ? record : null;
+}
+
+// liftedLock returns lock without the check files that the writer of the checks may rewrite in
+// change mode, else lock. A file is lifted only when all of these hold: the call is from an
+// agent that is the acceptance-check-writer; the record of changes below root is of mode
+// changes and was made from the lock that counts, by its number; the file is a path of the
+// record; and each entry of the lock at that file is a check of a criterion that the record
+// lists as changed. A support file and every other check file stay locked.
+// shortcut: the guard has no source for the name of the workflow, so it keys on the agent, and
+// the lock that counts, replace it when the input of a call has the workflow.
+function liftedLock(lock, { root, input, env, runtime, fold }) {
+  if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
+    !Number.isInteger(lock.number)) return lock;
+  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
+  if (!agent || reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) !==
+    'acceptance-check-writer') return lock;
+  const record = changesOf(root);
+  const text = (list) => (Array.isArray(list) ? list.filter((one) => typeof one === 'string')
+    : []);
+  if (!record || record.mode !== 'changes' || record.lock !== lock.number) return lock;
+  const changed = new Set(text(record.changed));
+  const named = new Set(text(record.paths).map((one) => fold(real(path.resolve(root, one)))));
+  const free = lock.files.filter((file) => named.has(fold(file)) &&
+    lock.checks.filter((one) => fold(one.file) === fold(file))
+      .every((one) => one.criterion !== null && changed.has(one.criterion)));
+  const lifted = new Set(free.map(fold));
+  return { ...lock, files: lock.files.filter((file) => !lifted.has(fold(file))) };
 }
 
 // The names of the shells whose -c text the guard reads.
@@ -2042,7 +2096,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   let lock = null;
   const lockOf = () => {
     if (lock === null) {
-      lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
+      lock = liftedLock((locked || ((args) => lockedFiles(args)))({ root, env, script }),
+        { root, input, env, runtime, fold });
     }
     return lock;
   };

@@ -324,6 +324,90 @@ test('a command whose writes the guard does not read is denied when it reaches a
     }
   });
 
+// ---- The lift of a changed check, in change mode ---------------------------------------------
+
+const WRITER = 'harness:acceptance-check-writer';
+
+// changeCase returns { dir, file, call, record } for a new working folder with the locked check
+// and the record of change mode: ac-4 changed, and the lock is version 2. call(input, change)
+// runs the guard on it, with the lock of version 2 and change applied to the lock.
+function changeCase(record = {}, lock = {}) {
+  const dir = working();
+  const file = path.join(dir, CHECK_PATH);
+  const made = { mode: 'changes', lock: 2, criteria: 1, target: 2, changed: ['ac-4'], added: [],
+    removed: [], unchanged: [], tests: ['ac-4'], leaves: [], paths: [CHECK_PATH], ...record };
+  fs.mkdirSync(path.join(dir, '.qory', 'build'), { recursive: true });
+  fs.writeFileSync(path.join(dir, '.qory', 'build', 'changes.json'), JSON.stringify(made));
+  const listed = { what: 'acceptance-lock version 2', files: [file], number: 2,
+    checks: [{ file, criterion: 'ac-4' }], ...lock };
+  const call = (input) => decide({ input: { ...input, cwd: dir }, env: RUN, runtime: 'claude',
+    locked: () => listed, root: dir });
+  return { dir, file, call };
+}
+
+test('the guard lifts a changed check for the writer of the checks while the lock is the one of the record', () => {
+  const { file, call } = changeCase();
+  const write = (agent) => claude('Write', { file_path: file, content: 'x' }, agent);
+  assert.equal(call(write(WRITER)), null);
+  assert.equal(call(claude('Edit', { file_path: file }, WRITER)), null);
+  // The lift is for the writer only: another agent and the main session stay denied.
+  const start = 'Leave the locked file as it is: acceptance-lock version 2 locks it.';
+  firstLine(call(write('harness:implementer')), start);
+  firstLine(call(write('harness:check-reviewer')), start);
+  firstLine(call(write('acceptance-check-writer')), start);
+  firstLine(call(claude('Write', { file_path: file, content: 'x' })), start);
+});
+
+test('the guard keeps a check locked after a new lock, with a mode other than changes, or a path that the record lacks', () => {
+  const start = 'Leave the locked file as it is: acceptance-lock version 3 locks it.';
+  const after = changeCase({}, { what: 'acceptance-lock version 3', number: 3 });
+  firstLine(after.call(claude('Write', { file_path: after.file, content: 'x' }, WRITER)), start);
+  for (const record of [{ mode: 'none' }, { mode: 'full' }, { changed: ['ac-1'] },
+    { paths: ['checks/other.check.ts'] }, { paths: [] }, { lock: '2' }, { lock: 1 }]) {
+    const one = changeCase(record);
+    firstLine(one.call(claude('Write', { file_path: one.file, content: 'x' }, WRITER)),
+      'Leave the locked file as it is');
+  }
+});
+
+test('the guard keeps a path locked when another check or a support file is there', () => {
+  const start = 'Leave the locked file as it is: acceptance-lock version 2 locks it.';
+  const shared = changeCase();
+  const denied = (checks) => {
+    const one = changeCase();
+    const reason = decide({ input: { ...claude('Write', { file_path: one.file, content: 'x' },
+      WRITER), cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir,
+    locked: () => ({ what: 'acceptance-lock version 2', files: [one.file], number: 2,
+      checks: checks(one.file) }) });
+    return reason;
+  };
+  // The path is listed, and every entry there is a changed criterion: lifted.
+  assert.equal(denied((file) => [{ file, criterion: 'ac-4' }]), null);
+  // Another check of an unchanged criterion has the same file.
+  firstLine(denied((file) => [{ file, criterion: 'ac-4' }, { file, criterion: 'ac-1' }]),
+    start);
+  // A support file has no criterion.
+  firstLine(denied((file) => [{ file, criterion: null }]), start);
+  assert.ok(shared.file);
+});
+
+test('the guard denies a write of the record by the writer, and reads no record through a link', () => {
+  const { dir, file, call } = changeCase();
+  const record = path.join(dir, '.qory', 'build', 'changes.json');
+  firstLine(call(claude('Write', { file_path: record, content: '{}' }, WRITER)),
+    'Leave .qory/build/ as it is');
+  firstLine(call(claude('Bash', { command: `echo {} > ${record}` }, WRITER)),
+    'Leave .qory/build/ as it is');
+  // A record that is a link, or has a link on its way, lifts nothing.
+  const other = changeCase();
+  const target = path.join(other.dir, 'record.json');
+  fs.renameSync(path.join(other.dir, '.qory', 'build', 'changes.json'), target);
+  fs.symlinkSync(target, path.join(other.dir, '.qory', 'build', 'changes.json'));
+  firstLine(other.call(claude('Write', { file_path: other.file, content: 'x' }, WRITER)),
+    'Leave the locked file as it is');
+  assert.ok(file);
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +
@@ -760,7 +844,8 @@ test('lockedFiles reads the files of the lock with the reader of checks.cjs', ()
   const script = path.join(home, 'hooks', 'tool-guard-claude.cjs');
   const env = fakeQory(server());
   assert.deepEqual(lockedFiles({ root: WORK, env, script }),
-    { what: 'acceptance-lock version 1', files: [LOCKED] });
+    { what: 'acceptance-lock version 1', files: [LOCKED], number: 1,
+      checks: [{ file: LOCKED, criterion: 'ac-4' }] });
   // No version of the lock: nothing is locked.
   const empty = next('server');
   fs.cpSync(TESTDATA, empty, { recursive: true });
