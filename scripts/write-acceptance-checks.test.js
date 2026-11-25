@@ -1074,7 +1074,7 @@ test('check-reviewer gets the changed paths, writes one file and marks each miss
     'for `commit` and each `sha256`, and the files that it lists, so any other edit of them ' +
     'needs a new review.');
   says(order, 'a line on the draft or on a listed file, such as "Write acceptance-lock.json as ' +
-    'valid JSON." or "Write tests/orders.check.cjs, then end the step again."');
+    'valid JSON." or `Write "tests/orders.check.cjs", then end the step again.`');
   says(order, 'After each review, run the same call again for the report that the reviewer ' +
     'wrote, as "The build ledger" lists, and do no step 7 or 8 while it prints a line that ' +
     'starts with "Start check-reviewer" or "Fix the blocking findings".');

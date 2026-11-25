@@ -208,8 +208,8 @@ module.exports = (lib) => {
     const bytes = lib.lockReader.fileBytes(root, file, MAX_BYTES);
     if (bytes === null) {
       return { report: null, sha: null, findings: [`Write ${file} in the artifact folder, then ` +
-        `end the step again.\n${path.join(root, file)} is missing, a link or no regular file ` +
-        `of at most ${MAX_BYTES} bytes.`] };
+        `end the step again.\n${path.join(root, file)} is missing, is a link, or is not a ` +
+        `regular file of at most ${MAX_BYTES} bytes.`] };
     }
     const { sha, problems } = row.kind === 'checks' ? lockSha(io, bytes.toString('utf8'))
       : { sha: sha256(bytes), problems: [] };
@@ -218,8 +218,12 @@ module.exports = (lib) => {
         findings: problems.map((one) => [].concat(one).join('\n')) };
     }
     const report = `.step-reports/${reviewer}/${sha}.json`;
-    const blocking = reviewerFindings(path.join(root, report), reviewer)
-      .filter((one) => one.severity === 'blocking');
+    // reviewerFindings reads the last part of the path only, so place reads the folders.
+    const linked = lib.lockReader.place(root, { path: report }).problem;
+    const blocking = linked ? [{ proof: null, point: `Reviewer ${reviewer} wrote no valid ` +
+      'report: its path has a link or is no regular file.' }]
+      : reviewerFindings(path.join(root, report), reviewer)
+        .filter((one) => one.severity === 'blocking');
     if (!blocking.length) return { findings: [], report, sha };
     // A finding with no proof is the reader's: the report is missing or invalid.
     const line = blocking[0].proof === null
@@ -234,7 +238,7 @@ module.exports = (lib) => {
   // finish returns the commit of a done row, or the findings of edits made outside the step, of
   // a list `Left out:` in the report that leftOut cannot read, of a file that its reviewer did
   // not pass, and of a flag that is missing. A failed row gets no commit and no finding.
-  function finish(io, { ledger, place, state, report, root, values }) {
+  function finish(io, { ledger, place, state, report, reported, root, values }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
     const top = head(io);
@@ -267,7 +271,7 @@ module.exports = (lib) => {
           `--script-sha256 the SHA-256 it prints.\n${file} has the SHA-256 ${review.sha}, not ` +
           `${given}.`);
       }
-    } else if (reviewed(row.id) && report === null) {
+    } else if (reviewed(row.id) && !reported) {
       missing = `Give --report with the writer's last report to end ${row.id} as done.`;
     }
     if (missing) {

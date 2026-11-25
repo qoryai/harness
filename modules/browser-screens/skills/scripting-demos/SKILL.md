@@ -104,22 +104,22 @@ version; do this only for a script that this session wrote and still has as a fi
      "The build ledger" of `running-a-software-workflow` lists. Run
      `<skill folder>/checks.cjs starts <run> <name> 3`, as "Count the starts" of
      `running-a-workflow` lists, where `<name>` is
-     `implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for that
-     correction, so that each script and each correction has 3 starts. With 1, run `step end
-     <step> failed`, and end as "Failures" lists. Then start ${qory:agents/check-reviewer}
-     in the foreground, as "Starting agents" of `running-a-workflow` lists, with the input
-     file's path, `<folder>`, the run's number, the notes, the path of `<scenarios>`, the
-     path `<folder>/.demo/<id>.json` of the new script, and the path of the report file.
-     When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`.
-     For a correction, add the line "Review the change to a demo script" and the path of the
-     script that passed. Write its text report to `<folder>/.reports/check-reviewer-<n>.md`,
-     and check it, as "Check each report" lists. With `blocked`, run `step end <step>
-     failed`, and end as "Failures" lists. Then run the same call of `step end` again for
-     the report file, as "The build ledger" lists, and do no step 6 to 9 while it prints a
-     line that starts with "Start check-reviewer" or "Fix the blocking findings". With
-     `changes-needed`, do "Start the author again", with each finding quoted. Step 10 needs
-     the review of the script as it is, so review a script that changes after its review
-     again.
+     `implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for the step
+     `script:<id>#2` or `script:<id>#3`, so that each script and each correction has 3
+     starts. With 1, run `step end <step> failed`, and end as "Failures" lists. Then start
+     ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
+     `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
+     the notes, the path of `<scenarios>`, the path `<folder>/.demo/<id>.json` of the new
+     script, and the path of the report file. When `<step>` is `script:<id>`, add the line
+     "Review the first demo script" and `<id>`. For a correction, add the line "Review the
+     change to a demo script" and the path of the script that passed. Write its text report
+     to `<folder>/.reports/check-reviewer-<n>.md`, and check it, as "Check each report"
+     lists. With `blocked`, run `step end <step> failed`, and end as "Failures" lists. Then
+     run the same call of `step end` again for the report file, as "The build ledger" lists,
+     and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" or
+     "Fix the blocking findings". With `changes-needed`, do "Start the author again", with
+     each finding quoted. Step 10 needs the review of the script as it is, so review a
+     script that changes after its review again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` and `demo check` do not check: run `step end <step>

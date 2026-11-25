@@ -546,8 +546,8 @@ function endLocked(io, root, ledger, { id, state, options }) {
     text = report.finding ? null : report.text;
     if (report.finding) notes.push(report.finding);
   }
-  const finish = ledger.finish(io, { ledger: rows, place, state, report: text, root,
-    values: options.values });
+  const finish = ledger.finish(io, { ledger: rows, place, state, report: text,
+    reported: options.report !== undefined, root, values: options.values });
   const findings = [...finish.findings, ...(state === 'failed' ? [] : notes)];
   if (findings.length) {
     return { status: 1, findings, last: `Checked the step ${id}: the ledger is unchanged.` };

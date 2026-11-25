@@ -1803,11 +1803,12 @@ tool's error. The first line of each reason starts with what to do. The guard de
   check-reviewer and plan-reviewer." for a write whose path, after links and `..`, has a
   folder `.step-reports` in any letter case. So does a shell command of any agent or of the
   main session that writes there, or that has that folder in its text or in a word, other
-  than read-only commands and `checks.cjs` alone, or that extracts with `tar`, `unzip` or
-  `ditto` into the artifact folder or a folder above it, but for the working folder and the
-  folders above it. The guard reads a shell command as it does for `.reports/`, so a script
-  that a later call runs still reaches the folder. On Gemini CLI, Cursor and Copilot CLI no
-  guard protects `.step-reports`, so any agent can write a report there.
+  than read-only commands and `checks.cjs` alone. A copy or a move into a folder above the
+  artifact folder, such as `mv a /tmp`, passes; a move or a removal of such a folder does
+  not. The guard reads a shell command as it does for `.reports/`, so a script that a later
+  call runs still reaches the folder, and so does an archive that `tar`, `unzip` or `ditto`
+  extracts into the artifact folder. On Gemini CLI, Cursor and Copilot CLI no guard protects
+  `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
   the guard. An agent of any other type in a session that is no reviewer's writes as it does
@@ -2820,13 +2821,13 @@ file after the review changes it. A listed file with no hash, such as a missing 
 link, is a finding of `step end`, and so is a lock that is no JSON: "Write
 acceptance-lock.json as valid JSON."
 
-With no report or an invalid one, the first line of the finding is "Start <reviewer> on
-<file>, then run step end <id> done again." With a blocking finding, it is "Fix the blocking
-findings on <file>, then start <reviewer> again." With no such file, a link or more than
-262144 bytes, it is "Write <file> in the artifact folder, then end the step again.", and the
-next line has the full path. Any of these makes the verb exit 1 with the ledger unchanged,
-so any edit after the review needs a new review. Every other kind of step ends with no
-report.
+With no report, an invalid one or one whose path has a link, the first line of the finding
+is "Start <reviewer> on <file>, then run step end <id> done again." With a blocking finding,
+it is "Fix the blocking findings on <file>, then start <reviewer> again." With no such file,
+a link or more than 262144 bytes, it is "Write <file> in the artifact folder, then end the
+step again.", and the next line has the full path. Any of these makes the verb exit 1 with
+the ledger unchanged, so any edit after the review needs a new review. Every other kind of
+step ends with no report.
 
 The session runs `step end <id> done` with no flag before each start of the reviewer and
 after each review. That call never records: for a plan or the checks with no `--report` it

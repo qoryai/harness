@@ -20,12 +20,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   so the session runs it before each start of the reviewer and after each review. `step end`
   of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
   starts at most 3 times for each demo script and each correction. The tool guard lets each
-  of the two agents write only its report, and denies `.step-reports` to every other call,
-  also an extraction into the artifact folder. The limits: any agent with a shell can write
-  the report with a script, as for `.reports`, and on Gemini CLI, Cursor and Copilot CLI any
-  agent can write it. Any edit after the review needs a new review, so
-  `workflow-plan-the-build` fixes no sentence after the last one. Every other kind of step
-  ends as before, and on Claude Code the step limit leaves the two agents out, as before.
+  of the two agents write only its report, and denies `.step-reports` to every other call.
+  The limits: any agent with a shell can write the report with a script or an archive, as
+  for `.reports`, and on Gemini CLI, Cursor and Copilot CLI any agent can write it. Any edit
+  after the review needs a new review, so `workflow-plan-the-build` fixes no sentence after
+  the last one. Every other kind of step ends as before, and on Claude Code the step limit
+  leaves the two agents out, as before.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` exits 1

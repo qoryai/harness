@@ -973,8 +973,8 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
       assert.equal(JSON.stringify(stored(w).ledger), before, id);
     };
     const gone = [`Write ${name} in the artifact folder, then end the step again.`,
-      `  ${path.join(call.artifacts, name)} is missing, a link or no regular file of at most ` +
-        '262144 bytes.'];
+      `  ${path.join(call.artifacts, name)} is missing, is a link, or is not a ` +
+        'regular file of at most 262144 bytes.'];
     stopped(...gone);
     const { file, reported } = reviewedFile(call, id);
     const at = `.step-reports/${reviewer}/${path.basename(reported)}`;
@@ -1150,6 +1150,43 @@ test('ledger: step end with no flag prints the report file and records nothing',
       '  1 blocking finding in the report, such as: The plan leaves out the export.');
     fs.writeFileSync(reported, clean);
     printed(MISSING(id));
+    // A report that is too long is a report, so step end asks for a shorter one only.
+    if (!id.startsWith('script:')) {
+      const long = call('step', 'end', id, 'done', '--report',
+        report(call, 'build-planner-2', 'x'.repeat(8193)));
+      assert.equal(long.status, 1, long.out);
+      assert.deepEqual([long.lines[0], long.lines.at(-1), long.lines.length],
+        ['Cut the report "build-planner-2.md" to 8192 bytes as written in the ledger.',
+          `Checked the step ${id}: the ledger is unchanged.`, 3]);
+    }
+    assert.equal(call('step', 'end', id, 'done', ...flagsOf(call, id)).status, 0, id);
+  }
+});
+
+test('ledger: a passing report through a link is no report', () => {
+  for (const [id, reviewer, name] of REVIEWED) {
+    const w = work();
+    const call = resumed(w);
+    assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+    const before = JSON.stringify(stored(w).ledger);
+    const { reported } = reviewedFile(call, id);
+    const folder = path.dirname(path.dirname(reported));
+    // A link as .step-reports, as the folder of the reviewer and as the report.
+    for (const part of [folder, path.dirname(reported), reported]) {
+      const away = path.join(w.repo, '..', `away-${path.basename(w.repo)}`);
+      fs.renameSync(part, away);
+      fs.symlinkSync(away, part);
+      const result = call('step', 'end', id, 'done', ...flagsOf(call, id));
+      assert.equal(result.status, 1, `${id}: ${part}`);
+      assert.deepEqual(result.lines, [
+        `Start ${reviewer} on ${name}, then run step end ${id} done again.`,
+        `  Reviewer ${reviewer} wrote no valid report: its path has a link or is no regular file.`,
+        `  The report of this file is .step-reports/${reviewer}/${path.basename(reported)}.`,
+        `Checked the step ${id}: the ledger is unchanged.`]);
+      assert.equal(JSON.stringify(stored(w).ledger), before);
+      fs.rmSync(part);
+      fs.renameSync(away, part);
+    }
     assert.equal(call('step', 'end', id, 'done', ...flagsOf(call, id)).status, 0, id);
   }
 });

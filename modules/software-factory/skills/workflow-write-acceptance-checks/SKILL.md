@@ -99,7 +99,7 @@ run no other command in the same call.
    file changed. The SHA-256 in the path covers the draft, but for `commit` and each
    `sha256`, and the files that it lists, so any other edit of them needs a new review. When
    it prints a line on the draft or on a listed file, such as "Write acceptance-lock.json as
-   valid JSON." or "Write tests/orders.check.cjs, then end the step again.", do with it as
+   valid JSON." or `Write "tests/orders.check.cjs", then end the step again.`, do with it as
    step 8 lists for a line of `lock`. Start ${qory:agents/check-reviewer} with the input
    file's path, the artifact folder, the run's number, the notes, the path of the report
    file, the writer's newest report, unchanged, and the two outputs under "Changed paths:",

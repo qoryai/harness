@@ -964,8 +964,9 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'copy of the pushed file; for the first script there is no such line',
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
     '`<skill folder>/checks.cjs starts <run> <name> 3`, as "Count the starts"',
-    '`implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for that ' +
-      'correction, so that each script and each correction has 3 starts',
+    '`implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for the ' +
+      'step `script:<id>#2` or `script:<id>#3`, so that each script and each ' +
+      'correction has 3 starts',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed', 'With `changes-needed`, do "Start the author again"',

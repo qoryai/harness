@@ -535,5 +535,6 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill, fileBytes },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill, place,
+    fileBytes },
 };
