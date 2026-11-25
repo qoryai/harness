@@ -231,22 +231,23 @@ failed step started.
    When a line has no full path, such as for a key in the name of a file, a cut name or a
    name that is not UTF-8, take the path from
    `git status --porcelain --untracked-files=all`. A path in double quotes is a C string:
-   give it to the shell as `$'<the text between the quotes>'`. A printed path has no spaces
-   at its start or end and no control or hidden characters, with no `...` in their place,
-   so take a printed path that no file has from that command too.
+   give it to the shell as `$'<the text between the quotes>'`, with each `'` written as
+   `\'`. Bash and zsh read this form, and dash does not: Codex runs a command in `/bin/sh`
+   when the login shell is `sh`, and on Debian and Ubuntu `/bin/sh` is dash. A printed path
+   has no spaces at its start or end and no control or hidden characters, with no `...` in
+   their place, so take a printed path that no file has from that command too.
 
-   For a key in a line that starts with `Rewrite commit <c>`, run these two commands, the
-   second also when the first fails. When `git add` or `test` exits with a status other
-   than 0, the file changed after that commit, or git cannot stage it, such as an ignored
-   path or a path in a submodule: leave it. The second command takes the path out of the
-   index again. When the file still has the key, step 4 prints a line for the key in the
-   commit of step 3. A key in a commit from before `<base>` stays after step 2, and the run
-   ends `push_scope_refused`.
+   For a key in a line that starts with `Rewrite commit <c>`, run this command, and read
+   the line `same: <number>` that it prints. With `same: 0`, take the file out; otherwise
+   leave it. Another number means that the file changed after that commit, or that git
+   cannot stage it, such as an ignored path or a path in a submodule. `git reset` takes the
+   path out of the index again. When the file still has the key, step 4 prints a line for
+   the key in the commit of step 3. A key in a commit from before `<base>` stays after step
+   2, and the run ends `push_scope_refused`.
 
    ```
    git add -- <path> && test "$(git rev-parse -q --verify :<path>)" = \
-     "$(git rev-parse -q --verify <c>:<path>)"
-   git reset -q -- <path>
+     "$(git rev-parse -q --verify <c>:<path>)"; echo "same: $?"; git reset -q -- <path>
    ```
 3. When the checkout has a change, commit it with the two commands of "The end".
 4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4

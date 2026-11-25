@@ -153,7 +153,7 @@ test('the session starts the developer twice and the debugger once per step, the
     'lists for it. - A file with a key, a path outside the Files of every deliverable, or a ' +
     'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
     'when `<base>` does not have it.', 'When a line has no full path,',
-    'For a key in a line that starts with `Rewrite commit <c>`, run these two commands,',
+    'For a key in a line that starts with `Rewrite commit <c>`, run this command,',
     '3. When the checkout has a change, commit it with the two commands of "The end".',
     '4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4 ' +
     'again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures" ' +
@@ -1114,43 +1114,51 @@ test('after one step done and one step failed, the session does "The submission"
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
 });
 
-// The two commands of "A step that fails" that check whether the file of a key in a commit
-// changed after that commit, and take the path out of the index again.
+// The command of "A step that fails" that checks whether the file of a key in a commit
+// changed after that commit, prints the result, and takes the path out of the index again.
 const SAME = section(WORKFLOW, 'A step that fails').split('\n   ```\n')
-  .find((one) => one.trimStart().startsWith('git add -- ')).replace(/ \\\n +/g, ' ')
-  .split('\n').map((one) => one.replace(/^ {3}/, ''));
+  .find((one) => one.trimStart().startsWith('git add -- ')).replace(/ \\\n +/g, ' ').trim();
+// SAME_TEST is the test of SAME, and SAME_RESET its git reset.
+const [, SAME_TEST, SAME_RESET] =
+  /^git add -- <path> && (test .+); echo "same: \$\?"; (git reset -q -- <path>)$/.exec(SAME) || [];
 
 // bash runs command in the checkout of w with bash, which reads a word $'...' as sh may not.
 const bash = (w, command) => childProcess.spawnSync('bash', ['-c', command], { cwd: w.repo,
   env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
   encoding: 'utf8' });
 
-// check runs the two commands for word, a path as a shell word, and commit in w. It returns
-// the exits of both.
+// fill puts commit and word, a path as a shell word, in command.
+// A function as the replacement, since a $' in a replacement string inserts other text.
+const fill = (command, commit, word) => command.replaceAll('<c>', commit)
+  .replaceAll('<path>', () => word);
+
+// check runs SAME for word and commit in w, in one bash call as a session runs it. It returns
+// the number of the line `same: <number>` and the exit of the call, which is that of git reset.
 function check(w, commit, word) {
-  // A function as the replacement, since a $' in a replacement string inserts other text.
-  return SAME.map((one) => bash(w, one.replaceAll('<c>', commit).replaceAll('<path>', () => word))
-    .status);
+  const ran = bash(w, fill(SAME, commit, word));
+  const same = /^same: (\d+)$/m.exec(ran.stdout);
+  assert.ok(same, ran.stdout + ran.stderr);
+  return [Number(same[1]), ran.status];
 }
 
 // changed returns 0 when the check finds the file of commit, and 1 when it leaves the file.
-// The second command takes the path out of the index, so the index is as it was.
+// The git reset of SAME takes the path out of the index, so the index is as it was.
 function changed(w, commit, word) {
   const before = git(w.repo, w.env, 'ls-files', '-s');
-  const [first, second] = check(w, commit, word);
-  assert.equal(second, 0);
+  const [same, exit] = check(w, commit, word);
+  assert.equal(exit, 0);
   assert.equal(git(w.repo, w.env, 'ls-files', '-s'), before);
-  return first === 0 ? 0 : 1;
+  return same === 0 ? 0 : 1;
 }
 
 // statusPath returns the path of the checkout of w whose name contains part, as a shell word,
 // from the output of command, the git status of "A step that fails": a name in double quotes
-// is a C string, which bash reads in $'...'.
+// is a C string, which bash reads in $'...', with each ' written as \'.
 function statusPath(w, command, part) {
   const listed = shell(w, command);
   assert.equal(listed.status, 0, listed.stderr);
   const name = listed.stdout.split('\n').find((one) => one.includes(part)).slice(3);
-  return /^".*"$/.test(name) ? `$'${name.slice(1, -1)}'` : name;
+  return /^".*"$/.test(name) ? `$'${name.slice(1, -1).replaceAll("'", "\\'")}'` : name;
 }
 
 // takeWord takes the path word out as "A step that fails" lists it, with bash.
@@ -1169,13 +1177,17 @@ test('after a step that fails, the session takes out what the check of the push 
   contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
     'cut name or a name that is not UTF-8, take the path from `git status --porcelain ' +
     '--untracked-files=all`. A path in double quotes is a C string: give it to the shell as ' +
-    "`$'<the text between the quotes>'`. A printed path has no spaces at its start or end " +
-    'and no control or hidden characters, with no `...` in their place, so take a printed ' +
-    'path that no file has from that command too.');
-  contains(fails, 'When `git add` or `test` exits with a status other than 0, the file ' +
-    'changed after that commit, or git cannot stage it, such as an ignored path or a path in ' +
-    'a submodule: leave it. The second command takes the path out of the index again. When ' +
-    'the file still has the key, step 4 prints a line for the key in the commit of step 3.');
+    "`$'<the text between the quotes>'`, with each `'` written as `\\'`. Bash and zsh read " +
+    'this form, and dash does not: Codex runs a command in `/bin/sh` when the login shell is ' +
+    '`sh`, and on Debian and Ubuntu `/bin/sh` is dash. A printed path has no spaces at its ' +
+    'start or end and no control or hidden characters, with no `...` in their place, so take ' +
+    'a printed path that no file has from that command too.');
+  contains(fails, 'run this command, and read the line `same: <number>` that it prints. With ' +
+    '`same: 0`, take the file out; otherwise leave it. Another number means that the file ' +
+    'changed after that commit, or that git cannot stage it, such as an ignored path or a ' +
+    'path in a submodule. `git reset` takes the path out of the index again. When the file ' +
+    'still has the key, step 4 prints a line for the key in the commit of step 3.');
+  assert.ok(SAME_TEST && SAME_RESET, SAME);
   // The docs and the CHANGELOG state the same rules.
   contains(read(ROOT, 'docs/modules.md'), 'It sets a file with a key, a path outside the plan ' +
     'and a file that `freeze` cannot scan back to its version at `base`');
@@ -1334,6 +1346,19 @@ test('after a step that fails, the session takes out what the check of the push 
       assert.equal(changed(w, commit, word), 0);
       takeWord(w, base, word);
     }, (w, what) => assert.equal(tracked(w).includes('tests/key\t.txt'), false, what)],
+    // git status quotes the name for its space; the ' in $'...' needs a \, or bash exits 2.
+    ["a key in a file whose name has a ' and ends with a space", (w) => writeFile(w,
+      "tests/it's key.txt ", `one\n${key}\n`),
+    /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/it's key\.txt", line 2/, 0,
+    (w, base, red) => {
+      const word = statusPath(w, status, 'key.txt');
+      assert.equal(word, "$'tests/it\\'s key.txt '");
+      assert.equal(bash(w, "git ls-files -o -- $'tests/it's key.txt '").status, 2);
+      const commit = /Rewrite commit ([0-9a-f]{12}) without a [^\n]+ in "tests\/it's/
+        .exec(red.out)[1];
+      assert.equal(changed(w, commit, word), 0);
+      takeWord(w, base, word);
+    }, (w, what) => assert.equal(tracked(w).includes("tests/it's key.txt "), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
@@ -1466,10 +1491,10 @@ test('the check of a key in a commit stages nothing, and leaves a path that git 
     assert.equal(changed(w, keyed, 'tests/k.txt'), 0);
     fs.rmSync(path.join(w.repo, 'tests/k.txt'));
     assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--', ':!.qory'), '');
-    // Without the second command, the path stays staged, and git commit exits 1.
+    // Without the git reset, the path stays staged, and git commit exits 1.
     writeFile(w, 'tests/k.txt', `${key}\n`);
-    assert.equal(bash(w, SAME[0].replaceAll('<c>', keyed).replaceAll('<path>', 'tests/k.txt'))
-      .status, 0);
+    assert.equal(bash(w, fill(SAME.slice(0, -SAME_RESET.length - 2), keyed, 'tests/k.txt'))
+      .stdout, 'same: 0\n');
     fs.rmSync(path.join(w.repo, 'tests/k.txt'));
     assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--', 'tests'), 'AD tests/k.txt');
     assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 1);
@@ -1511,8 +1536,7 @@ test('the check of a key in a commit stages nothing, and leaves a path that git 
         assert.equal(shell(one, RESET.replace('<base>', start)).status, 0, what);
       }
       assert.equal(check(one, head, file)[0], exit, what);
-      const apart = bash(one, `git add -- ${file}; ${SAME[0].split(' && ')[1]
-        .replaceAll('<c>', head).replaceAll('<path>', file)}`);
+      const apart = bash(one, `git add -- ${file}; ${fill(SAME_TEST, head, file)}`);
       assert.equal(apart.status, what === 'an ignored path' ? 1 : 0, what);
     }
   });
