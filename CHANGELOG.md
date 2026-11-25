@@ -152,6 +152,38 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
   Qory Apiary returns 422 for a verdict with any other track, so a proposal with the fast
   track gets no verdict until the harness declares that track.
+- The agents `walkthrough-writer` (tier balanced) and `walkthrough-reviewer` (tier thinking)
+  and the skills `writing-walkthroughs` and `checking-walkthroughs` of `software-factory`.
+  The walkthrough is made on the verified commit, with the risk on merge, and a walkthrough
+  that fails blocks nothing. The reviewer checks each file line and each claim against the
+  diff and returns its findings to the writer. A claim that stays disproved after round 2 is
+  removed, and when the check script is still red after the removal the session pushes no
+  walkthrough, so the run ends as it would have ended without it. The reviewer is the
+  group `walkthrough-reviewers`, which no stack entry names as a `review_group`.
+- The workflow `verify-a-ticket` makes the walkthrough after it pushes the verification and
+  before the questions and the verdict: it runs `files`, starts `walkthrough-writer`, runs
+  `check walkthrough`, starts `walkthrough-reviewer` for at most 2 rounds, and pushes
+  `walkthrough`. A failed walkthrough or a refused push ends nothing: the end line gets one
+  more line, "The walkthrough was not stored: <reason>.", and the verdict stays as it is.
+- The tool guard allows the verb `files` of the checks script in a review session, as it
+  allows `matrix`.
+- Rule 13 of `scripts/check.sh` accepts a `-reviewer` that a workflow starts when the
+  reviewer is in that workflow's `review_group`, or when no stack entry, of one line or of
+  many, names any group of the reviewer as a `review_group`. It still fails a reviewer in no
+  group, and a reviewer in a group that another workflow names, even when the reviewer is
+  also in a group that no entry names.
+- The verb `files` of the checks script writes `.reports/changed-files.json`: for each file
+  of the pull request from `base` to `head` its path, status (`A`, `M`, `D`, `R`), old path
+  and similarity of a rename, whether `.gitattributes` marks it `linguist-generated`,
+  whether it is binary, and its added and deleted lines, and the total of changed lines.
+- The walkthrough has this layout: `# Walkthrough: <title>`, one header
+  line with the start of the verified commit, then `## What and why` (at most 120 words),
+  `## Changes, in <order rule>` (at most 7 groups, at most 2 sentences of purpose, one line
+  per file, at most 2 Mermaid diagrams, `### Other changes` last), `## Criteria` (a table
+  with the columns Criterion, Changes and Evidence), `## Risk on merge` and
+  `## Not checked`. The check reads `.reports/changed-files.json`: each changed file is in
+  exactly one group, a file moved with no change (`R100`) or generated goes under
+  `### Other changes`, and a change under 30 changed lines has one group.
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of a
   demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at the
   `App address:` of the build plan, signs in with the replay of `preflight`, and runs the steps
@@ -1371,6 +1403,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The check of the type `walkthrough` replaces the sections `## Summary` and one
+  `## AC-<N>` section per criterion with the layout that the entry "The walkthrough has this
+  layout" lists. The walkthrough states no state of a criterion: the Evidence cell links to
+  the matrix row.
 - `scope`, `freeze`, `run`, `probe` and `diff` of `running-a-software-workflow` count a
   changed submodule whatever its `ignore` setting in `.gitmodules` and `.git/config`: their
   `git status` runs with `--ignore-submodules=none`.

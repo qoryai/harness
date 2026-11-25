@@ -316,11 +316,13 @@ the matrix and its questions, and no code. Its steps, in order:
 6. It pushes `verification` with either verdict, and takes the time of the version. A run
    that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
    end of step 3 and each end as "Failures" lists.
-7. For each row of `verification.json` with the state `not_met`, it writes one question
+7. It makes the walkthrough, as the section "The walkthrough of Verify" lists, and pushes
+   `walkthrough` when the check script passes. A walkthrough that fails blocks nothing.
+8. For each row of `verification.json` with the state `not_met`, it writes one question
    about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
    and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
    `questions`.
-8. It records `passed` when the lock verified, the matrix has no `not_met` and no
+9. It records `passed` when the lock verified, the matrix has no `not_met` and no
    `not_verified` row, no scenario of the commit under review has a `verdict` other than
    `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
    point, and qory writes the findings for the next session of `implement-changes` from the
@@ -333,6 +335,41 @@ rule 13 read `review_group` of the stack entry.
 follows only the text of the skill, and nothing checks the `--reviewers` list against the
 group `verify-reviewers`. The replacement is a verb that runs the round, reads the matrix and
 records the verdict.
+
+### The walkthrough of Verify
+
+The walkthrough guides a member through the change before the member approves it. It is made
+on the verified commit, with the risk on merge, and a walkthrough that fails blocks nothing:
+it changes no verdict and no stage. No stage requires it.
+
+| Part | Name | Tier or role |
+|---|---|---|
+| Agent | `walkthrough-writer` | `balanced`; tools Read, Grep, Glob, Skill and Write |
+| Agent | `walkthrough-reviewer` | `thinking`; read-only; group `walkthrough-reviewers` |
+| Skill | `writing-walkthroughs` | the layout, its limits and the steps |
+| Skill | `checking-walkthroughs` | what the check script enforces, and the review steps |
+| Verb | `files` | writes `.reports/changed-files.json` |
+
+`software-factory` declares the group role `walkthrough-reviewers`, with the member
+`walkthrough-reviewer`, in `roles.agents` and `provides.agents`. No stack entry names it as a
+`review_group`, so qory expects no report from it, and its findings go back to the writer:
+they are no finding of the review round, the end check or the findings ledger. Rule 13 of
+`scripts/check.sh` accepts a `-reviewer` that a workflow starts when it is in the workflow's
+`review_group`, or when every group that it is in is one that no stack entry names as a
+`review_group`.
+`shortcut:` a reviewer moved by mistake to a group that no stack entry names passes; replace
+it when a group needs an owner.
+
+The skill `workflow-verify-a-ticket` runs it after the push of `verification`, in round 1
+with the writer, the check script and the reviewer, in round 2 with the findings, and once
+more for the removal of false words. Round 1 is the first write of `walkthrough.md`, round 2
+the write after the findings of round 1, and the removal is the write after the findings of
+round 2. A claim that the reviewer disproved loses its false
+words, the line and group of each changed file stay, and what could not be checked goes under
+`## Not checked`. When the check script is still red after the removal, the session pushes no
+walkthrough, and the run ends as it would have ended without the walkthrough. A refused push
+ends nothing: the end line gets one more line, "The walkthrough was not stored: <reason>.",
+and the verdict stays as it is.
 
 ### The workflow capture-demos
 
@@ -2130,7 +2167,7 @@ tool's error. The first line of each reason starts with what to do. The guard de
   home, as `node <home>/tool.cjs a b`, in a call with no other word that reaches the home
   and no quotes, parentheses or `$`. A redirect or a chained command with a path of the home
   is still denied after such a verb. The other verbs of `workflow-verify-a-ticket`
-  (`matrix`, `check`, `notes` and `starts`) are not in that list: they pass when the call
+  (`matrix`, `files`, `check`, `notes` and `starts`) are not in that list: they pass when the call
   has no path of the home. `scripts/tool-guard.test.js` runs each of them. A home that is
   the working folder or lies inside it gets no such deny, so `implement-changes` can change
   the files of the harness when the target is the harness repository. qory's checks use the
@@ -2151,8 +2188,8 @@ tool's error. The first line of each reason starts with what to do. The guard de
   that has a folder above them as another argument, such as `cp a.ts /tmp/`, runs. The guard
   lists no tool: `tar`, `bsdtar`, `ditto`, `7z`, `pax`, `cpio` and `jar` fall under this
   rule alike. Two kinds of call may name the folder: the checks script alone with `resume`,
-  `lock --verify`, `run locked`, `matrix`, `check`, `notes`, `starts`, `panel` or `findings
-  round`, or `versions.cjs compare` alone; and the push of an artifact. No other call runs
+  `lock --verify`, `run locked`, `matrix`, `files`, `check`, `notes`, `starts`, `panel` or
+  `findings round`, or `versions.cjs compare` alone; and the push of an artifact. No other call runs
   `versions.cjs`: `copy` would write a stored version over the draft. No call writes a file
   of a stored version, `<artifact folder>/<type>/<name>/v<N>/<file>`, by a write tool or a
   shell command, with a first line that starts "Leave the version store"; a file at the top
@@ -2777,21 +2814,39 @@ find:
   lacks, and a new question of a point that breaks the rule for the question of a point,
   whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point with
   no `reply`;
-- `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
-  number, with the id in any case and the criterion's words in quotes, then
-  `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
-  criterion of the acceptance criteria that is not removed and has no section, a section of
-  a criterion that they do not have or have removed, and two sections of one criterion; in a
-  criterion section, text other than claims and blank lines, where a claim is a list item
-  with its indented lines; a claim that does not end with a `path:line`, `path:line-line` or
-  `matrix row AC-<N>`, with the id in any case; and no line `Commit: ` with a full commit
-  id, or one other than the verified commit, the `target_version`: in a check, that of
-  `verification.json` at the top of the artifact folder, else of the newest verification
-  version; in a push, that of the newest verification version, which the push check reads.
-  With no verification, the finding is "Push the verification before the walkthrough.", with
-  the line "The artifacts have no verification version." after it. A verification whose
-  `target_version` is no full commit id is a finding of the walkthrough too, in a check and
-  in a push.
+- `walkthrough`: a file that does not start with `# Walkthrough: <title>` and one header
+  line `Commit <7 or more hex digits>`, optionally followed by ` · <text>`, with no other
+  text before the first `##`. The commit must be the start of the verified commit, the
+  `target_version`: in a check, that of `verification.json` at the top of the artifact
+  folder, else of the newest verification version; in a push, that of the newest
+  verification version, which the push check reads. The counts after the commit, such as
+  `· 4 files · 41 lines`, are not checked. With no verification, the finding is "Push the
+  verification before the walkthrough.", with the line "The artifacts have no verification
+  version." after it. A verification whose `target_version` is no full commit id is a
+  finding of the walkthrough too, in a check and in a push. Then the sections
+  `## What and why`, `## Changes, in <order rule>`, `## Criteria`, `## Risk on merge` and
+  `## Not checked`, in that order, and no other. `## What and why` has at most 120 words and
+  exactly one bullet each for `Problem`, `Approach`, `Not chosen` and `Shortcoming`, and no
+  other line; the first three end with a `path:line`, `path:line-line` or
+  `matrix row AC-<N>`, with the id in any case, and `Not chosen` needs no source.
+  `## Changes` has at most 7 groups, `### <N>. <name>` from 1 in order, then
+  `### Other changes` last; a purpose of at most 2 sentences; one line for each file that
+  starts with its path in backticks; at most 2 Mermaid diagrams in the whole file, each in a
+  numbered group and one that Qory Apiary draws, and no other code block. A block that is no
+  Mermaid diagram is a finding and counts toward no limit. `## Criteria` is one table with the
+  columns `Criterion`, `Changes` and `Evidence`, one row for each criterion that is not
+  removed, with the id and the criterion's words in quotes, the numbers of existing groups,
+  and `matrix row AC-<N>`. `## Risk on merge` has `- Undo:` and `- Affects:`. `## Not checked`
+  reads `Nothing.` or is bullets. The check also reads `.reports/changed-files.json`, which
+  the verb `files` writes: each changed file is in exactly one group, no file that the
+  change does not touch is listed, a file moved with no change (`R100`) or marked
+  `linguist-generated` is under `### Other changes`, a change under 30 changed lines has one
+  group besides `### Other changes`, and the `head` of the record is the verified commit. A
+  check with no such file has one finding, "Run files to write .reports/changed-files.json,
+  then check walkthrough.md again."; a push reads the file only when the store has it, because
+  qory mounts the store of the pushed type alone.
+  `shortcut:` a push reads a list that a session wrote, so it cannot tell a list that a
+  session altered; replace it when qory mounts a record that no session writes.
 
 A Build session records each step it runs in the build ledger, so that a session that stops
 resumes where it stopped, and a step that is done replays and does not run again. The verbs
@@ -4579,6 +4634,23 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
   so. With no ledger, it prints a line that the tables were not checked. `push` and
   `end --offline` check the order of the sections alone.
+- `files`: writes `.reports/changed-files.json` to the artifact folder, the list of the files
+  that the change of the newest `pull-request` version changed, from its `base` to its
+  `head`, which the check of the type `walkthrough` reads. It takes no argument. It pulls the
+  `pull-request` type with `lockReader.pull`, and reads `git diff --name-status` and
+  `--numstat` between the two commits, with renames found (`-M`) and `.qory` left out. Each
+  file has its `path`, its `status` (`A`, `M`, `D` or `R`; a change of type counts as `M`),
+  `old_path` and `similarity` of a rename, `generated` (the `.gitattributes` of `head` marks
+  it `linguist-generated`, read from the commit, which needs git 2.40), `binary`, and its
+  `added` and `deleted` lines, which are 0 for a binary file. The record has `base`, `head`
+  and `changed_lines`, the sum of added and deleted lines. It exits 3 with a fix when the run
+  has no `pull-request` version or no full `base` or `head`, when the checkout has no such
+  commit, when a path is no UTF-8 text, when git is older than 2.40 ("Install git 2.40 or
+  later, then run files again."), and when another git call fails ("Run files again."). The
+  last line is "Wrote .reports/changed-files.json for <head, 12 digits>: <n> files, <n>
+  changed lines."
+  `shortcut:` after more than one Build run, `pull-request.base` is the start of the last
+  run, so the list covers the last run only; replace it when the ledger base reaches Verify.
 - `feedback open`: prints each open note of `qory work-item show` that no version of
   `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
   line "Not asked: <point>, <question>" per question that the newest questions lack, and one

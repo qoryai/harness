@@ -50,6 +50,8 @@
       "Skill(harness:exploring-code)",
       "Skill(harness:checking-tampering)",
       "Skill(harness:judging-criteria)",
+      "Skill(harness:writing-walkthroughs)",
+      "Skill(harness:checking-walkthroughs)",
       "Skill(harness:workflow-capture-demos)",
       "Skill(harness:checking-demos)",
       "Agent(harness:code-explorer)",
@@ -83,6 +85,8 @@
       "Agent(harness:software-debugger)",
       "Agent(harness:tamper-reviewer)",
       "Agent(harness:verification-reviewer)",
+      "Agent(harness:walkthrough-writer)",
+      "Agent(harness:walkthrough-reviewer)",
       "Agent(harness:demo-reviewer)",
       "WebSearch",
       "WebFetch"
