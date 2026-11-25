@@ -1616,10 +1616,11 @@ function withBadName(name = BAD_NAME) {
 }
 
 // holdsBadName reports whether the file system of the tests holds a file with the name BAD_NAME.
-function holdsBadName(dir) {
+// It tries in a new folder, so that it never removes a file of a checkout.
+function holdsBadName() {
+  const probe = fs.mkdtempSync(path.join(tmp, 'name-'));
   try {
-    fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]), 'x');
-    fs.rmSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]));
+    fs.writeFileSync(Buffer.concat([Buffer.from(`${probe}/`), BAD_NAME]), 'x');
     return true;
   } catch {
     return false;
@@ -1630,7 +1631,7 @@ test('revert-attempt: a base that adds a name that is not UTF-8 does not stop th
   const { dir, base } = withBadName();
   const got = call(dir, ['revert-attempt', '--base', base]);
   assert.notEqual(got.lines[0], TAKE);
-  if (holdsBadName(dir)) {
+  if (holdsBadName()) {
     assert.equal(got.status, 0, got.out + got.err);
     assert.equal(fs.readFileSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]), 'utf8'), 'data\n');
   }
@@ -1638,7 +1639,7 @@ test('revert-attempt: a base that adds a name that is not UTF-8 does not stop th
 
 test('revert-attempt: a name that is not UTF-8 that the checkout has stops it', (t) => {
   const { dir, base } = withBadName();
-  if (!holdsBadName(dir)) {
+  if (!holdsBadName()) {
     t.skip('this file system holds no name that is not UTF-8');
     return;
   }
