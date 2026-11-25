@@ -60,7 +60,7 @@ function runFiles(types = []) {
 // registryOf returns the registry of plugin, or one with no types and no ids when it cannot
 // load.
 function registryOf(plugin) {
-  const none = { types: [], ids: [], items: [], questionRules: [] };
+  const none = { types: [], ids: [], items: [], questionRules: [], points: [] };
   if (!plugin) return none;
   try {
     return require('../lib/registry.cjs').loadRegistry(plugin);
@@ -199,8 +199,10 @@ function pointsCheck(run, files) {
     ? openQuestions(run.context)
     : new Set();
   const agents = run.context.plugin ? agentNames(run.context.plugin) : new Set();
-  const rules = pointRules(registryOf(run.context.plugin));
+  const registry = registryOf(run.context.plugin);
+  const rules = pointRules(registry);
   list.forEach((point, place) => pointCheck(run, point, place + 1, open, agents, rules));
+  for (const rule of registry.points || []) rule(run, list, run.context);
 }
 
 // The type of points.json, which only check takes.

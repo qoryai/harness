@@ -1237,3 +1237,55 @@ test('preflight: an app that does not start ends the session, and a draft counts
   assert.equal(drafted('preflight', '--inputs', draft.inputs).lines[0],
     'End the session with points.json: the app did not start in the dev container.');
 });
+
+// ---- The question about a criterion that cannot be met (blocked-criterion) -----------------
+
+test('blocked-criterion: a Blocked: line of acceptance-check-writer on a criterion ends with its question and an answer point', () => {
+  const w = work();
+  const call = session(w);
+  begin(w, call);
+  const failures = section(WORKFLOW, 'Failures').replace(/\s+/g, ' ');
+  assert.ok(failures.includes('starts with `needs a change to criterion` ends the run as "A ' +
+    'blocked criterion" of `running-a-software-workflow` lists'), failures);
+  const [id, sentence] = CRITERIA[1];
+  const name = id.toUpperCase();
+  const quoted = `${name}, "${sentence.replace(/\.$/, '')}"`;
+  const blocked = report(w, 'acceptance-check-writer-1', `What you read:\n- a\n\nFiles:\n- none\n\nBlocked: needs a ` +
+    `change to criterion ${id}: The code has no such state.\n\nblocked\n`);
+  assert.equal(call('report', 'acceptance-check-writer', blocked).status, 0);
+  // With no points.json, the check at the end stops the session, as the test of
+  // blocked-criterion in checks.test.js shows: no review finds the stage unbuilt.
+  // A point with no question on the criterion fails.
+  const points = path.join(w.artifacts, 'points.json');
+  fs.writeFileSync(points, JSON.stringify([{ text: 'The run could not finish the step.',
+    action: 'run_again' }]));
+  const refused = call('check', 'points', points);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], `Add an answer point for ${id}.`);
+  // The question of "A blocked criterion" and its answer point pass.
+  const question = { id: 'q1', question: `What do you want to do with ${quoted}?`,
+    about: { type: 'acceptance-criteria', name: 'main', item: id },
+    context: `**Why:** The code has no such state, so ${quoted} cannot be met.\n\n**Checked:** ` +
+      'The files of the plan, and the command of the suite, which exits with 0.',
+    options: [
+      { title: `Change ${quoted}`, proposal: 'The criterion with a state that the code has.',
+        explanation: 'The criterion reads as the proposed wording, and Build meets it.' },
+      { title: 'Make it met another way', explanation: 'Write in the note how.' },
+      { title: `Withdraw ${quoted}`,
+        explanation: `${quoted}, stays in the criteria, marked withdrawn by you.` },
+    ],
+    state: 'open', asked: { run: 1, at: T } };
+  const file = path.join(w.artifacts, 'questions.json');
+  fs.writeFileSync(file, JSON.stringify({ questions: [question] }));
+  const asked = call('check', 'questions', file);
+  assert.equal(asked.status, 0, asked.out);
+  // The same question with two answers fails.
+  fs.writeFileSync(file, JSON.stringify({ questions: [{ ...question,
+    options: question.options.slice(1) }] }));
+  assert.equal(call('check', 'questions', file).status, 1);
+  fs.writeFileSync(file, JSON.stringify({ questions: [question] }));
+  fs.writeFileSync(points, JSON.stringify([{ text: `${quoted}, cannot be met as approved: the ` +
+    'code has no such state.', action: 'answer', question: 'q1' }]));
+  const answered = call('check', 'points', points);
+  assert.equal(answered.status, 0, answered.out);
+});

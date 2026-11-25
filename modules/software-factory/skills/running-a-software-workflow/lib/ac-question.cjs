@@ -1,18 +1,17 @@
-// The rule for the question that Verify asks about a criterion that cannot be met, which
-// the questions check runs for each question whose about is an acceptance-criteria output.
+// The rule for the question about a criterion that Build cannot meet as approved, which the
+// questions check runs for each question whose about is an acceptance-criteria output.
 // The question has three options, written by the agent, one of each: "Change AC-N" with the
 // proposed wording in `proposal`, "Make it met another way" and "Withdraw AC-N". Apiary adds
 // the fourth, an answer of the person's, so the question has no option for it. N is the number
 // of `about.item`. Its `context` is two Markdown paragraphs, `**Why:**` and `**Checked:**`.
-// The rule reads a question in a check when the artifact folder has the record of matrix, which
-// only Verify writes, and the question is new; it reads any question with an option titled
-// like one of the three answers, so that a push is read too.
-// shortcut: a push cannot tell the workflow of the run, so a question of Verify with none of the
+// The rule reads a new question in a check when the newest report of build-planner or
+// acceptance-check-writer has the Blocked: line for the criterion of its about, as
+// lib/blocked-criterion.cjs reads them; a report of software-developer or software-debugger
+// does not count. It reads any question with an option titled like one of the three answers,
+// so that a push is read too.
+// shortcut: a push reads no report, so a question about a blocked criterion with none of the
 // three titles passes a push; replace with the workflow when qory writes it into the run.
 'use strict';
-
-const fs = require('node:fs');
-const path = require('node:path');
 
 const ITEM = /^ac-([1-9][0-9]*)$/;
 const TITLE = /^(Change|Withdraw) AC-([1-9][0-9]*)(?![0-9])/;
@@ -20,7 +19,7 @@ const ANOTHER = 'Make it met another way';
 const LABELS = { Change: 'Change AC-N', Another: ANOTHER, Withdraw: 'Withdraw AC-N' };
 
 module.exports = (lib) => {
-  const { MATRIX_RECORD, isObject, short } = lib;
+  const { blockedCriteria, isObject, short } = lib;
 
   // paragraph returns whether text has a paragraph that starts with label.
   const paragraph = (text, label) => (typeof text === 'string' ? text : '')
@@ -41,19 +40,21 @@ module.exports = (lib) => {
     return found ? { kind: found[1], number: Number(found[2]) } : null;
   }
 
-  // applies returns whether question is a question of Verify: a title of an answer, or a new
-  // question in a check of a folder that has the record of matrix.
-  function applies(options, info) {
+  // applies returns whether question is a question about a criterion that cannot be met: a
+  // title of an answer, or a new question in a check of a folder that has a Blocked: line for
+  // the criterion of its about.
+  function applies(question, options, info) {
     if (options.some((option) => kindOf(option.title))) return true;
     const { context, earlier } = info || {};
-    return Boolean(context && context.mode === 'check' && !earlier &&
-      fs.existsSync(path.join(context.root, MATRIX_RECORD)));
+    if (!context || context.mode !== 'check' || earlier) return false;
+    const item = isObject(question.about) ? question.about.item : undefined;
+    return typeof item === 'string' && blockedCriteria(context.root).has(item);
   }
 
   function check(question, who, info) {
     const finds = [];
     const options = (Array.isArray(question.options) ? question.options : []).filter(isObject);
-    if (!applies(options, info)) return finds;
+    if (!applies(question, options, info)) return finds;
     if (!Array.isArray(question.options) || question.options.length !== 3) {
       const count = Array.isArray(question.options) ? question.options.length : 0;
       finds.push(`Give ${who} 3 options: Change AC-N, Make it met another way and Withdraw ` +

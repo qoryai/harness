@@ -238,8 +238,9 @@ wrote no acceptance checks." Under a higher workflow, return that line as the re
 
 A failure of an agent, a missing report, and a finding with a missing or unknown mark end
 the run as "Failures" of `running-a-workflow` lists. Before the first push, a "Blocked:"
-line of the writer that starts with `needs` ends the run as "Stops on the spec" of
-`running-a-software-workflow` lists, and any other "Blocked:" line ends it as "Failures"
+line of the writer that starts with `needs a change to criterion` ends the run as "A blocked
+criterion" of `running-a-software-workflow` lists, another one that starts with `needs` ends
+it as "Stops on the spec" lists there, and any other "Blocked:" line ends it as "Failures"
 lists. After `step begin` and before `step end checks done`, run `step end checks failed`
 before you end the run on a failure or a finding. When `step begin` prints "Start no new
 step", end as "The build ledger" lists.

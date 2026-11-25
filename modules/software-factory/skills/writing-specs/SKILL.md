@@ -1,6 +1,6 @@
 ---
 name: writing-specs
-description: Load before you write a spec and its acceptance criteria. Contains where they start, the spec's sections, the criteria file, criterion ids, the limit of 7 criteria, questions and review comments.
+description: Load before you write a spec and its acceptance criteria. Contains where they start, the spec's sections, the criteria file, criterion ids, the limit of 7 criteria, questions, review comments, and a change from a person's feedback.
 ---
 
 # Writing specs
@@ -89,6 +89,27 @@ about one criterion has the `about`
 - Write each comment that you decline to `declines.md` at the top of the artifact folder:
   its id, the fact that rules it out, and a source file that the reviewer can read. The run
   never pushes that file.
+
+## A change from a person's feedback
+
+When the run gives you the line "A change from a person's feedback:" and one JSON group,
+change only the criteria of its points, in the copy of the newest acceptance criteria. The
+group is the whole input of this start: read no other note, source or review comment.
+
+- Change only the `item` of each point. A point with no `item` adds one criterion at the
+  end, with the next number.
+- Keep every other byte of `acceptance-criteria.json`: the `summary`, each other criterion,
+  the order, the spaces and the line ends. Leave `spec.md` as it is: where it and a newer
+  criterion differ, the criterion applies.
+- Keep each id. When a point removes a criterion, keep its row as it is and add
+  `"removed": {"reason": "<the person's words>"}`. Never withdraw the criteria.
+- Write the person's words from `quote` when they fit the rules of a criterion. Else write
+  the shortest change of the criterion that keeps each condition and number of the quote.
+  When that change cannot fit in 25 words, drop no condition: list it under "What only a
+  person can settle", with your proposed wording.
+- When the newest version already meets a point, change nothing for it, and list it under
+  "Already so:" with the words of the criterion that meet it.
+- Ask no split question for this start, also with more than 7 criteria.
 
 ## A screen that a person asks for
 

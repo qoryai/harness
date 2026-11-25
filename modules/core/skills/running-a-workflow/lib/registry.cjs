@@ -43,6 +43,8 @@ const reviewComments = require('../types/review-comments.cjs');
 //   adds them;
 // - suite: the state of the result of the full suite, which findings round reads. One skill at
 //   most adds it;
+// - points: the rules of points.json, each (run, list, context), which the check of points runs
+//   after the check of each point, with the list of points.json and the context of the check;
 // - end(io): more results of the end check, each { line, point, item } as lib/end.cjs lists
 //   them, where io is the io of end with root, the artifact folder, and failed, the count of
 //   the failed checks before this one. One skill at most adds it.
@@ -230,7 +232,7 @@ function part(file) {
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    ledger: null, suite: null, end: null,
+    points: [], ledger: null, suite: null, end: null,
   };
   const seen = new Set();
   const files = [];
@@ -258,6 +260,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     if (Array.isArray(added.items)) registry.items.push(...added.items);
     if (Array.isArray(added.questionRules)) registry.questionRules.push(...added.questionRules);
+    if (Array.isArray(added.points)) registry.points.push(...added.points);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +

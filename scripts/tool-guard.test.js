@@ -7266,22 +7266,25 @@ test('the child that reads the input of a hook runs without NODE_OPTIONS', () =>
 const hookCommands = () => require('./hook-commands.js').hookCommands(
   path.join(MODULES, 'core', 'settings'));
 
+// UNSET is the list of excludedEnvVars of Gemini CLI without BASH_ENV and ENV. The prefix of
+// each hook command also unsets LD_LIBRARY_PATH, NODE_COMPILE_CACHE and OPENSSL_CONF.
 const UNSET = ['NODE_OPTIONS', 'NODE_PATH', 'LD_PRELOAD', 'LD_AUDIT'];
+const PREFIX = [...UNSET, 'LD_LIBRARY_PATH', 'NODE_COMPILE_CACHE', 'OPENSSL_CONF'];
 
-test('each hook command of the five runtimes starts node through /usr/bin/env -u of the four names', () => {
+test('each hook command of the five runtimes starts node through env -u of the seven names', () => {
   const commands = hookCommands();
   assert.equal(commands.length, 13, JSON.stringify(commands.map((one) => one.file)));
   for (const { file, command } of commands) {
     const start = /(?:^|[ (])\/usr\/bin\/env((?: -u [A-Z_]+)+) node "\$QORY_HARNESS_HOME\/hooks\/[a-z-]+\.cjs"/
       .exec(command);
     assert.ok(start, `${file}: ${command}`);
-    assert.deepEqual(start[1].split(' -u ').slice(1), UNSET, `${file}: ${command}`);
+    assert.deepEqual(start[1].split(' -u ').slice(1), PREFIX, `${file}: ${command}`);
     // No second node runs outside the wrapper, as in `node a.cjs || node b.cjs`.
     assert.equal(command.match(/\bnode "/g).length, 1, `${file}: ${command}`);
   }
 });
 
-test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV and ENV in each hook', () => {
+test('Gemini CLI settings list excludedEnvVars and clear the 22 names in each hook', () => {
   const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/gemini/settings.json'), 'utf8'));
   assert.deepEqual(settings.advanced.excludedEnvVars,
@@ -7289,7 +7292,14 @@ test('Gemini CLI settings list the names in excludedEnvVars and clear BASH_ENV a
   const hooks = Object.values(settings.hooks).flatMap((groups) => groups.flatMap((group) =>
     group.hooks));
   assert.equal(hooks.length, 2);
-  for (const hook of hooks) assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '' }, hook.name);
+  for (const hook of hooks) {
+    assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '', SHELLOPTS: '', BASHOPTS: '', PS4: '',
+      LD_PRELOAD: '', LD_AUDIT: '', LD_LIBRARY_PATH: '', GCONV_PATH: '', DYLD_INSERT_LIBRARIES: '',
+      DYLD_LIBRARY_PATH: '', DYLD_FRAMEWORK_PATH: '', DYLD_FALLBACK_LIBRARY_PATH: '',
+      DYLD_FALLBACK_FRAMEWORK_PATH: '', DYLD_IMAGE_SUFFIX: '', DYLD_VERSIONED_LIBRARY_PATH: '',
+      DYLD_VERSIONED_FRAMEWORK_PATH: '', DYLD_SHARED_REGION: '', DYLD_SHARED_CACHE_DIR: '',
+      DYLD_ROOT_PATH: '', DYLD_OVERLAY_PATH: '', DYLD_PRINT_TO_FILE: '' }, hook.name);
+  }
 });
 
 test('a preload in NODE_OPTIONS loads in a registered hook command only without /usr/bin/env -u', () => {

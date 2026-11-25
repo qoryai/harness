@@ -208,8 +208,8 @@ test('the example report of tamper-reviewer has a helper and a new skip mark, ea
 });
 
 test('each finding of the rule for the question about a criterion has a first line within 100', () => {
-  const lib = { MATRIX_RECORD: 'm', isObject: (v) => v !== null && typeof v === 'object' &&
-    !Array.isArray(v), short: (text) => text };
+  const lib = { blockedCriteria: () => new Map(), isObject: (v) => v !== null &&
+    typeof v === 'object' && !Array.isArray(v), short: (text) => text };
   const rule = require(path.join(FACTORY,
     'skills/running-a-software-workflow/lib/ac-question.cjs'))(lib);
   const who = `"${'x'.repeat(24)}"`;
@@ -740,7 +740,7 @@ test('the skill has its name, a description, its sections and short lines', () =
     /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
   let at = -1;
   for (const heading of ['## What the session writes', '## The order of the run',
-    '## The reviewers', '## The round', '## The walkthrough', '## The questions', '## The end',
+    '## The reviewers', '## The round', '## The walkthrough', '## The end',
     '## Failures']) {
     const place = WORKFLOW.indexOf(`\n${heading}\n`);
     assert.ok(place > at, `${heading} is missing or out of order`);
@@ -766,8 +766,7 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
     '7. Read the demo evidence of the run',
     '8. Run `<skill folder>/checks.cjs check verification <folder>/verification.json`',
     '9. Do "The reviewers", then "The round".', '10. Push the draft',
-    '11. Take the time of the version',
-    '12. Do "The walkthrough", then "The questions", then "The end".');
+    '11. Do "The walkthrough", then "The end".');
   // The only command that runs lock --verify has --version <N>.
   const runs = oneLine(steps).match(/`<skill folder>\/checks\.cjs lock --verify[^`]*`/g);
   assert.deepEqual(runs, ['`<skill folder>/checks.cjs lock --verify --version <N>`']);
@@ -791,7 +790,7 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
   // The version of a demo evidence is D, and N stays the version of the lock.
   assert.ok(flat.includes('demo-evidence/<name>/v<D>/<name>.json'));
   assert.ok(!flat.includes('v<N>/<name>.json'));
-  // The matrix is pushed for each verdict that step 12 records; an end before step 10 pushes
+  // The matrix is pushed for each verdict that step 11 records; an end before step 10 pushes
   // nothing.
   assert.ok(flat.includes('A run that ends before this step pushes nothing: each `run_again` ' +
     'end, the `changes-requested` end of step 4 and each end as "Failures" lists.'));
@@ -826,34 +825,29 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.doesNotMatch(WORKFLOW,
     /submission-writer|QORY_SUBMISSION_HANDOFF|report-build|pull-request\.json/);
   assert.doesNotMatch(WORKFLOW, /qory\.outbox|<outbox>/);
-  assert.ok(oneLine(WORKFLOW).includes('Push only `verification`, `walkthrough` and ' +
-    '`questions`.'));
+  assert.ok(oneLine(WORKFLOW).includes('Push only `verification` and `walkthrough`.'));
   assert.ok(oneLine(WORKFLOW).includes('Start no agent that is not one of the two reviewers or ' +
     'one of the two walkthrough agents.'));
 });
 
-test('the skill asks one question for each criterion that is not met, with three answers', () => {
-  const questions = oneLine(section(WORKFLOW, 'The questions'));
-  assert.ok(questions.includes('Ask one question for each row of `<folder>/verification.json` ' +
-    'whose `state` is `not_met`.'));
-  for (const title of ['`Change AC-3, "<first sentence>"`, with `proposal`',
-    '`Make it met another way`', '`Withdraw AC-3, "<first sentence>"`']) {
-    assert.ok(questions.includes(title), title);
+test('the skill asks no question: a criterion that is not met makes the verdict changes-requested', () => {
+  // A question about a criterion comes from Build, as "A blocked criterion" of
+  // running-a-software-workflow lists, and the tests of blocked-criterion cover it.
+  assert.ok(!WORKFLOW.includes('## The questions'));
+  for (const text of ['questions.json', 'artifact push questions', 'Change AC-',
+    'Make it met another way', 'leaves the acceptance criteria', 'Take the time of the version']) {
+    assert.ok(!WORKFLOW.includes(text), text);
   }
-  assert.ok(questions.includes('Quote a criterion in each text of a question as its id in ' +
-    'capitals, a comma, a space and its first sentence in double quotes'));
-  assert.ok(questions.includes('When `work-item show` gave no `run.number`, write no question.'));
-  assert.ok(questions.includes('The first starts `**Why:**`'));
-  assert.ok(questions.includes('The second starts `**Checked:**`'));
-  assert.ok(questions.includes('Apiary adds a fourth answer that the person writes, so write ' +
-    'no option for it.'));
+  assert.ok(oneLine(section(WORKFLOW, 'The end')).includes('`changes-requested`, when any of ' +
+    'them fails: a criterion is not met or not verified'));
+  assert.match(frontOf(WORKFLOW), /push the walkthrough, and record passed or changes-requested\./);
 });
 
 test('the stack lists verify-a-ticket with write-no-push and the group verify-reviewers', () => {
   const stack = fs.readFileSync(path.join(__dirname, '../stacks/software/qory-stack.yaml'), 'utf8');
   assert.match(stack, new RegExp('\\n {2}verify-a-ticket: \\{tier: thinking, ' +
     'access: write-no-push, review_group: verify-reviewers\\}\\n'));
-  // The entry sets no plan: Verify pushes the matrix and its questions, and no code.
+  // The entry sets no plan: Verify pushes the matrix and the walkthrough, and no code.
   assert.doesNotMatch(stack, /verify-a-ticket:[^\n]*plan:/);
   const manifest = read('qory-module.yaml');
   assert.ok(manifest.includes('verify-reviewers: [tamper-reviewer, verification-reviewer]'));
@@ -910,7 +904,7 @@ test('the skill makes the walkthrough after the verification and before the verd
     assert.ok(steps.includes(`"${reason}"`), reason);
   }
   assert.ok(steps.includes('A step that says "keep the reason" ends this section: go to ' +
-    '"The questions", and push no walkthrough.'));
+    '"The end", and push no walkthrough.'));
   // The end line has one more line for a reason, in "The end", and "The round" has no
   // walkthrough.
   assert.ok(oneLine(section(WORKFLOW, 'The end')).includes('End with one line, and a second ' +
@@ -1001,39 +995,17 @@ test('a session: a reviewer with no report is one blocking finding of that revie
     'verification-reviewer wrote no report.');
 });
 
-test('a session: a failed check is not met, and the question for it passes its check', () => {
+test('a session: a failed check is not met, and the matrix writes no question', () => {
   const wk = sessionOf({ records: [{ state: 'red', checks: [check('ac-4', 'red')] }],
     evidence: DEMO_1 });
+  const file = path.join(wk.store, 'questions.json');
+  const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
   const wrote = matrix(wk);
   assert.equal(wrote.status, 0);
   assert.match(wrote.lines.at(-1), /: 3 met, 1 not met, 0 not verified\.$/);
-  const quoted = 'AC-4, "Each customer who got the reply with the old hours receives a ' +
-    'corrected reply that lists the new hours."';
-  const question = { id: 'q1', question: `What do you want to do with ${quoted}?`,
-    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
-    context: `**Why:** The locked check of ${quoted} exits 1, because one of its 2 tests ` +
-      'fails.\n\n**Checked:** `tests/ac-4.test.js` ran on the commit under review: exit 1, ' +
-      '1 of 2 tests failed.',
-    options: [
-      { title: 'Make it met another way', recommended: true,
-        explanation: 'The work item returns to Build, which fixes the code under test.' },
-      { title: `Change ${quoted}`,
-        explanation: 'The criterion states what the check can show.',
-        proposal: 'Each customer who got the reply with the old hours receives a corrected ' +
-          'reply within one day.' },
-      { title: `Withdraw ${quoted}`,
-        explanation: 'The criterion leaves the acceptance criteria.' }],
-    state: 'open', asked: { run: 1, at: '2026-11-22T10:00:00Z' } };
-  const file = path.join(wk.store, 'questions.json');
-  write(file, { questions: [question] });
-  const checked = call(wk, ['check', 'questions', file]);
-  assert.equal(checked.status, 0, checked.out + checked.err);
-  // The same question with two answers is refused.
-  write(file, { questions: [{ ...question, options: question.options.slice(0, 2) }] });
-  const refused = call(wk, ['check', 'questions', file]);
-  assert.equal(refused.status, 1, refused.out + refused.err);
-  assert.match(refused.out,
-    /Give .* 3 options: Change AC-N, Make it met another way and Withdraw AC-N/);
+  assert.equal(recordOf(wk).matrix.find((row) => row.criterion === 'ac-4')?.state, 'not_met',
+    JSON.stringify(recordOf(wk).matrix));
+  assert.equal(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null, before);
 });
 
 // ---- Scripted sessions of the walkthrough step ----------------------------------------------------

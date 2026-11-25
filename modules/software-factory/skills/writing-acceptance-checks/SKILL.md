@@ -20,7 +20,9 @@ the largest `<N>`, and the newest approved acceptance criteria. A check path is 
 path with no space and no `.` or `..` part, whose file name has an extension, such as
 `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. Each row of
 `## Deliverables` whose Check is a check path has one check: the file at that path. Its
-criteria are the ones of the Criteria cell of that row.
+criteria are the ones of the Criteria cell of that row. Where the spec and a newer criterion
+differ, the criterion applies: a change from a person's feedback changes the criteria and
+leaves the spec as it was.
 
 The check scope of a row is its Check path, and each folder of its Files that is the first
 folder of the Check path or lies below it (`src/` and `src/test/resources/` for

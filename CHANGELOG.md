@@ -96,9 +96,34 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
   `feedback` with its push check, the rule for the question of a point, and the verbs
   `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
-  file whose path it gets from a workflow. No process entry starts the workflow yet. A
-  criterion-change point changes no criterion yet, and an answer to a question is no source
-  yet.
+  file whose path it gets from a workflow. No process entry starts the workflow yet. An
+  answer to a question is no source yet.
+- The verb `feedback amended <output> --decision <id> [--same <point>]...`, which checks a
+  draft of the acceptance criteria or the demo scenarios for the points of one source byte for
+  byte against the newest version: it changes only the item of each point, adds one item at
+  the end for a point with no item, and keeps every other byte, the order and the line ends.
+  `feedback points` prints the groups of the criteria before those of the scenarios, and the
+  group of the scenarios of a source only after its criteria version, unless the criteria
+  wait. It prints as `waiting` the questions of a source that wait for an answer, the open
+  questions about a point of the group, and the open questions about the output with no item
+  asked at or after the time of the source, and a ripple point for each criterion checked by
+  `Demo` that a linked criteria version changed, until a later linked scenario version.
+  `feedback open` also lists each open question that a group waits for as "Waiting for an
+  answer:", so the run ends with an `answer` point on it.
+- `triage-review` writes each group of criterion changes of a source as a new version of the
+  acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
+  `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,
+  and `spec-reviewer` or `scenario-reviewer` reviews it. The writers report the points that
+  the newest version already meets under "Already so:". Where the spec and a newer criterion
+  differ, the build planner, the plan reviewer, the check writer and the code reviewer apply
+  the criterion.
+- A criterion that the build planner or the check writer cannot meet as approved ends the
+  run with one question about it: "What do you want to do with AC-3, "…"?", with the proof
+  in its `context` and the answers `Change AC-3, "…"`, `Make it met another way` and
+  `Withdraw AC-3, "…"`, and one `answer` point on it. `check points` exits with 1 for a
+  `points.json` with no such point, and the check at the end stops a session that ends with
+  such a `Blocked:` line and no `points.json`. Core's registry has the member `points`, the
+  rules of `points.json`.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the
@@ -428,27 +453,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The registry of the checks gains `questionRules`, rules for the questions about an output
   of a type; `software-factory` registers one for `acceptance-criteria` that refuses a
   question with the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, or
-  a new question in a check of a folder with the record of `matrix`, unless it has 3
-  options, one of each answer with the number of `about.item`, a `proposal` on the Change
-  option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a lower-case
-  `about.item`. `matrix` pulls the criteria, the demo evidence and the build ledger from the
-  run, because an agent can change the local store, and a criterion that rests on a type
-  that cannot be pulled is not verified. `matrix` counts only the newest record of `run
-  locked` for the lock and commit and the run id of the session, and only when it is a
-  full, clean run with results; `run locked` exits 3 for a commit that tracks a file under
-  `.reports/`. The two agents are the group role `verify-reviewers` of `software-factory`,
-  with no `paths`. `workflow-verify-a-ticket` and the stack entry `verify-a-ticket`
-  (`write-no-push`, `review_group: verify-reviewers`) run Verify as a review session: the
-  lock at the approved version, `run locked`, `matrix`, both reviewers, the round, the push
-  of the verification, one question for each criterion that is not met, and the verdict. It
-  records `passed` only when every criterion is met, no scenario of the commit has a failed
-  verdict and no finding is blocking. `judging-criteria` and `verification-reviewer` read
-  the draft `verification.json` at the top of the artifact folder, not a `verification`
-  version of `qory.start_artifacts`, and read `suite_result` as optional. `checks.cjs
-  findings round` takes `--suite` as optional: with no flag the round has no suite finding,
-  and a given file that is missing, unreadable, failed or all skipped is still one blocking
-  finding. The check of `scripts/check.sh` for the group of Verify reads `review_group` of
-  the stack entry. Verify's stage in `process.yaml` is not built yet.
+  a new question in a check of a folder with a `Blocked:` line on its criterion, unless it
+  has 3 options, one of each answer with the number of `about.item`, a `proposal` on the
+  Change option, the paragraphs `**Why:**` and `**Checked:**` in its `context`, and a
+  lower-case `about.item`. `matrix` pulls the criteria, the demo evidence and the build
+  ledger from the run, because an agent can change the local store, and a criterion that
+  rests on a type that cannot be pulled is not verified. `matrix` counts only the newest
+  record of `run locked` for the lock and commit and the run id of the session, and only
+  when it is a full, clean run with results; `run locked` exits 3 for a commit that tracks a
+  file under `.reports/`. The two agents are the group role `verify-reviewers` of
+  `software-factory`, with no `paths`. `workflow-verify-a-ticket` and the stack entry
+  `verify-a-ticket` (`write-no-push`, `review_group: verify-reviewers`) run Verify as a
+  review session: the lock at the approved version, `run locked`, `matrix`, both reviewers,
+  the round, the push of the verification, and the verdict, with no question: a criterion
+  that is not met makes the verdict `changes-requested`. It records `passed` only when every
+  criterion is met, no scenario of the commit has a failed verdict and no finding is
+  blocking. `judging-criteria` and `verification-reviewer` read the draft
+  `verification.json` at the top of the artifact folder, not a `verification` version of
+  `qory.start_artifacts`, and read `suite_result` as optional. `checks.cjs findings round`
+  takes `--suite` as optional: with no flag the round has no suite finding, and a given file
+  that is missing, unreadable, failed or all skipped is still one blocking finding. The
+  check of `scripts/check.sh` for the group of Verify reads `review_group` of the stack
+  entry. Verify's stage in `process.yaml` is not built yet.
 - `checks.cjs destinations --inputs <file> <id>...`, a verb of `running-a-workflow`. It
   checks the ids of the destinations that a session reads against `destinations` of the
   inputs.json at `--inputs`: each id is `tg_` and 16 characters, listed there with a
@@ -2402,18 +2428,34 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `--inputs`. Any other relative path still exits 3. `scope` and `freeze` still exit 3 with
   `start_commits: []`, which lists no checkout.
 
-- A hook process loads no preload from the environment of its session or from a `.env` file.
-  Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is
-  absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude Code,
-  Codex, Gemini CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so
-  each hook of Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`. The setting
-  `advanced.excludedEnvVars` of Gemini CLI lists the four names, `BASH_ENV` and `ENV`.
-  Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
-  guard of all five runtimes also denies a write to a file named `.env` and a shell command
-  with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
-  command with `.env`. On macOS with System Integrity Protection, `/usr/bin/env` drops
-  `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` itself, and no `DYLD_` name is on the list.
+- The `node` process of a hook loads no preload from the environment of its session or from
+  a `.env` file. Each of the 13 hook commands in `modules/core/settings/` starts `node`
+  through `/usr/bin/env` with `-u` for `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`,
+  `LD_AUDIT`, `LD_LIBRARY_PATH`, `NODE_COMPILE_CACHE` and `OPENSSL_CONF`. `node` reads the
+  file in `OPENSSL_CONF`, and an engine path in that file loads a library before the hook
+  script runs. The path is absolute, so that no `env` earlier in `PATH` replaces it. This
+  holds on Claude Code, Codex, Gemini CLI, Cursor and Copilot CLI. bash and the loader read
+  some variables before `env` runs: bash runs the file in `BASH_ENV`, and sh can run the
+  file in `ENV`. `SHELLOPTS=xtrace` runs a `$(...)` in `PS4`. On Linux, `LD_PRELOAD` and
+  `LD_AUDIT` load a library into bash and `env`, `LD_LIBRARY_PATH` contains folders, where a
+  library replaces one that bash or `env` loads, and `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads one when a program calls `iconv_open`. On macOS, the `DYLD_`
+  names load a library, replace the shared cache or the root folder of the loader, or write
+  a file, in a bash outside the system folders, such as `/opt/homebrew/bin/bash`, which
+  System Integrity Protection does not cover. So the `env`
+  field of each hook of Gemini CLI sets 22 names to `""`: `BASH_ENV`, `ENV`, `SHELLOPTS`,
+  `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH`,
+  `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
+  `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,
+  `DYLD_VERSIONED_LIBRARY_PATH`, `DYLD_VERSIONED_FRAMEWORK_PATH`, `DYLD_SHARED_REGION`,
+  `DYLD_SHARED_CACHE_DIR`, `DYLD_ROOT_PATH`, `DYLD_OVERLAY_PATH` and `DYLD_PRINT_TO_FILE`.
+  The setting `advanced.excludedEnvVars` of Gemini CLI lists `NODE_OPTIONS`, `NODE_PATH`,
+  `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`. Gemini CLI applies that list to a project
+  `.env` and not to `.gemini/.env`. So the reports guard of all five runtimes also denies a
+  write to a file named `.env` and a shell command with the word `.env`. The Cursor matcher
+  of `beforeShellExecution` starts the guard for a command with `.env`. On macOS with System
+  Integrity Protection, `/usr/bin/env` drops `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH`
+  itself, and no `DYLD_` name is on the `-u` list.
   CI runs `shellcheck`, `sh -n`, `bash -n` and `node --check` on the 13 hook commands and
   the hook files.
 - The reports guard reads the first word of a command, to find out whether it is a copy of

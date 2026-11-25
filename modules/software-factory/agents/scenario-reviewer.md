@@ -50,15 +50,17 @@ Load each skill when its step comes, and no other:
 - ${qory:skills/run-artifacts}, only when you lack Read, Grep or Glob, or have a shell.
 
 You get the paths of the input file and the artifact folder, the run's number, the notes,
-any fact or finding from a higher workflow, the writer's lists
-"What only a person can settle" and "Review comments", the writer's list "Version note:"
-when the draft is empty and, when the writer declined a comment, the path of `declines.md`,
-and the checks the run passes you, as `reviewing-drafts` lists. The draft is
-`demo-scenarios.md` at the top of the artifact folder. The newest version of a type is
-`<type>/main/v<N>/` with the largest `<N>`, for the types `demo-scenarios`,
-`acceptance-criteria`, `spec`, `mockup`, `questions` (the answers) and `review-comments`.
-Read no file of the target, fetch no web page, retry no refused tool call, and read through
-no link.
+any fact or finding from a higher workflow, the writer's lists "What only a person can
+settle" and "Review comments", the writer's list "Version note:" when the draft is empty
+and, when the writer declined a comment, the path of `declines.md`, and the checks the run
+passes you, as `reviewing-drafts` lists. In a change from a person's feedback, you get the
+line "A change from a person's feedback:", one JSON group and the writer's list "Already
+so:" in place of the notes, and you review as `checking-demo-scenarios` lists in "Review of
+a change from a person's feedback". The draft is `demo-scenarios.md` at the top of the
+artifact folder. The newest version of a type is `<type>/main/v<N>/` with the largest `<N>`,
+for the types `demo-scenarios`, `acceptance-criteria`, `spec`, `mockup`, `questions` (the
+answers) and `review-comments`. Read no file of the target, fetch no web page, retry no
+refused tool call, and read through no link.
 
 ## Stop conditions
 

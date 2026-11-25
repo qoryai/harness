@@ -290,7 +290,7 @@ the workflow.
 ### The workflow of Verify
 
 `workflow-verify-a-ticket` is a review session with the access `write-no-push`: it pushes
-the matrix and its questions, and no code. Its steps, in order:
+the matrix and the walkthrough, and no code. Its steps, in order:
 
 1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
    no `run.id` or the input file has no `qory.review_session`.
@@ -313,20 +313,18 @@ the matrix and its questions, and no code. Its steps, in order:
    the input file only, and runs `findings round <reports> --reviewers
    tamper-reviewer,verification-reviewer`, with `--suite` only when
    `qory.review_session.suite_result` exists.
-6. It pushes `verification` with either verdict, and takes the time of the version. A run
-   that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
-   end of step 3 and each end as "Failures" lists.
+6. It pushes `verification` with either verdict. A run that ends before this step pushes
+   nothing: each `run_again` end, the `changes-requested` end of step 3 and each end as
+   "Failures" lists.
 7. It makes the walkthrough, as the section "The walkthrough of Verify" lists, and pushes
    `walkthrough` when the check script passes. A walkthrough that fails blocks nothing.
-8. For each row of `verification.json` with the state `not_met`, it writes one question
-   about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
-   and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
-   `questions`.
-9. It records `passed` when the lock verified, the matrix has no `not_met` and no
+8. It records `passed` when the lock verified, the matrix has no `not_met` and no
    `not_verified` row, no scenario of the commit under review has a `verdict` other than
    `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
    point, and qory writes the findings for the next session of `implement-changes` from the
-   reports.
+   reports. It asks no question: a criterion that is not met makes the verdict
+   `changes-requested`, and Build fixes it, or asks about it as "A blocked criterion" of
+   `running-a-software-workflow` lists.
 
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
@@ -916,22 +914,23 @@ lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`,
 the readers of the ids of a type that the questions check reads for the `item` of an
 `about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
 each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
-as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, and `end`, the
-check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
-verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
-load it. A type that two skills add stops each verb that reads the registry with exit 3. A
-`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
-the harness: the verb stops with an error that names the file and exit 3, and `end
---offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
-`checks.cjs` stops the same way when the registry fails, and prints no usage. In
-`software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
-`proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
-new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
-<the change>` of the writers of `implement-changes`, the rules of the build ledger that the
-verbs `step` and `resume` apply, and the check at the end of a Build write session. A stack
-without that module, such as `core`, checks `questions` and `review-comments`, and `report`
-accepts only `needs <type>`.
+as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `points`, the rules
+of `points.json`, each `(run, list, context)`, which the check of points runs after the
+check of each point, and `end`, the check at the end of a session. Only `check`, `push`,
+`report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
+`starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb that
+reads the registry with exit 3. A `workflow-checks.cjs` that throws, exports no function or
+returns no object is a fault of the harness: the verb stops with an error that names the
+file and exit 3, and `end --offline`, `step` and `resume` exit 4 with the fix on stderr. A
+verb outside the verbs of `checks.cjs` stops the same way when the registry fails, and
+prints no usage. In `software-factory`, `running-a-software-workflow/workflow-checks.cjs`
+adds the types `proposal`, `spec`, `acceptance-criteria`, `decision-record` and
+`demo-scenarios`, the 11 types of Build and Verify, the lines that start with `needs a
+change to criterion`, `needs a new criterion` or `needs a change to the spec`, the line
+`needs a change to the build plan: <the change>` of the writers of `implement-changes`, the
+rules of the build ledger that the verbs `step` and `resume` apply, and the check at the end
+of a Build write session. A stack without that module, such as `core`, checks `questions`
+and `review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1336,22 +1335,23 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   beside the checks of drafts, reports and outputs. An early return of `end`, such as the
   end through a `points.json` that passes, and `end --offline` skip it. Each result is
   `{line, point, item}`, as the other checks of `end` return them.
-  `running-a-software-workflow` adds `lib/uncommitted.cjs`, which checks a Build write
-  session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
-  `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
-  session can write, a change is a path that `git status` lists: a tracked, staged or
-  untracked file that git does not ignore, or a submodule whose commit or files changed,
-  whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
-  change in that checkout. The finding is `Commit these changes, then end the session: the
-  suite and the review read only committed work.`, then `Not committed:` with at most 20
-  paths, sorted, fewer when the line would pass 200 characters, with a path that has a key
-  shown as words, and `(<n> in all)`. It counts in `.reports/uncommitted.json` the checks
-  that found a change, and starts again at the first check after one that passed. The count
-  is at most the failed checks since then. At the third failed check, its point is "The
-  Build session ended <n> times with changes it did not commit, so the suite and the review
-  could not check them.", with that count. With no `inputs.json`, another stage, or a stack
-  of core alone, it finds nothing. The Build stage runs `implement-changes`,
-  `plan-the-build` and `write-acceptance-checks` in such sessions.
+  `running-a-software-workflow` adds `lib/uncommitted.cjs`, and the end of
+  `lib/blocked-criterion.cjs` that "A blocked criterion" lists. `lib/uncommitted.cjs` checks
+  a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has
+  no `review`, `review_session` or `hook_session`. For each checkout of
+  `qory.start_commits` that the session can write, a change is a path that `git status`
+  lists: a tracked, staged or untracked file that git does not ignore, or a submodule whose
+  commit or files changed, whatever its `ignore` setting, outside `.qory/`. When a git call
+  fails, the check finds no change in that checkout. The finding is `Commit these changes,
+  then end the session: the suite and the review read only committed work.`, then `Not
+  committed:` with at most 20 paths, sorted, fewer when the line would pass 200 characters,
+  with a path that has a key shown as words, and `(<n> in all)`. It counts in
+  `.reports/uncommitted.json` the checks that found a change, and starts again at the first
+  check after one that passed. The count is at most the failed checks since then. At the
+  third failed check, its point is "The Build session ended <n> times with changes it did
+  not commit, so the suite and the review could not check them.", with that count. With no
+  `inputs.json`, another stage, or a stack of core alone, it finds nothing. The Build stage
+  runs `implement-changes`, `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
@@ -1857,25 +1857,61 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
-Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
-then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
+`/usr/bin/env` with `-u` for `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, `NODE_COMPILE_CACHE` and `OPENSSL_CONF`, on Claude Code, Codex, Gemini
+CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads no
+preload, no library from another folder and no cached code into `node`. `OPENSSL_CONF` is
+on the list because `node` reads the file in it, and an engine path in that file loads a
+library before the hook script runs. The path is absolute, so that no `env` earlier in
 `PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
 `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
-the ones that Linux reads.
+checked on Darwin 25.6 with both set. So the `-u` list has no `DYLD_` name, and the `LD_`
+names are the ones that Linux reads. The shell that starts `/usr/bin/env` still reads the
+`DYLD_` names: System Integrity Protection does not cover a shell outside the system
+folders, such as `/opt/homebrew/bin/bash`.
 
-A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
-cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
-up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
-before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
-script before a hook command. So `settings/gemini/settings.json` does two things:
+On a Linux host where `node` needs `LD_LIBRARY_PATH` to start, the hooks stop, and on Claude
+Code and Codex every tool call in a run is then blocked.
 
-- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
-  field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
-  is read from the source of 0.68.0.
+A shell and the loader read some variables in the shell's process, before or while it runs
+its command, so `/usr/bin/env -u` clears them only for `node`, not for the shell:
+
+- bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
+- `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
+  bash expands `PS4` before each command, so a `$(...)` in `PS4` runs.
+- On Linux, the loader loads the library in `LD_PRELOAD` or `LD_AUDIT` into bash, and again
+  into `/usr/bin/env`. `LD_LIBRARY_PATH` contains folders, and a library in one of them
+  replaces a library that bash or `env` loads. `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads a module from them when a program calls `iconv_open`.
+- On macOS, the loader reads the `DYLD_` names when a shell outside the system folders
+  starts. `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
+  `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,
+  `DYLD_VERSIONED_LIBRARY_PATH` and `DYLD_VERSIONED_FRAMEWORK_PATH` load a library from
+  another folder, or a file with a suffix in place of a library, into that shell.
+  `DYLD_SHARED_REGION`, `DYLD_SHARED_CACHE_DIR`, `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH`
+  replace the shared cache or the root folder of the loader. `DYLD_PRINT_TO_FILE` writes a
+  file at the path in it. The effects of `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH` are read
+  from their names in `/usr/lib/dyld` and were not tested.
+
+Gemini CLI 0.68.0 starts each hook as `bash -c <command>`, with the first `bash` on `PATH`
+and the environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment.
+It walks up from the working folder to the home folder, and in each folder it takes
+`.gemini/.env` before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in
+`.gemini/.env` ran its script before a hook command. So `settings/gemini/settings.json` does
+two things:
+
+- It sets 22 names to `""` in `env` of each hook: `BASH_ENV`, `ENV`, `SHELLOPTS`,
+  `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH` and the 13
+  `DYLD_` names.
+  Gemini CLI 0.68.0 adds that field to the environment of the hook after the other
+  variables. bash reads no file for an empty `BASH_ENV`, and turns on no option for an empty
+  `SHELLOPTS` or `BASHOPTS`. With bash 5.3.15 on macOS, on 2026-11-25, when this setting was
+  added, `bash -c true` with `SHELLOPTS=xtrace` and a `$(echo ran >> FILE)` in `PS4` wrote
+  to `FILE`, and with both set to `""` it did not write `FILE`. On 2026-11-25,
+  `/opt/homebrew/bin/bash` 5.3.15 ran a command with the 21 names of this list other than
+  `GCONV_PATH` set to `""`. The empty `LD_` names and `GCONV_PATH` were not tested on
+  Linux. The hooks reference of Gemini CLI does not list the field `env`; it is read from
+  the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
@@ -2563,26 +2599,28 @@ The checks:
   the run and the same question in the newest questions, and the check reads nothing of
   what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
   question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
-  or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
-  met; or, in a check, the question is new and the artifact folder has
-  `.reports/matrix-record.json`, which only Verify writes. It refuses a question with other
-  than 3 options, with other than one option of each of the three titles, with the number
-  of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
-  the change option, with a `context` that has no paragraph starting `**Why:**` or none
-  starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
-  `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
-  titles passes a push. In a push, and in a folder with no such record, a question about a
-  criterion with none of those titles, such as a question of the spec, has no such rule. The
-  same skill adds the reader of `feedback`, whose items are the ids of its points, and the
-  rule for the question of a point, for an `about` of the type `feedback` or
-  `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as
-  `question`, in the draft `feedback.json` in a check, else in the newest version, and any new
-  question with an `about` of the type `feedback`. A question fails the rule when it has fewer
-  than 2 or more than 4 options, a `context` that has no words of the point in double quotes,
-  or that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot
-  be built as written: <cause>" and "adds", "changes" or "removes", or an `about` other than
-  that of the point. A push of questions reads no feedback, so there the rule checks only
-  an `about` of the type `feedback`, with any words in double quotes;
+  or `Withdraw AC-N`, the three answers of a criterion that Build cannot meet as approved;
+  or, in a check, the question is new and the newest report of `build-planner` or
+  `acceptance-check-writer` has the line `Blocked: needs a change to criterion
+  <about.item>`. A report of `software-developer` or `software-debugger` does not count.
+  A question fails the rule with other than 3 options, with other than one option of each
+  of the three titles, with the number of `Change AC-N` or `Withdraw AC-N` not the number of
+  `about.item`, with no `proposal` on the change option, with a `context` that has no
+  paragraph starting `**Why:**` or none starting `**Checked:**`, and with an `about.item`
+  that is not the lower-case id, such as `ac-3`. A push reads no report, so such a question
+  with none of the three titles passes a push. In a push, and in a folder with no such line,
+  a question about a criterion with none of those titles, such as a question of the spec,
+  has no such rule. The same skill adds the reader of `feedback`, whose items are the ids of
+  its points, and the rule for the question of a point, for an `about` of the type
+  `feedback` or `acceptance-criteria`. The rule reads a new question whose id a point of the
+  feedback has as `question`, in the draft `feedback.json` in a check, else in the newest
+  version, and any new question with an `about` of the type `feedback`. A question fails the
+  rule when it has fewer than 2 or more than 4 options, a `context` that has no words of the
+  point in double quotes, or that goes on after them in none of the forms "can mean
+  <reading> or <reading>", "cannot be built as written: <cause>" and "adds", "changes" or
+  "removes", or an `about` other than that of the point. A push of questions reads no
+  feedback, so there the rule checks only an `about` of the type `feedback`, with any words
+  in double quotes;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
@@ -3584,14 +3622,21 @@ and one `answer` point per question. Otherwise it starts `feedback-triager`, whi
 source into points by `sorting-feedback`: a `fix` inside the approved criteria, a
 `criterion-change`, or a `question`. `check feedback` runs after it, at most 3 times. Then
 `questions-writer` writes one question per `question` point, and `reply-writer` adds the
-`reply` of each new point. The session pushes `feedback`, then `questions`, and ends with
-`escalate` and one `answer` point per open question, else with `passed`. A point outside the
-kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
-workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
-`process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
-no criterion; replace this when the workflow gets the step that writes the criteria. Until
-then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no
-source yet, so a run builds nothing from it; read it once each answer has an id.
+`reply` of each new point. The session pushes `feedback`, then `questions`. Then, for each
+group that `feedback points` prints, it starts `spec-writer` or `scenario-writer` with that
+group alone, checks the draft with `feedback amended`, at most 3 times, starts `spec-reviewer`
+or `scenario-reviewer`, at most 3 times, and pushes one version linked to the source with
+`--decision`, also when its bytes are the same as the newest version. A group with `waiting`
+waits for its questions. A writer that needs a person adds a question and keeps an `answer`
+point; a change that the writers cannot write ends with `escalate` and a `run_again` point,
+and earlier pushes stay. The session ends with `escalate` and one `answer` point per open
+question, else with `passed`. A point outside the kind of the fast track ends with `escalate`
+and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
+and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
+yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
+`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
+to a question is no source yet, so a run builds nothing from it; read it once each answer
+has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -3646,8 +3691,21 @@ the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
   although the second option says so, and the planner of the next round does not read it.
   The ledger step is `failed`, with no escalation reason.
 - **Blocks.** A criterion that cannot be built as written ends the planner's report with
-  `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
-  workflows.
+  `Blocked: needs a change to criterion <ac-N>: <the change>`. The session ends as "A
+  blocked criterion" of `running-a-software-workflow` lists: `step end plan failed`, one
+  question per criterion with no open question on it, and one `answer` point on it, then
+  `escalate`. The question is "What do you want to do with AC-3, "<first sentence>"?", its
+  `context` has a `**Why:**` paragraph, the cause, and a `**Checked:**` paragraph, the
+  proof, its `about.item` is the criterion, and its options are `Change AC-3, "…"` with the
+  proposed wording in `proposal`, `Make it met another way` and `Withdraw AC-3, "…"`. The
+  point is "AC-3, "<first sentence>", cannot be met as approved: <the cause>." `check
+  points` exits with 1 for a `points.json` with no `answer` point on such a question for
+  each criterion of such a line in the newest report of `build-planner` or
+  `acceptance-check-writer`, and the check at the end stops a session that ends with such a
+  line and no `points.json`. A line of `software-developer` or `software-debugger` needs no
+  such point: `workflow-implement-changes` ends the run as "Failures" lists, and
+  `review-changes` finds the step not built. `write-acceptance-checks` ends the same way for
+  a line of `acceptance-check-writer`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes
@@ -4725,17 +4783,54 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `feedback open`: prints each open note of `qory work-item show` that no version of
   `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
   line "Not asked: <point>, <question>" per question that the newest questions lack, and one
-  line "Waiting for an answer: <point>, <question>" per open one. The notes are those of the
-  kinds `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id
-  has the key of its time and text, and an answer to a question is left out. It exits with 1
-  for a source or a question not asked, with 0 for neither, and with 3 when the notes cannot
-  be read. A line of a source is not cut.
+  line "Waiting for an answer: <point>, <question>" per open one. It also prints that line for
+  each open question that a group of `feedback points` waits for and no `question` point has,
+  such as one that a writer raised, with the point of the group that the question is about,
+  a ripple point's included, and "Words of <point>: <words>" after it. For a ripple point,
+  the words are those of the criterion change of the source on that criterion; with no such
+  change, as for an added criterion, those of the first criterion change of the source with
+  no item; else the text of the source. A question with no item in its `about`, asked at or
+  after the time of the source (`asked.at`), is about the first point of a group of that
+  output, and a question about a criterion is also about a ripple point of that criterion.
+  A question has no member for the agent that asked it. The session then ends with an
+  `answer` point on it, not with `passed`. The notes are those of the kinds
+  `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
+  key of its time and text, and an answer to a question is left out. It exits with 1 for a
+  source or a question not asked, with 0 for neither, and with 3 when the notes cannot be
+  read. A line of a source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
-  changes that have not ended, oldest source first: `decision`, `at`, `output` and `points`,
-  each with `id`, `quote`, `item` and `change`. A criterion change has ended when a version of
-  its output that counts, from a run, has the id of its source as `decision`. It exits with 1
-  when it prints one. It runs no git command and needs no network.
+  changes that have not ended: the groups of `acceptance-criteria` first, then those of
+  `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
+  `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
+  questions with no answer of the source about the output, and of the open questions about
+  a point of the group, such as one that a writer raised. While a source has a group of
+  `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
+  that the group after the criteria version has both kinds of points. A criterion change has
+  ended when a version of its output that counts, from a run, has the id of its source as
+  `decision`. A criteria version from a run, linked to a source, that adds, changes or
+  removes a criterion checked by `Demo` also adds a ripple point to the group of
+  `demo-scenarios` of that source: `id` is the criterion id, `quote` has its row `before` and
+  `after` (`text` and `check`, or `null`), and `item` is each scenario that shows the
+  criterion or has the title of its new check, or there is no `item` when a new scenario must
+  show it. The ripple ends with a version of `demo-scenarios` linked to that source whose `at`
+  is later than that of the newest such criteria version, so a scenario version that a
+  person's note linked before the criteria changed ends nothing. It exits with 1 when it
+  prints one. It runs no git command and needs no network.
+- `feedback amended <output> --decision <id> [--same <point>]...`: checks the draft of
+  `<output>`, `acceptance-criteria.json` or `demo-scenarios.md` at the top of the artifact
+  folder, against the newest version that counts, as stored with its line ends, for the group
+  of `<id>` that `feedback points` prints. The items are the entries of `criteria` and the
+  `###` sections of the scenarios. The draft changes the item of each point that `--same`
+  does not name, and adds one item at the end for each such point with no item. Every other
+  byte stays: each other item and its place, and the text outside the items, the summary and
+  the key order included. A removed criterion keeps each member and adds only `removed`, and
+  a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
+  exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
+  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
+  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
+  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft, with
+  the last line "No part of acceptance-criteria.json was checked."
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
