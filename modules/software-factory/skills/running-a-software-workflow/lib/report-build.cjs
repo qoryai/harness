@@ -96,7 +96,7 @@ module.exports = (lib) => {
         'It is not a regular file.');
     }
     if (stat.size > FINDINGS_BYTES) {
-      throw new Missing(`${FINDINGS_FIX}\nopen-findings.json has ${stat.size} bytes.`);
+      throw new Missing(`${FINDINGS_FIX}\n"open-findings.json" has ${stat.size} bytes.`);
     }
     const data = parseJson(readFile(file, 'open-findings.json'), 'open-findings.json');
     const { round, findings } = readOpen(data, 'open-findings.json');

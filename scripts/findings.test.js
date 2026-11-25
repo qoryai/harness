@@ -1176,6 +1176,8 @@ test('findings round --previous: a file that is missing, broken or of two stages
   const big = withPrevious(dir, suite, ['code-reviewer'], sparse());
   assert.equal(big.status, 3, big.out);
   assert.equal((big.out + big.err).split('\n')[0], FINDINGS_FIX);
+  // The path is in quotes, cut to 80 characters as in the other lines of --previous.
+  assert.match(big.out + big.err, /^ {2}".*sparse-\d+\.json" has 67108865 bytes\.$/m);
   const large = previousFile([['f1', 'code-reviewer', 'open', { problem: 'x'.repeat(4000) }]]);
   const data = JSON.parse(fs.readFileSync(large, 'utf8'));
   data.findings = Array.from({ length: 100 },

@@ -20,7 +20,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
     finding are on one line with no tab or other control or format character, and `file`
     has at most 300 characters. A report that repeats or closes a finding of another role,
     or one id twice, counts as no report. An earlier finding that a report leaves out stays
-    open. The verbs read the findings files of qory up to 64 MiB.
+    open. The verbs read qory's findings files up to 64 MiB, and a larger file exits 3.
   - `checks.cjs panel --previous <file>` starts each reviewer with an open finding, also
     when no path of the change matches its paths. `checks.cjs findings round --previous
     <file>` prints the open findings after the round, and its last line is `Checked <n>

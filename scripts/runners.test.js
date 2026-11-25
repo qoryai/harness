@@ -4219,6 +4219,7 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   assert.equal(over.status, 3, over.out + over.err);
   assert.equal((over.out + over.err).split('\n')[0], 'Shorten the findings file to at most ' +
     '64 MiB: a larger file is not read.');
+  assert.match(over.out + over.err, /\n {2}"open-findings\.json" has 67108865 bytes\./);
 });
 
 test('check build-report: renders the tables again and refuses a table with one edited cell', () => {

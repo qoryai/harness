@@ -160,7 +160,7 @@ function previousFindings(io, file) {
     throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is not a regular file.`);
   }
   if (stat.size > FINDINGS_BYTES) {
-    throw new Missing(`${FINDINGS_FIX}\n${short(plain(full), 80)} has ${stat.size} bytes.`);
+    throw new Missing(`${FINDINGS_FIX}\n"${short(plain(full), 80)}" has ${stat.size} bytes.`);
   }
   let data;
   try {

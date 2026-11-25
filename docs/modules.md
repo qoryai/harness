@@ -1201,7 +1201,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   empty point, a `line` below 1, a `disputed` that is neither `true` nor `false`, or
   `replies` that is not a list of a kind, a reason and a `round` of 1 or more. A file over
   64 MiB exits 3 with "Shorten the findings file to at most 64 MiB: a larger file is not
-  read.": 500 findings at full field length with no reply come to about 44 MB. It reads the
+  read." 500 findings at full field length with no replies come to about 44 MB. It reads the
   file and writes nothing. It prints each path whole, without the 80-character cut of other
   messages, and the first line of a fault is plain text. A report that a reviewer writes is
   a JSON file that qory's report schema checks; only `findings round` reads it, and
