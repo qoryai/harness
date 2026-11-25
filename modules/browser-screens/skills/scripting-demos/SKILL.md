@@ -105,14 +105,17 @@ version; do this only for a script that this session wrote and still has as a fi
      `<skill folder>/checks.cjs step end <step> done` for the path of the report file, as
      "The build ledger" of `running-a-software-workflow` lists. Count the start, as "Count
      the starts" of `running-a-workflow` lists. For the first review of `script:<id>`, run
-     `<skill folder>/checks.cjs starts <run> implement-changes-check-reviewer-<id> 1`, then
+     `<skill folder>/checks.cjs starts <run> implement-changes-check-reviewer-<id> 1`. When
+     that `starts` exits with 1 because the first script of the scenario had its first
+     review earlier in this run, count the review as a later review. With 0, run
      `<skill folder>/checks.cjs starts <run> implement-changes-first-scripts 12`: the first
-     script of a scenario has 1 start, and the first scripts of a run have 12 together. For
-     each later review of `script:<id>`, such as of a script that the author fixed after a
-     finding, and for a correction, run
+     script of a scenario has 1 start, and only the first review of each first script counts
+     toward the 12 of the run. For each later review of `script:<id>`, such as of a script
+     that the author fixed after a finding, and for a correction, run
      `<skill folder>/checks.cjs starts <run> implement-changes-<n>-check-reviewer 3`: these
-     reviews have the 3 starts of the corrections. With 1, run `step end <step> failed`, and
-     end as "Failures" lists. Then start
+     reviews have the 3 starts of the corrections. All scenarios of a follow share these 3
+     starts. When another `starts` exits with 1, run `step end <step> failed`, and end as
+     "Failures" lists. Then start
      ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
      `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
      the notes, the path of `<scenarios>`, the path `<folder>/.demo/<id>.json` of the new
@@ -125,8 +128,9 @@ version; do this only for a script that this session wrote and still has as a fi
      and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" or
      "Fix the blocking findings". With `changes-needed`, do "Start the author again", with
      each finding quoted; the review of the fixed script has the 3 starts of the
-     corrections. Step 10 needs the review of the script as it is, so review a script that
-     changes after its review again.
+     corrections. A non-blocking finding needs a fix and a later review too. Step 10 needs
+     the review of the script as it is, so review a script that changes after its review
+     again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` and `demo check` do not check: run `step end <step>

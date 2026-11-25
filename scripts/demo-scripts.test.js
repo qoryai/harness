@@ -1046,17 +1046,23 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
     'Count the start, as "Count the starts" of `running-a-workflow` lists. For the first ' +
       'review of `script:<id>`, run `<skill folder>/checks.cjs starts <run> ' +
-      'implement-changes-check-reviewer-<id> 1`, then `<skill folder>/checks.cjs starts ' +
-      '<run> implement-changes-first-scripts 12`: the first script of a scenario has 1 ' +
-      'start, and the first scripts of a run have 12 together',
+      'implement-changes-check-reviewer-<id> 1`.',
+    // After a lost session, the first review of the scenario is in the counts of the run.
+    'When that `starts` exits with 1 because the first script of the scenario had its first ' +
+      'review earlier in this run, count the review as a later review. With 0, run ' +
+      '`<skill folder>/checks.cjs starts <run> implement-changes-first-scripts 12`: the first ' +
+      'script of a scenario has 1 start, and only the first review of each first script ' +
+      'counts toward the 12 of the run.',
     'For each later review of `script:<id>`, such as of a script that the author fixed after ' +
       'a finding, and for a correction, run `<skill folder>/checks.cjs starts <run> ' +
       'implement-changes-<n>-check-reviewer 3`: these reviews have the 3 starts of the ' +
-      'corrections',
+      'corrections. All scenarios of a follow share these 3 starts. When another `starts` ' +
+      'exits with 1, run `step end <step> failed`',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed', 'With `changes-needed`, do "Start the author again", with each ' +
-      'finding quoted; the review of the fixed script has the 3 starts of the corrections',
+      'finding quoted; the review of the fixed script has the 3 starts of the corrections. ' +
+      'A non-blocking finding needs a fix and a later review too.',
     'review a script that changes after its review again');
   // The report file is read after each review, before the run and the push of the script.
   inText(SCRIPTING, 'With `blocked`, run `step end <step> failed`, and end as "Failures" lists. ' +

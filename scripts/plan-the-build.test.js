@@ -103,7 +103,8 @@ test('each change of the plan is reviewed again, also after the last review', ()
     'lines, and tell it to write only its report file, with the findings of that text report. ' +
     // A start that writes only the report runs no `starts`, for a demo script too.
     'That start does not count toward the reviewer\'s start limit, so run no `starts` before ' +
-      'it. Then run the call again.',
+      'it. This applies only when the file did not change since that review; a review of a ' +
+      'changed file counts as the skill of your workflow lists. Then run the call again.',
   'When the line is still there after two such starts, run `step end <id> failed`',
   'a line that starts with "Fix the blocking findings" means that the report file has a ' +
     'blocking finding: push, lock and run nothing.']) {

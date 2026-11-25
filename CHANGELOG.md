@@ -21,21 +21,22 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
   starts once for the first review of the first script of each demo scenario, and at most 12
   times for those reviews in a run together; each later review of that script, as after a
-  finding, and each correction share 3 starts in each follow of `implement-changes`, and a
-  start that writes only a report counts toward no limit. The tool guard lets each of the
-  two agents write only its report, and denies `.step-reports` to every other call, also a
-  copy or a move into a folder above the artifact folder of a source that can have the name
-  of the folder below, as for `.reports`. The limits, as for `.reports`: an agent with a
-  shell can write the report with a path that a variable, `$( )`, a backquote or `eval`
-  makes, with a script that a later call runs, with a path that code joins from parts, with
-  an archive that `tar`, `unzip` or `ditto` extracts, with a copy of the sources that `find
-  -exec` or `xargs` add, with a copy that the guard splits at a redirect, as in `cp -R src/.
-  /x 2>&1 /tmp`, with a copy of `.`, as in `cp -R . /tmp`, with a copy with `-t` in a
-  combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, or with a copy by
-  `ditto`, as in `ditto stage /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can
-  write it. Any edit after the review needs a new review, so `workflow-plan-the-build` fixes
-  no sentence after the last one. Every other kind of step ends as before, and on Claude
-  Code the step limit leaves the two agents out, as before.
+  finding or after a lost session, and each correction share 3 starts in each follow of
+  `implement-changes`, for all scenarios together, and a start that writes only the report
+  of an unchanged file counts toward no limit. The tool guard lets each of the two agents
+  write only its report, and denies `.step-reports` to every other call, also a copy or a
+  move into a folder above the artifact folder of a source that can have the name of the
+  folder below, as for `.reports`. The limits, as for `.reports`: an agent with a shell can
+  write the report with a path that a variable, `$( )`, a backquote or `eval` makes, with a
+  script that a later call runs, with a path that code joins from parts, with an archive
+  that `tar`, `unzip` or `ditto` extracts, with a copy of the sources that `find -exec` or
+  `xargs` add, with a copy that the guard splits at a redirect, as in `cp -R src/. /x 2>&1
+  /tmp`, with a copy of `.`, as in `cp -R . /tmp`, with a copy with `-t` in a combined
+  option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, or with a copy by `ditto`,
+  as in `ditto stage /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can write
+  it. Any edit after the review needs a new review, so `workflow-plan-the-build` fixes no
+  sentence after the last one. Every other kind of step ends as before, and on Claude Code
+  the step limit leaves the two agents out, as before.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
