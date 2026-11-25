@@ -3419,14 +3419,14 @@ function sessionExempt(command, env, script) {
 
 // The verbs of the checks script that workflow-review-changes and running-a-workflow run in a
 // review session. None of them writes a file that a word of the call names. The other verbs
-// of workflow-verify-a-ticket (matrix, check, notes, starts) are not listed: they pass when
+// of workflow-verify-a-ticket (matrix, files, check, notes, starts) are not listed: they pass when
 // the call has no path of the home.
 const REVIEW_VERBS = [['resume'], ['lock', '--verify'], ['panel'], ['findings', 'round'],
   ['check', 'points'], ['run', 'locked']];
 
 // The verbs of the checks script that a review session may run with the artifact folder in the
 // call, beside REVIEW_VERBS: they read it, or write it as only the checks script does.
-const ARTIFACT_VERBS = [...REVIEW_VERBS, ['check'], ['matrix'], ['notes'], ['starts']];
+const ARTIFACT_VERBS = [...REVIEW_VERBS, ['check'], ['matrix'], ['files'], ['notes'], ['starts']];
 
 // comparesVersions reports whether command is versions.cjs alone with compare, which writes no
 // file.

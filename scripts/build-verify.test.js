@@ -274,32 +274,63 @@ const MORE_SAMPLES = {
 // samplesOf returns the samples of type.
 const samplesOf = (type) => SAMPLES[type] || MORE_SAMPLES[type];
 
-const WALKTHROUGH = `## Summary
+const WALKTHROUGH = `# Walkthrough: New support hours
+Commit ${C2.slice(0, 7)} · 4 files · 41 lines
 
-Commit: ${C2}. The saved reply lists the new support hours.
+## What and why
 
-## AC-1, "The saved reply for delayed orders lists the support hours as 8:00 to 20:00"
+- Problem: customers read the old hours in the saved reply. (matrix row AC-1)
+- Approach: the reply file has the new hours, and a job sends a corrected reply to each customer. \`jobs/corrected-reply.ts:10\`
+- Not chosen: a banner on the site; customers read the reply, not the site.
+- Shortcoming: the job has no retry. \`jobs/corrected-reply.ts:24\`
 
-- The reply has the new hours, \`replies/delayed-order.md:3\`.
-- The film shows them, matrix row ac-1.
+## Changes, in build order: reply, then job
 
-## AC-2, "The reply states that the hours apply every day, on weekends and public holidays too"
+### 1. Saved reply
+The reply lists the new hours and the closed day.
+- \`replies/delayed-order.md\` (changed): the hours and the closed day. \`replies/delayed-order.md:3\`
 
-- The second sentence of the reply says so, \`replies/delayed-order.md:4\`.
+### 2. Corrected reply job
+Sends one reply to each customer who got the old hours.
+- \`jobs/corrected-reply.ts\` (new): the job. \`jobs/corrected-reply.ts:10-24\`
+- \`tests/corrected-reply.test.ts\` (new): 4 cases.
 
-## AC-3, "The reply states that support is closed on 25 December"
+### Other changes
+- \`package-lock.json\`: generated.
 
-- The film shows the closed day, matrix row ac-3.
+## Criteria
 
-## AC-4, "Each customer who got the reply with the old hours receives a corrected reply that lists the new hours"
-
-- The job sends one reply per customer,
-  \`jobs/corrected-reply.ts:10-24\`.
+| Criterion | Changes | Evidence |
+|---|---|---|
+| ${CR1} | 1 | matrix row AC-1 |
+| ${CR2} | 1 | matrix row AC-2 |
+| ${CR3} | 1 | matrix row AC-3 |
+| ${CR4} | 2 | matrix row AC-4 |
 
 ## Risk on merge
 
-- None.
+- Undo: reverting the merge is enough; no stored data changes.
+- Affects: customers who got the reply with the old hours.
+
+## Not checked
+
+Nothing.
 `;
+
+// CHANGED_FILES is the record of the verb files for WALKTHROUGH: the commit C2, 4 files.
+const CHANGED_FILES = {
+  base: C1, head: C2, changed_lines: 41,
+  files: [
+    { path: 'replies/delayed-order.md', status: 'M', old_path: null, similarity: null,
+      generated: false, binary: false, added: 4, deleted: 2 },
+    { path: 'jobs/corrected-reply.ts', status: 'A', old_path: null, similarity: null,
+      generated: false, binary: false, added: 25, deleted: 0 },
+    { path: 'tests/corrected-reply.test.ts', status: 'A', old_path: null, similarity: null,
+      generated: false, binary: false, added: 8, deleted: 0 },
+    { path: 'package-lock.json', status: 'M', old_path: null, similarity: null,
+      generated: true, binary: false, added: 1, deleted: 1 },
+  ],
+};
 
 const VTT = `WEBVTT
 
@@ -454,6 +485,12 @@ function pushStore(root, type) {
       fs.cpSync(path.join(dir, name, newest), path.join(store, one, name, newest),
         { recursive: true });
     }
+  }
+  // The list of changed files that the walkthrough check reads, as qory mounts it.
+  const list = path.join(root, '.reports', 'changed-files.json');
+  if (type === 'walkthrough' && fs.existsSync(list)) {
+    fs.mkdirSync(path.join(store, '.reports'), { recursive: true });
+    fs.copyFileSync(list, path.join(store, '.reports', 'changed-files.json'));
   }
   return store;
 }
@@ -1224,7 +1261,7 @@ test('build-plan, verification and walkthrough: a quote inside the words stays i
         'build-plan');
       passes(push(withAc2(sentence), 'verification', verificationFile(evidence(`${quoted}: met.`))),
         'verification');
-      passes(push(withAc2(sentence, inVerify), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+      passes(push(withAc2(sentence, withList), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
         CR2, quoted))), 'walkthrough');
     }
     // Text after the closing quote of a cell or a heading is a difference.
@@ -1234,8 +1271,9 @@ test('build-plan, verification and walkthrough: a quote inside the words stays i
     // In an evidence, a quote ends after the words: words that go on are a difference.
     exactly(push(withAc2(sentence), 'verification', verificationFile(evidence(`AC-2, ` +
       `"${sentence} and more": met.`))), quoteLine('AC-2', EVIDENCE, sentence));
-    exactly(push(withAc2(sentence, inVerify), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      CR2, extra))), quoteLine('AC-2', 'the heading of walkthrough.md', sentence));
+    exactly(push(withAc2(sentence, withList), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
+      CR2, extra))), quoteLine('AC-2', 'the Criterion of row 2 of ## Criteria of walkthrough.md',
+      sentence));
   }
 });
 
@@ -2998,93 +3036,411 @@ const walkthroughFile = (md) => ['walkthrough.md', md];
 function inVerify() {
   const folder = fixture();
   version(folder, 'verification', 'main', 1, 'verification.json', VERIFICATION);
+  return withList(() => {}, folder);
+}
+
+// withList returns folder, by default a new fixture with VERIFICATION, with the record of the
+// verb files, CHANGED_FILES after change, a function of a copy of it. A fixture of
+// inVerify has the record of CHANGED_FILES, the list of the commit that VERIFICATION has.
+function withList(change = () => {}, folder = null) {
+  const root = folder || inVerify();
+  const doc = clone(CHANGED_FILES);
+  change(doc);
+  fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+  write(root, '.reports/changed-files.json', doc);
+  return root;
+}
+
+const doneWith = (change) => walkthroughFile(change(WALKTHROUGH));
+
+// fileOf returns a record entry for a changed file.
+const fileOf = (name, extra = {}) => ({ path: name, status: 'M', old_path: null,
+  similarity: null, generated: false, binary: false, added: 1, deleted: 0, ...extra });
+
+// The sample walkthrough, with its record, its criterion and its verified commit.
+const EXAMPLE = fs.readFileSync(path.join(__dirname, 'testdata', 'walkthrough-sample.md'), 'utf8');
+const EXAMPLE_COMMIT = `4e1c9b0${'0'.repeat(33)}`;
+function exampleFolder() {
+  const folder = fixture();
+  recriteria(folder, 1, (list) => {
+    list.splice(1);
+    list[0].text = 'A member downloads a CSV of their invoices.';
+  });
+  version(folder, 'verification', 'main', 1, 'verification.json', verified((doc) => {
+    doc.target_version = EXAMPLE_COMMIT;
+    doc.matrix = [{ criterion: 'ac-1', state: 'met', evidence: 'Demo video: scenario-1' }];
+    doc.not_verified = [];
+  }));
+  fs.mkdirSync(path.join(folder, '.reports'), { recursive: true });
+  write(folder, '.reports/changed-files.json', { base: C1, head: EXAMPLE_COMMIT,
+    changed_lines: 212,
+    files: ['lib/invoices/export.ex', 'test/invoices/export_test.exs',
+      'lib/web/invoice_controller.ex', 'lib/web/invoices_page.ex', 'priv/gettext/default.pot']
+      .map((name) => fileOf(name)) });
   return folder;
 }
 
+test('walkthrough: the worked sample passes check and push', () => {
+  for (const mode of [check, push]) {
+    passes(mode(exampleFolder(), 'walkthrough', walkthroughFile(EXAMPLE)), 'walkthrough');
+  }
+});
+
 test('walkthrough: the walkthrough passes check and push', () => {
-  passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
-  passes(check(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  passes(push(withList(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  passes(check(withList(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  // A full commit in the header is a commit that starts the verified commit too.
+  passes(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    `Commit ${C2.slice(0, 7)}`, `Commit ${C2}`))), 'walkthrough');
 });
 
-test('walkthrough: ## Summary, the criteria by number, then ## Risk on merge', () => {
-  const pattern = /^Give walkthrough.md ## Summary, ## AC-<N>, "<first sentence>" by number, ## Risk on merge\. It has /;
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge', '## Risks'))), pattern);
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## AC-4,', '## AC-1,'))), pattern);
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## AC-4, "Each', '## "Each'))), pattern);
-});
-
-test('walkthrough: the criterion sections by their heading, with no ## Summary first', () => {
-  // The line of the order, and no line to add a section: each criterion has its section.
-  const shape = printed('Give walkthrough.md ## Summary, ## AC-<N>, "<first sentence>" by ' +
-    'number, ## Risk on merge.\nIt has ## AC-1, "The saved reply for delayed orders lists the ' +
-    'support hours as 8:00 to 20:00", ## AC-2, "The reply states th....');
-  const noSummary = WALKTHROUGH.replace(/^## Summary\n\n.*\n\n/, '');
-  assert.ok(noSummary.startsWith('## AC-1, '));
-  // A U+FEFF before ## Summary makes that line text before the first heading.
-  const bom = ['Start walkthrough.md with its first ## heading: it has text before that heading.',
-    ...shape, 'Remove the refused character U+FEFF from walkthrough.md.'];
-  for (const [md, lines] of [[noSummary, shape], [`\uFEFF${WALKTHROUGH}`, bom]]) {
+test('walkthrough: the title and one header line with the start of the verified commit', () => {
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '# Walkthrough: New support hours\n', ''))),
+  /^Start walkthrough.md with "# Walkthrough: <title>"\. It starts with "Commit a1b2c3d/);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('# Walkthrough:', '# Review:'))),
+    /^Start walkthrough.md with "# Walkthrough: <title>"\./);
+  const line = /^Start the second line of walkthrough.md with "Commit <7 or more hex digits>"\./;
+  for (const header of ['Commit a1b2c3 · 4 files', 'Commit A1B2C3D', '4 files · 41 lines', 'Commit']) {
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+      /Commit a1b2c3d[^\n]*/, header))), line);
+  }
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '\n## What', '\nA third line.\n\n## What'))),
+  /^Put only the title and one header line before the first ## heading of walkthrough\.md\./);
+  // A commit that does not start the verified commit, and one that is longer than it.
+  for (const commit of ['b1b2c3d', `${C2}0`]) {
     for (const mode of [check, push]) {
-      const result = mode(inVerify(), 'walkthrough', walkthroughFile(md));
-      assert.equal(result.status, 1, result.out);
-      assert.deepEqual(result.lines.slice(0, -1), lines, result.out);
+      fails(mode(withList(), 'walkthrough', doneWith((md) => md.replace(
+        `Commit ${C2.slice(0, 7)}`, `Commit ${commit}`))),
+      /^Set the commit of the header of walkthrough\.md to a1b2c3d4e5f6\.$/);
     }
   }
 });
 
+test('walkthrough: the five sections in their order, with the order rule in the heading', () => {
+  const pattern = /^Give walkthrough\.md its 5 sections, in their order\./;
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('## Risk on merge',
+    '## Risks'))), pattern);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('## Not checked\n\nNothing.\n',
+    ''))), pattern);
+  fails(check(withList(), 'walkthrough', doneWith((md) => `${md}\n## More\n\nText.\n`)), pattern);
+  const [head, ...rest] = WALKTHROUGH.split('\n## ');
+  fails(check(withList(), 'walkthrough', walkthroughFile(
+    [head, rest[1], rest[0], ...rest.slice(2)].join('\n## '))), pattern);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '## Changes, in build order: reply, then job', '## Changes'))),
+  /^Write the order rule in the heading of ## Changes of walkthrough\.md\./);
+});
+
+test('walkthrough: ## What and why has at most 120 words, and its claims have sources', () => {
+  const words = (count) => Array.from({ length: count }, () => 'word').join(' ');
+  const base = WALKTHROUGH.replace(/## What and why\n[^]*?\n\n## Changes/, (all) => all);
+  const own = (count) => doneWith((md) => md.replace(/- Not chosen: [^\n]*\n/,
+    `- Not chosen: ${words(count)}.\n`));
+  // The rest of the section has 49 words, so 70 more fill it to 120 and 71 go over.
+  const rest = base.match(/## What and why\n([^]*?)\n\n## Changes/)[1]
+    .replace(/- Not chosen: [^\n]*\n/, '').trim().split(/\s+/).filter((w) => /[A-Za-z0-9]/.test(w))
+    .length;
+  const room = 120 - rest - 2;
+  passes(check(withList(), 'walkthrough', own(room - 1)), 'walkthrough');
+  passes(check(withList(), 'walkthrough', own(room)), 'walkthrough');
+  fails(check(withList(), 'walkthrough', own(room + 1)),
+    /^Cut ## What and why of walkthrough\.md to 120 words: it has 121\.$/);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(/## What and why\n[^]*?\n\n## Changes/,
+    '## What and why\n\n## Changes'))), /^Write ## What and why of walkthrough\.md:/);
+  // "Not chosen" needs no source, the other claims do.
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(' `jobs/corrected-reply.ts:24`',
+    ''))), /^End the Shortcoming claim of ## What and why of walkthrough\.md with its source\./);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(' (matrix row AC-1)', ''))),
+    /^End the Problem claim of ## What and why/);
+  for (const source of ['`a.ts:12-18`.', '(matrix row AC-3)']) {
+    passes(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+      ' `jobs/corrected-reply.ts:24`', ` ${source}`))), 'walkthrough');
+  }
+});
+
+test('walkthrough: ## What and why has one bullet each for Problem, Approach, Not chosen, Shortcoming', () => {
+  const without = (label) => doneWith((md) => md.replace(new RegExp(`- ${label}: [^\\n]*\\n`), ''));
+  for (const label of ['Problem', 'Approach', 'Not chosen', 'Shortcoming']) {
+    fails(check(withList(), 'walkthrough', without(label)), new RegExp(
+      `^Add the bullet "- ${label}:" to ## What and why of walkthrough\\.md\\. The section has no such bullet\\.$`));
+  }
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('- Not chosen:',
+    '- Approach: again `jobs/corrected-reply.ts:10`\n- Not chosen:'))),
+  /^Give ## What and why of walkthrough\.md one "- Approach:" bullet\. The section has 2\.$/);
+  // Another bullet, a bullet with no label text, and a line that is no bullet are never checked
+  // for a source, so each is a finding.
+  for (const line of ['- Also: more', '- Problem:', 'More text.']) {
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('- Not chosen:',
+      `${line}\n- Not chosen:`))), /^Write each line of ## What and why of walkthrough\.md as a labelled bullet\./);
+  }
+  // "Not chosen" needs no source, and may say that no other way was considered.
+  passes(check(withList(), 'walkthrough', doneWith((md) => md.replace(/- Not chosen: [^\n]*\n/,
+    '- Not chosen: none.\n'))), 'walkthrough');
+});
+
 test('walkthrough: a long claim takes time in proportion to its length', () => {
   for (const word of ['a', 'a:1', '`a', '(matrix row ac-1 ']) {
-    const long = `- ${word.repeat(Math.ceil(250000 / word.length))} x`;
+    const long = `- Problem: ${word.repeat(Math.ceil(250000 / word.length))} x`;
     const started = process.hrtime.bigint();
-    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      '- The film shows them, matrix row ac-1.', long))), /^End the claim "- [`a(]/);
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+      /- Problem: [^\n]*/, long))), /^(?:End the Problem claim|Cut ## What and why)/);
     assert.ok(process.hrtime.bigint() - started < 2000000000n, `${word}: over 2 s`);
   }
 });
 
-test('walkthrough: each claim ends with its source', () => {
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(', `replies/delayed-order.md:3`', ''))),
-    /^End the claim "- The reply has the new hours\." in ## AC-1 of walkthrough.md with its source\. The source is a path:line or a matrix row\.$/);
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('`jobs/corrected-reply.ts:10-24`', 'the job file'))),
-    /^End the claim "- The job sends o\.\.\.r, the job file\." in ## AC-4 of walkthrough\.md with its source\. The source is a path:line or a matrix row\. The claim is "- The job sends one reply per customer, the job file\."\.$/);
-  for (const source of ['`jobs/corrected-reply.ts:10`', '`jobs/corrected-reply.ts:10-24`.',
-    '(`jobs/corrected-reply.ts:10`)', 'jobs/corrected-reply.ts:10', 'matrix row ac-4.',
-    '(matrix row ac-4)', 'matrix row ac-1234.']) {
-    passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      '`jobs/corrected-reply.ts:10-24`.', source))), 'walkthrough');
+// groupsOf returns WALKTHROUGH with ## Changes of count numbered groups, each with one file
+// that CHANGED_FILES lists, and a record with those files.
+function manyGroups(count) {
+  const names = Array.from({ length: count }, (_, at) => `src/part-${at + 1}.ts`);
+  const body = names.map((name, at) => `### ${at + 1}. Part ${at + 1}\n- \`${name}\`: part ${at + 1}.\n`)
+    .join('\n');
+  const folder = withList((doc) => {
+    doc.files = names.map((name) => fileOf(name));
+    doc.changed_lines = 50;
+  });
+  const row = (id) => `| ${id} | 1 | matrix row ${id.slice(0, 4)} |`;
+  void row;
+  return { folder, md: WALKTHROUGH.replace(/## Changes, in [^]*?\n## Criteria/,
+    `## Changes, in the order of the parts\n\n${body}\n## Criteria`) };
+}
+
+test('walkthrough: at most 7 groups, each a numbered heading, then Other changes', () => {
+  const seven = manyGroups(7);
+  passes(check(seven.folder, 'walkthrough', walkthroughFile(seven.md)), 'walkthrough');
+  const eight = manyGroups(8);
+  fails(check(eight.folder, 'walkthrough', walkthroughFile(eight.md)),
+    /^Cut ## Changes of walkthrough\.md to 7 groups: it has 8\.$/);
+  const heading = /^Write the groups of ## Changes of walkthrough\.md as "### <N>\. <name>", then "### Other changes"\./;
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('### 2. Corrected',
+    '### 3. Corrected'))), heading);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('### 2. Corrected',
+    '### Corrected'))), heading);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '### Other changes\n- `package-lock.json`: generated.\n',
+    '### Other changes\n- `package-lock.json`: generated.\n\n### 3. Late\n'))), heading);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('### 1. Saved reply',
+    'Text before the groups.\n\n### 1. Saved reply'))),
+  /^Put each file of ## Changes of walkthrough\.md under a ### group heading\./);
+});
+
+test('walkthrough: a purpose of at most 2 sentences, and one line per file', () => {
+  const purpose = (text) => doneWith((md) => md.replace('The reply lists the new hours and the closed day.',
+    text));
+  passes(check(withList(), 'walkthrough', purpose('One. Two.')), 'walkthrough');
+  fails(check(withList(), 'walkthrough', purpose('One. Two. Three.')),
+    /^Cut the purpose of ### 1\. Saved reply to 2 sentences: it has 3\.$/);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '`replies/delayed-order.md:3`', '`replies/delayed-order.md:3`\n  The second line of the file.'))),
+  /^Put each file of ### 1\. Saved reply of walkthrough\.md on one line\./);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '- `tests/corrected-reply.test.ts` (new): 4 cases.',
+    '- `tests/corrected-reply.test.ts` (new): 4 cases.\n- 4 test cases.'))),
+  /^Start each file line of ### 2\. Corrected reply job with its path in backticks\./);
+});
+
+test('walkthrough: each changed file is in one group, and no other file is', () => {
+  for (const mode of [check, push]) {
+    fails(mode(withList(), 'walkthrough', doneWith((md) => md.replace(
+      '- `tests/corrected-reply.test.ts` (new): 4 cases.\n', ''))),
+    /^Add "tests\/corrected-reply\.test\.ts" to a group of ## Changes of walkthrough\.md\.$/);
+    fails(mode(withList(), 'walkthrough', doneWith((md) => md.replace(
+      '- `tests/corrected-reply.test.ts` (new): 4 cases.\n',
+      '- `tests/corrected-reply.test.ts` (new): 4 cases.\n- `jobs/corrected-reply.ts` (new): again.\n'))),
+    /^List "jobs\/corrected-reply\.ts" in one group of walkthrough\.md\. It is in 2 groups\.$|^List "jobs\/corrected-reply\.ts" in one group of walkthrough\.md\./);
+    fails(mode(withList(), 'walkthrough', doneWith((md) => md.replace(
+      '- `tests/corrected-reply.test.ts` (new): 4 cases.\n',
+      '- `tests/corrected-reply.test.ts` (new): 4 cases.\n- `src/extra.ts` (new): extra.\n'))),
+    /^Remove "src\/extra\.ts" from ## Changes of walkthrough\.md\.$/);
   }
-  for (const source of ['`jobs/corrected-reply.ts`.', 'jobs/corrected-reply.ts:0',
-    'matrix row 4.', 'the matrix row ac-4 above.', 'x(matrix row ac-4)', '((matrix row ac-4)',
-    'matrix row ac-04.', 'matrix row ac-10000.']) {
-    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      '`jobs/corrected-reply.ts:10-24`.', source))), /^End the claim "- The job sends/);
+  // A binary file and a deleted file are files of the change too.
+  const more = withList((doc) => {
+    doc.files.push(fileOf('logo.png', { status: 'A', binary: true }),
+      fileOf('old/file.ts', { status: 'D', added: 0, deleted: 9 }));
+    doc.changed_lines += 9;
+  });
+  passes(check(more, 'walkthrough', doneWith((md) => md.replace('### Other changes',
+    '### Other changes\n- `logo.png`: new.\n- `old/file.ts`: deleted.'))), 'walkthrough');
+  fails(check(more, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    /^Add "logo\.png" to a group of ## Changes of walkthrough\.md\.$/);
+});
+
+test('walkthrough: a moved or generated file is under Other changes', () => {
+  const moved = (similarity) => withList((doc) => {
+    doc.files.push(fileOf('new/place.ts', { status: 'R', old_path: 'old/place.ts', similarity }));
+  });
+  const under = (where) => doneWith((md) => md.replace(
+    where === 'group' ? '- `tests/corrected-reply.test.ts` (new): 4 cases.'
+      : '- `package-lock.json`: generated.',
+    `${where === 'group' ? '- `tests/corrected-reply.test.ts` (new): 4 cases.' : '- `package-lock.json`: generated.'}\n- \`new/place.ts\`: moved.`));
+  fails(check(moved(100), 'walkthrough', under('group')),
+    /^Put "new\/place\.ts" under ### Other changes of walkthrough\.md\. It is moved with no change\.$/);
+  passes(check(moved(100), 'walkthrough', under('other')), 'walkthrough');
+  // A rename with a change counts as any file.
+  passes(check(moved(97), 'walkthrough', under('group')), 'walkthrough');
+  // A generated file is not under a group.
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '### Other changes\n- `package-lock.json`: generated.\n', '').replace(
+    '- `tests/corrected-reply.test.ts` (new): 4 cases.',
+    '- `tests/corrected-reply.test.ts` (new): 4 cases.\n- `package-lock.json`: lock.'))),
+  /^Put "package-lock\.json" under ### Other changes of walkthrough\.md\. It is generated\.$/);
+});
+
+test('walkthrough: a change under 30 changed lines has one group besides Other changes', () => {
+  const lines = (count) => withList((doc) => { doc.changed_lines = count; });
+  fails(check(lines(29), 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    /^Give walkthrough\.md one group besides Other changes: the change has 29 changed lines\. The walkthrough has 2 groups\.$/);
+  passes(check(lines(30), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  const one = withList((doc) => {
+    doc.files = [fileOf('replies/delayed-order.md')];
+    doc.changed_lines = 5;
+  });
+  passes(check(one, 'walkthrough', doneWith((md) => md.replace(/### 2\. [^]*?## Criteria/,
+    '## Criteria').replace(/\| 2 \|/, '| 1 |'))), 'walkthrough');
+});
+
+test('walkthrough: the list of changed files is of the verified commit', () => {
+  // A check with no list is a finding, and a push, which qory mounts no list for, reads none.
+  const none = inVerify();
+  fs.rmSync(path.join(none, '.reports', 'changed-files.json'));
+  fails(check(none, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    /^Run files to write \.reports\/changed-files\.json, then check walkthrough\.md again\./);
+  passes(push(none, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  const stale = withList((doc) => { doc.head = C1; });
+  for (const mode of [check, push]) {
+    fails(mode(stale, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+      /^Run files again, then check walkthrough\.md again\. \.reports\/changed-files\.json is of 5d6e7f8a9b0c/ );
   }
-  passes(check(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-    '- The film shows them, matrix row ac-1.', '- x (matrix row ac-2)'))), 'walkthrough');
+  for (const doc of [[], { head: C2 }, { head: C2, files: [], changed_lines: '3' },
+    { head: C2, files: [3], changed_lines: 3 }]) {
+    const folder = inVerify();
+    fs.mkdirSync(path.join(folder, '.reports'), { recursive: true });
+    write(folder, '.reports/changed-files.json', doc);
+    fails(check(folder, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+      /^Run files again, then check walkthrough\.md again\./);
+  }
+});
+
+const DIAGRAM = '```mermaid\nsequenceDiagram\n  Job->>Reply: send\n```\n';
+
+test('walkthrough: at most 2 Mermaid diagrams, each in a numbered group, drawn by Qory Apiary', () => {
+  const into = (count, where = '### 1. Saved reply\n') => doneWith((md) => md.replace(where,
+    `${where}\n${DIAGRAM.repeat(count)}\n`));
+  passes(check(withList(), 'walkthrough', into(1)), 'walkthrough');
+  passes(check(withList(), 'walkthrough', into(2)), 'walkthrough');
+  fails(check(withList(), 'walkthrough', into(3)),
+    /^Cut walkthrough\.md to 2 Mermaid diagrams: it has 3\.$/);
+  fails(check(withList(), 'walkthrough', into(1, '### Other changes\n')),
+    /^Put the Mermaid diagram in a numbered group of walkthrough\.md\./);
+  fails(check(withList(), 'walkthrough', into(1, '## Not checked\n')),
+    /^Put the Mermaid diagram in a group of ## Changes\. It is in ## Not checked of walkthrough\.md\.$/);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('### 1. Saved reply\n',
+    '### 1. Saved reply\n\n```mermaid\nsankey-beta\n```\n\n'))),
+  /^Make the Mermaid diagram of ### 1\. Saved reply one that Qory Apiary draws\./);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('### 1. Saved reply\n',
+    '### 1. Saved reply\n\n```js\nx();\n```\n\n'))),
+  /^Remove the code block from ### 1\. Saved reply of walkthrough\.md\./);
+});
+
+test('walkthrough: the check compares the commit of the header, and not its counts', () => {
+  const header = (line) => doneWith((md) => md.replace(/^Commit [^\n]*$/m, line));
+  const short = C2.slice(0, 7);
+  for (const line of [`Commit ${short}`, `Commit ${short} · 999 files · 0 lines`,
+    `Commit ${short} · 4 files · 41 lines`]) {
+    passes(check(withList(), 'walkthrough', header(line)), 'walkthrough');
+  }
+  fails(check(withList(), 'walkthrough', header(`Commit ${'0'.repeat(7)} · 4 files · 41 lines`)),
+    /^Set the commit of the header of walkthrough\.md to /);
+});
+
+test('walkthrough: a code block that is no diagram does not count toward the 2 diagrams', () => {
+  const block = '```js\nx();\n```\n';
+  const only = (md, where) => md.replace(where, `${where}\n${DIAGRAM.repeat(2)}\n${block}\n`);
+  for (const where of ['### 1. Saved reply\n', '### 2. Corrected reply job\n']) {
+    const got = check(withList(), 'walkthrough', doneWith((md) => only(md, where)));
+    fails(got, /^Remove the code block from ### [12]\. /);
+    assert.ok(!got.findings.some((line) => /^Cut walkthrough\.md to 2 Mermaid/.test(line)),
+      got.out);
+  }
+  // Outside ## Changes the block is removed, and counts as no diagram there either.
+  const got = check(withList(), 'walkthrough', doneWith((md) => only(md, '### 1. Saved reply\n')
+    .replace('## Risk on merge\n', `## Risk on merge\n\n${block}\n`)));
+  fails(got, /^Remove the code block from ## Risk on merge of walkthrough\.md\./);
+  assert.ok(!got.findings.some((line) => /^Cut walkthrough\.md to 2 Mermaid/.test(line)), got.out);
+});
+
+test('walkthrough: the table has a row for each live criterion, and states no state', () => {
+  const row = (id) => new RegExp(`\\| ${id}, [^\\n]*\\n`);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(row('AC-2'), ''))),
+    /^Add the row AC-2 to ## Criteria of walkthrough\.md\. No row has AC-2\.$/);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('## Risk on merge',
+    '## Risk on merge').replace('| 2 | matrix row AC-4 |', '| 2 | matrix row AC-4 |\n| AC-9, "A criterion that is gone" | 1 | matrix row AC-9 |'))),
+  /^Remove the row AC-9 from ## Criteria of walkthrough\.md\./);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '| 2 | matrix row AC-4 |', '| 2 | matrix row AC-4 |\n' + `| ${CR4} | 2 | matrix row AC-4 |`))),
+  /^Give AC-4 one row in ## Criteria of walkthrough\.md\.$/);
+  // A state or any other text in the Evidence cell, and a state outside the table.
+  for (const cell of ['met', 'matrix row AC-1, met', 'Demo video: scenario-1', 'matrix row AC-2']) {
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+      `${CR1} | 1 | matrix row AC-1`, `${CR1} | 1 | ${cell}`))),
+    /^Write the Evidence of AC-1 in walkthrough\.md as "matrix row AC-1"\./);
+  }
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('\n| Criterion |',
+    '\nAC-1 is met.\n\n| Criterion |'))),
+  /^Keep only the table in ## Criteria of walkthrough\.md\. The section has the text "AC-1 is met\."\.$/);
+  // The Criterion cell quotes the first sentence, as in the build plan.
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(CR2, 'AC-2, "The hours"'))),
+    new RegExp(`^${quoteLine('AC-2', 'the Criterion of row 2 of ## Criteria of walkthrough.md', AC2)
+      .replace('\n', ' ').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`));
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(CR1, 'AC-1'))),
+    /^Write the Criterion of row 1 of ## Criteria of walkthrough\.md as AC-<N>, "<first sentence>"\./);
+  // Each row names the groups that serve its criterion.
+  for (const cell of ['3', '1, 5', 'none', '']) {
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+      `${CR1} | 1 |`, `${CR1} | ${cell} |`))),
+    /^Write the Changes of AC-1 in walkthrough\.md as the numbers of its groups\./);
+  }
+  passes(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    `${CR1} | 1 |`, `${CR1} | 1, 2 |`))), 'walkthrough');
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(/\| Criterion[^]*?\n\n## Risk/,
+    '## Risk'))), /^Put a table with the columns Criterion, Changes, Evidence in ## Criteria of walkthrough\.md\.$/);
+});
+
+test('walkthrough: ## Risk on merge has Undo and Affects, and ## Not checked has text or Nothing.', () => {
+  const risk = /^Write ## Risk on merge of walkthrough\.md as "- Undo: <text>" and "- Affects: <text>"\./;
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('- Undo:', '- Revert:'))), risk);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(/- Affects:[^\n]*\n/, ''))), risk);
+  fails(check(withList(), 'walkthrough', doneWith((md) => md.replace(
+    '- Undo: reverting the merge is enough; no stored data changes.', '- Undo:'))), risk);
+  const notChecked = /^Write ## Not checked of walkthrough\.md as "Nothing\." or as bullets\./;
+  for (const body of ['', 'Nothing', 'Nothing. And more.', 'The hours were not read.']) {
+    fails(check(withList(), 'walkthrough', doneWith((md) => md.replace('Nothing.', body))), notChecked);
+  }
+  passes(check(withList(), 'walkthrough', doneWith((md) => md.replace('Nothing.',
+    '- The job was not run: no mail server.\n- The closed day was not read.'))), 'walkthrough');
 });
 
 test('walkthrough: the commit of the verification is its target_version', () => {
-  const ofC1 = verified((doc) => { doc.target_version = C1; });
-  const root = fixture();
-  version(root, 'verification', 'main', 1, 'verification.json', ofC1);
-  fails(push(root, 'walkthrough', walkthroughFile(WALKTHROUGH)),
-    new RegExp(`^Set the commit of walkthrough.md to ${C1}\\. That id is the verified commit, and ` +
-      `walkthrough.md has ${C2}\\.$`));
-  // A push reads the newest verification, version 2 here, which verified C2.
-  const newer = fixture();
-  version(newer, 'verification', 'main', 1, 'verification.json', ofC1);
-  version(newer, 'verification', 'main', 2, 'verification.json', VERIFICATION);
-  passes(push(newer, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
-  fails(push(newer, 'walkthrough', walkthroughFile(WALKTHROUGH.replace(C2, C1))),
-    new RegExp(`^Set the commit of walkthrough.md to ${C2}\\. That id is the verified commit, and ` +
-      `walkthrough.md has ${C1}\\.$`));
-  // In a check, the draft verification.json at the top of the folder is the verification.
-  const top = fixture();
-  version(top, 'verification', 'main', 1, 'verification.json', ofC1);
-  write(top, 'verification.json', VERIFICATION);
-  passes(check(top, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
-  fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`Commit: ${C2}`, 'Commit:'))),
-    /^Start a line of ## Summary of walkthrough.md with "Commit: "/);
+  const root = withList();
+  passes(check(root, 'walkthrough', walkthroughFile(WALKTHROUGH)), 'walkthrough');
+  // A walkthrough of another commit than the verified one.
+  const other = withList();
+  version(other, 'verification', 'main', 1, 'verification.json', verified((doc) => {
+    doc.target_version = C1;
+  }));
+  fails(check(other, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    /^Set the commit of the header of walkthrough\.md to 5d6e7f8a9b0c\./);
+  // A newer verification version is the verified one.
+  const newer = withList((doc) => { doc.head = C1; });
+  version(newer, 'verification', 'main', 2, 'verification.json', verified((doc) => {
+    doc.target_version = C1;
+  }));
+  listed(newer, 'verification', 2, 'av_ver2');
+  passes(push(newer, 'walkthrough', doneWith((md) => md.replace(`Commit ${C2.slice(0, 7)}`,
+    `Commit ${C1.slice(0, 7)}`))), 'walkthrough');
+  fails(push(newer, 'walkthrough', walkthroughFile(WALKTHROUGH)),
+    /^Set the commit of the header of walkthrough\.md to 5d6e7f8a9b0c\./);
 });
 
 test('walkthrough: a verification with no full verified commit is a finding', () => {
@@ -3109,75 +3465,11 @@ test('walkthrough: a verification with no full verified commit is a finding', ()
   }
 });
 
-test('walkthrough: each line of a criterion section is a claim, a bullet', () => {
-  const paragraph = WALKTHROUGH.replace('- The film shows them, matrix row ac-1.',
-    '- The film shows them, matrix row ac-1.\n\nThe reply is now correct for every customer.');
-  for (const mode of [push, check]) {
-    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(paragraph)), 'Write ## AC-1 of ' +
-      'walkthrough.md as bullets, each a claim that ends with its source.\nThe section has the ' +
-      'text "The reply is now correct for every customer.".');
-  }
-  // A paragraph with a source is still no bullet, and neither is a table or a fence.
-  for (const text of ['The reply is correct, `replies/delayed-order.md:3`.',
-    '| Claim | Source |\n|---|---|\n| The reply is correct. | `replies/delayed-order.md:3` |',
-    '```\nThe reply is correct, `replies/delayed-order.md:3`.\n```']) {
-    fails(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      '## AC-4, "Each', `${text}\n\n## AC-4, "Each`))), /^Write ## AC-3 of walkthrough\.md as bullets/);
-  }
-  // Blank lines and the indented lines of a bullet pass.
-  passes(push(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-    '- The film shows them, matrix row ac-1.', '\n\n- The film shows them,\n  matrix row ac-1.\n'))),
-  'walkthrough');
-});
-
-test('walkthrough: a section per live criterion, of a live criterion, once', () => {
-  for (const mode of [push, check]) {
-    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(
-      /## AC-2, [^]*?(?=## AC-3)/, ''))), 'Add the section ## AC-2, "<first sentence>" ' +
-      'to walkthrough.md.\nNo section has AC-2.');
-    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge',
-      '## AC-9, "A criterion that the criteria do not have"\n\n- A claim, matrix row ac-1.\n\n' +
-      '## Risk on merge'))), 'Remove the section ## AC-9 from walkthrough.md.\nThe ' +
-      'acceptance criteria have no such criterion that is not removed.');
-    // An id has up to four digits, as every criterion id has.
-    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge',
-      '## AC-1234, "A criterion that the criteria do not have"\n\n- A claim, matrix row ' +
-      'ac-1.\n\n## Risk on merge'))), 'Remove the section ## AC-1234 from walkthrough.md.\nThe ' +
-      'acceptance criteria have no such criterion that is not removed.');
-  }
-  // The text in quotes of a heading is the first sentence of the criterion, with no regard to
-  // backticks, runs of spaces and the case of the id.
-  for (const mode of [push, check]) {
-    exactly(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`## ${CR2}`,
-      '## AC-2, "The hours"'))), quoteLine('AC-2', 'the heading of walkthrough.md', AC2));
-    passes(mode(inVerify(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(`## ${CR2}`,
-      `## ac-2, "${AC2.replace('every day', '`every  day`')}"`))), 'walkthrough');
-  }
-  // Two sections of ac-1 are out of order too.
-  const twice = walkthroughFile(WALKTHROUGH.replace('## AC-2, "The reply',
-    '## ac-1, "The saved reply"\n\n- Again, matrix row ac-1.\n\n## AC-2, "The reply'));
-  const result = push(inVerify(), 'walkthrough', twice);
-  fails(result, /^Give AC-1 one section in walkthrough\.md\. It has 2\.$/);
-  fails(result, /^Give walkthrough\.md ## Summary, ## AC-<N>, "<first sentence>" by number, /);
-  // A removed criterion has no section: version 2 of the criteria removes ac-3.
-  const removed = () => withoutAc3(inVerify);
-  const noThree = walkthroughFile(WALKTHROUGH.replace(/## AC-3, [^]*?(?=## AC-4)/, ''));
-  // Check and push read the approved version 2, the newest, and agree.
-  for (const mode of [push, check]) {
-    passes(mode(removed(), 'walkthrough', noThree), 'walkthrough');
-    exactly(mode(removed(), 'walkthrough', walkthroughFile(WALKTHROUGH)), 'Remove the section ' +
-      '## AC-3 from walkthrough.md.\nThe acceptance criteria have no such criterion that ' +
-      'is not removed.');
-  }
-});
-
 test('walkthrough: a push with no verification version is a finding', () => {
   const line = 'Push the verification before the walkthrough.\nThe artifacts have no ' +
     'verification version.';
-  exactly(push(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
   exactly(check(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
-  // With any commit: the push compares none.
-  exactly(push(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH.replace(C2, C1))), line);
+  exactly(push(fixture(), 'walkthrough', walkthroughFile(WALKTHROUGH)), line);
 });
 
 // ---- The criteria version that the checks read -------------------------------------------
@@ -3594,7 +3886,7 @@ test('build-plan, verification, walkthrough and acceptance-lock: the line for a 
       'the verification'],
     ['verification', verificationFile(verified((doc) => { delete doc.matrix; })),
       'the verification'],
-    ['walkthrough', walkthroughFile(WALKTHROUGH.replace(/## AC-2, [^]*?(?=## AC-3)/, '')),
+    ['walkthrough', walkthroughFile(WALKTHROUGH.replace(/\| AC-2, [^\n]*\n/, '')),
       'the walkthrough'],
     ['walkthrough', walkthroughFile(WALKTHROUGH.replace('## Risk on merge', '## Risks')),
       'the walkthrough'],
@@ -3716,9 +4008,10 @@ test('every finding line of the types of Build and Verify but a quote has at mos
     })]) {
     run(fixture, 'verification', verificationFile(doc));
   }
-  for (const md of [heading(WALKTHROUGH, 'Risk on merge'), heading(WALKTHROUGH, 'Summary'),
-    WALKTHROUGH.replace('## AC-2, "The reply', `## AC-2, "${LONG}"\n\n${LONG}\n\n- ${LONG}\n\n## AC-99, "${LONG}"\n\n## AC-2, "The reply`),
-    WALKTHROUGH.replace(`Commit: ${C2}`, `Commit: ${'f'.repeat(64)}`)]) {
+  for (const md of [heading(WALKTHROUGH, 'Risk on merge'), heading(WALKTHROUGH, 'What and why'),
+    WALKTHROUGH.replace('### 1. Saved reply', `### 1. ${LONG}\n\n${LONG}\n\n- ${LONG}\n\n### 2. Saved reply`),
+    WALKTHROUGH.replace(CR2, `AC-99, "${LONG}"`).replace('| 1 | matrix row AC-3', `| ${LONG} | ${LONG}`),
+    WALKTHROUGH.replace(`Commit ${C2.slice(0, 7)}`, `Commit ${'f'.repeat(64)}`)]) {
     run(inVerify, 'walkthrough', ['walkthrough.md', md]);
     run(fixture, 'walkthrough', ['walkthrough.md', md]);
   }

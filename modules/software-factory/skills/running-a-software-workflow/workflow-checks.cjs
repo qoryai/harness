@@ -36,8 +36,10 @@
 // checks that the harness has the skill scripting-demos and builds a demo script from the
 // actions of the demo author, the verb film, which stores the film or the pictures of a
 // demo script and the pictures of pages, the verb changes, which lists the criteria that
-// changed since the newest acceptance lock and writes .qory/build/changes.json, and the verb
-// feedback, which prints the notes that no run sorted and the points that have not ended.
+// changed since the newest acceptance lock and writes .qory/build/changes.json, the verb files,
+// which writes .reports/changed-files.json, the list of the changed files of the pull request
+// that the check of the walkthrough reads, and the verb feedback, which prints the notes that no
+// run sorted and the points that have not ended.
 'use strict';
 
 const fs = require('node:fs');
@@ -94,7 +96,8 @@ function workflowChecks(core) {
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
       ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
-      ...require('./verbs/changes.cjs')(lib), ...require('./verbs/feedback.cjs')(lib),
+      ...require('./verbs/changes.cjs')(lib), ...require('./verbs/files.cjs')(lib),
+      ...require('./verbs/feedback.cjs')(lib),
       ...require('./verbs/revert-attempt.cjs')(lib),
     },
     types: [
