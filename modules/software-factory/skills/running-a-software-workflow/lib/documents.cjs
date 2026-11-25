@@ -10,7 +10,7 @@ module.exports = (lib) => {
 
   // paths checks a text for `.qory/repositories`, the folder of the copied destinations
   // and a path of the machine the run is on:
-  // writing-proposals (SKILL.md:202-203, 339-346, 412-413: "Never write a path of the machine").
+  // writing-proposals (SKILL.md:205-206, 376-383, 449-450: "Never write a path of the machine").
   // For the spec and the decision record,
   // writing-specs (SKILL.md:36-37: "a file of a further repository the folder's name") and
   // writing-decisions (SKILL.md:53-54: "A file of a further repository is the folder's name") state

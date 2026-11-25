@@ -17,6 +17,7 @@ workflows:
   implement-changes: {tier: balanced, access: write, plan: build-plan, judges: false}
   review-changes: {tier: thinking, access: read, review_group: reviewers}
   verify-a-ticket: {tier: thinking, access: write-no-push, review_group: verify-reviewers}
+  capture-demos: {tier: light, access: write-no-push}
 extending:
   kinds: [skills, agents, commands, output-styles]
   instructions: true

@@ -4273,7 +4273,6 @@
      "evidence": "film",
      "verdict": "failed",
      "class": "product",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4315,7 +4314,6 @@
      "evidence": "none",
      "verdict": "failed",
      "class": "setup",
-     "retries": 1,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4342,7 +4340,6 @@
      "planned": "pictures",
      "evidence": "pictures",
      "verdict": "passed",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4384,7 +4381,6 @@
      "planned": "pictures",
      "evidence": "film",
      "verdict": "failed",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4426,7 +4422,6 @@
      "evidence": "film",
      "verdict": "failed",
      "class": "product",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4463,7 +4458,6 @@
      "evidence": "film",
      "verdict": "failed",
      "class": "product",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",
@@ -4509,7 +4503,6 @@
      "evidence": "film",
      "verdict": "failed",
      "class": "product",
-     "retries": 0,
      "script": {
       "type": "demo-script",
       "name": "scenario-1",

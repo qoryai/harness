@@ -47,8 +47,9 @@ function describe(action, place) {
 // open of an address of another origin fails before the page opens it, and an action fails
 // once the page has failed a load of another origin, as page.outside shows. It returns
 // { done, failure }: done counts the actions that passed, and failure is null, or
-// { place, action, why, words, outside } for the first action that failed, where outside is
-// the other origin, or null. A why contains no typed value.
+// { place, action, why, words, outside, variable } for the first action that failed, where
+// outside is the other origin, or null, and variable is the name of a variable that has no value
+// in env, or null. A why contains no typed value.
 async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, origin, until } =
 {}) {
   if (origin && page.guard) await page.guard(origin);
@@ -56,8 +57,8 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
     // With until, a time in ms of Date.now, each action waits at most what is left of it.
     const remaining = until === undefined ? Infinity : until - Date.now();
     const limit = (ms) => Math.max(Math.min(ms, remaining), 1);
-    const fail = (why, outside = null) => ({ done: place, failure: { place, action, why,
-      words: `${describe(action, place)} failed: ${why}`, outside } });
+    const fail = (why, outside = null, variable = null) => ({ done: place, failure: { place,
+      action, why, words: `${describe(action, place)} failed: ${why}`, outside, variable } });
     // A new window gets the origin of its first request once it closes, so left waits for
     // the new windows of the page first.
     const left = async () => {
@@ -84,7 +85,7 @@ async function replay(page, actions, { base, env = {}, actionMs = ACTION_MS, ori
       } else if (action.do === 'type') {
         const value = action.variable === undefined ? action.text : env[action.variable];
         if (typeof value !== 'string' || (action.variable !== undefined && !value)) {
-          return fail(`the variable ${action.variable} has no value`);
+          return fail(`the variable ${action.variable} has no value`, null, action.variable);
         }
         await page.type(action.target, value, limit(actionMs));
       } else if (action.do === 'press') {
@@ -109,7 +110,8 @@ function variablesOf(actions) {
 }
 
 // signIn replays the actions of a setup in page, a Page with the origin of base, the address
-// of the app, and returns { ok, why, outside }. A load of a document of another origin, by
+// of the app, and returns { ok, why, outside }, and variable, the name of a variable with no
+// value in env, when that fails it. A load of a document of another origin, by
 // an open, a redirect, a link or a script, fails the sign-in, outside is that origin, and the
 // replay stops there, so no later action types a value of a variable into that page. A new
 // window fails the sign-in too, once the Page of a Browser with an origin has closed it. The
@@ -120,7 +122,10 @@ async function signIn(page, actions, { base, env, actionMs = ACTION_MS,
   signedInMs = SIGNED_IN_MS, until } = {}) {
   const origin = new URL(base).origin;
   const done = await replay(page, actions, { base, env, actionMs, origin, until });
-  if (done.failure) return { ok: false, why: done.failure.words, outside: done.failure.outside };
+  if (done.failure) {
+    return { ok: false, why: done.failure.words, outside: done.failure.outside,
+      ...(done.failure.variable ? { variable: done.failure.variable } : {}) };
+  }
   const last = actions[actions.length - 1];
   const gone = !last || last.do === 'wait' || await page.poll(async () => {
     for (const target of new Set(actions.filter((one) => one.do === 'type' &&

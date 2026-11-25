@@ -7,8 +7,11 @@
 // session, an agent can still rewrite index.json or a pulled version. So a verb reads the plan
 // from the folder of --artifacts, or of qory.start_artifacts in inputs.json, when one is
 // given: the build plans that qory pulled at the start of the run (lib/start.cjs).
+// On the fast track, which has no build plan, the commands come from ## Commands of the
+// approved proposal in the same folder.
 'use strict';
 
+const fs = require('node:fs');
 const path = require('node:path');
 
 module.exports = (lib) => {
@@ -84,15 +87,22 @@ module.exports = (lib) => {
     return { value, url, badHost };
   }
 
+  // The fix and the subject of the cause of a Commands table that sectionRows does not find.
+  const BUILD_PLAN_LACK = { fix: 'Push a build plan that passes its check.',
+    has: 'The newest version has' };
+  const PROPOSAL_LACK = { fix: 'Push a new version of the proposal with the table, get it ' +
+    'approved, then pull the artifacts.', has: 'The approved proposal has' };
+
   // sectionRows returns the rows of the first table of the ## section title of text, each an
-  // object by the header's names, or throws when the table has another header.
-  function sectionRows(text, title, columns) {
+  // object by the header's names, or throws when the table has another header, with the fix
+  // and the subject of the cause that lack gives.
+  function sectionRows(text, title, columns, lack = BUILD_PLAN_LACK) {
     const part = sections(lines(text), 2).find((one) => one.title === title);
     const start = part ? part.lines.findIndex(isRow) : -1;
     const found = start < 0 ? null : table(part.lines, start);
     if (!found || found.header.join('|') !== columns.join('|')) {
-      throw new Missing(`Push a build plan that passes its check.\nThe newest version has no ` +
-        `table with the columns ${columns.join(', ')} under ## ${title}.`);
+      throw new Missing(`${lack.fix}\n${lack.has} no table with the columns ` +
+        `${columns.join(', ')} under ## ${title}.`);
     }
     return found.rows.map((row) => Object.fromEntries(columns.map((name, at) =>
       [name, row[at] === undefined ? '' : row[at]])));
@@ -140,6 +150,39 @@ module.exports = (lib) => {
     return { number, text: text.replace(/\r\n?/g, '\n') };
   }
 
+  // commandsOf returns each command by its kind, { command, resultFile, source }, with null for
+  // none, of the rows of the table ## Commands of text.
+  function commandsOf(text, lack) {
+    const commands = {};
+    for (const row of sectionRows(text, 'Commands',
+      ['Kind', 'Command', 'Result file', 'Source'], lack)) {
+      const none = (cell) => (['none', ''].includes(plainCell(cell)) ? null : plainCell(cell));
+      commands[plainCell(row.Kind)] = {
+        command: none(row.Command), resultFile: none(row['Result file']), source: row.Source.trim(),
+      };
+    }
+    return commands;
+  }
+
+  // fastProposal returns the text of proposal.md in the approved version of proposal that the
+  // pulled folder root has, when its ## Track is the fast track, else null. Only a folder that
+  // --artifacts or qory.start_artifacts gives (io.pinned) counts, as for scope --plan. A
+  // proposal with no approved version, or a store without that version, is no fast track:
+  // the build plan is read then.
+  // shortcut: the track is the one in ## Track of the approved proposal, which is still Fast
+  // after a switch to the standard track; replace it with the track of inputs.json when the
+  // harness reads that member.
+  function fastProposal(io, root) {
+    if (!io.pinned) return null;
+    const context = new Context(root, 'check', io.home);
+    const number = lib.approvedNumber(context, 'proposal');
+    const file = path.join(root, 'proposal', 'main', `v${number}`, 'proposal.md');
+    if (!fs.existsSync(file)) return null;
+    const text = readFile(file, `proposal version ${number}`).replace(/\r\n?/g, '\n');
+    const line = lib.trackLine(text);
+    return line && line.id === lib.TRACK_LISTS.track ? text : null;
+  }
+
   // readPlan returns { version, address, badHost, deliverables, commands } of the newest
   // pulled build plan: address is the URL of the line "App address:" of ## Summary, or null
   // for none, and badHost is the value of that line when it has a URL whose host breaks
@@ -151,8 +194,15 @@ module.exports = (lib) => {
   // --artifacts or qory.start_artifacts gives (io.pinned), an index.json that lists no
   // version of build-plan gives { none: true }, a plan with no deliverable: the session
   // started with no build plan, so every changed path is outside it.
+  // On the fast track (fastProposal) it returns the commands of ## Commands of the approved
+  // proposal, with version null, no address, no deliverable, none true and fast true.
   function readPlan(io, { none = false } = {}) {
     const root = artifactFolder(io);
+    const proposal = fastProposal(io, root);
+    if (proposal) {
+      return { root, version: null, address: null, badHost: null, deliverables: [],
+        commands: commandsOf(proposal, PROPOSAL_LACK), none: true, fast: true };
+    }
     const newest = pulled(root, io, none && io.pinned);
     if (!newest) {
       return { root, version: null, address: null, badHost: null, deliverables: [], commands: {},
@@ -169,15 +219,8 @@ module.exports = (lib) => {
         criteria: lib.criterionList(row.Criteria).map((one) => one.id),
         check: plainCell(row.Check), ...files };
     });
-    const commands = {};
-    for (const row of sectionRows(newest.text, 'Commands',
-      ['Kind', 'Command', 'Result file', 'Source'])) {
-      const none = (cell) => (['none', ''].includes(plainCell(cell)) ? null : plainCell(cell));
-      commands[plainCell(row.Kind)] = {
-        command: none(row.Command), resultFile: none(row['Result file']), source: row.Source.trim(),
-      };
-    }
-    return { root, version: newest.number, address, badHost, deliverables, commands };
+    return { root, version: newest.number, address, badHost, deliverables,
+      commands: commandsOf(newest.text) };
   }
 
   // STEP matches the id of a step of the build ledger that changes files: a deliverable, a

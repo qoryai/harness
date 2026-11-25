@@ -40,7 +40,10 @@ document" of `reviewing-drafts`, with its parts, pictures and word limit. The re
 6. Each command is one that the explorer's report or a file shows. Read the file and line
    of each `found:` Source: a command that the line does not state, or one that no source
    shows, is a finding. `targeted` has its test files last, with no `#`, `;` or `&&`, and a
-   Result file in JUnit XML. A kind with `none` has its reason in Source.
+   Result file in JUnit XML. A kind with `none` has its reason in Source. A `full` row with
+   `none` or no command is a finding. A row with the Source `plan: d-<N>` is a finding unless
+   deliverable `d-<N>` creates that command, as the section "No full test suite" of
+   `planning-builds` lists.
 7. A `serve` row with a command needs the line `App address: <url>` in the Summary, with an
    `http` or `https` address, and the address agrees with what the report shows. A line
    with no such row is a finding too.

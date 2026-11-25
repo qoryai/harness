@@ -14,6 +14,10 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
+// A run of Build sets QORY_RUN_ID, which changes where the verbs read the build plan from.
+// Only the tests of a run set it.
+delete process.env.QORY_RUN_ID;
+
 const MODULES = path.join(__dirname, '../modules');
 const CORE = path.join(MODULES, 'core');
 const { main } = require(path.join(CORE, 'skills/running-a-workflow/checks.cjs'));

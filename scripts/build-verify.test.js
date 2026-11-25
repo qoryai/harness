@@ -639,7 +639,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const reads = {
     'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
-    'demo-script': 'demo-scenarios', 'demo-evidence': 'demo-script',
+    'demo-script': 'demo-scenarios, build-ledger', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
     walkthrough: 'verification, acceptance-criteria',
   };
@@ -1214,7 +1214,7 @@ test('build-plan: each kind of command once, its source, and serve for a Demo cr
   fails(push(fixture(), 'build-plan', planFile(`${PLAN}| serve | \`npm start\` | none | module: typescript |\n`)),
     /^Give the kind serve one row in ## Commands of build-plan.md\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('found: `package.json:12`', 'package.json'))),
-    /^Write the Source of full in build-plan.md in one of its three forms\. The forms are "repository: <file>", "module: <name>" and "found: <file>:<line>"\. The Source is "package.json"\.$/);
+    /^Write the Source of full in build-plan.md in one of its four forms\. The forms are "repository: <file>", "module: <name>", "found: <file>:<line>" and "plan: d-<N>"\. The Source is "package.json"\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace(/\| serve .*\n/, ''))),
     /^Add the kind serve to ## Commands of build-plan.md\. A criterion is planned as Demo\.$/);
   fails(push(fixture(), 'build-plan', planFile(PLAN.replace('The storefront has no linter.', ''))),
@@ -1261,10 +1261,61 @@ test('build-plan: a plan with a serve row has the address of the app in its Summ
 test('build-plan: a row for each of targeted, lint, types, build, full and locked', () => {
   for (const kind of ['targeted', 'lint', 'types', 'build', 'full', 'locked']) {
     const md = PLAN.replace(new RegExp(`\\| ${kind} \\|.*\\n`), '');
-    fails(push(fixture(), 'build-plan', planFile(md)),
-      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan.md\\. With no command, ` +
-        'write none in Command and the reason in Source\\.$'));
+    // A full row has no line on none: it gets a command, never a none.
+    const none = kind === 'full' ? '' : ' With no command, write none in Command and the ' +
+      'reason in Source.';
+    const result = push(fixture(), 'build-plan', planFile(md));
+    fails(result,
+      new RegExp(`^Add the kind ${kind} to ## Commands of build-plan\\.md\\.${none.replace(/\./g, '\\.')}$`));
+    // fails reads each line apart, so check that no line of the finding for full says none.
+    if (kind === 'full') {
+      assert.ok(![...result.lines, ...result.findings].some((line) => /write none/.test(line)),
+        result.out);
+    }
   }
+});
+
+test('build-plan: a Source of the form plan: d-<N> cites a step of the plan', () => {
+  const rows = ['| full | `npm test` | `reports/junit.xml` | found: `package.json:12` |',
+    '| targeted | `npm test --` | `reports/junit.xml` | repository: `qory.yaml` |',
+    '| locked | `npm test -- tests/acceptance` | `reports/junit.xml` | repository: `qory.yaml` |'];
+  const cite = (id, to = rows) => to.reduce((plan, row) => plan.replace(row,
+    row.replace(/\| [^|]* \|$/, `| plan: ${id} |`)), PLAN);
+  // The plan has the steps d-1 and d-2.
+  for (const id of ['d-1', 'd-2']) {
+    passes(push(fixture(), 'build-plan', planFile(cite(id))), 'build-plan');
+  }
+  passes(push(fixture(), 'build-plan', planFile(PLAN.replace(rows[0],
+    rows[0].replace('found: `package.json:12`', 'plan: `d-1`')))), 'build-plan');
+  fails(push(fixture(), 'build-plan', planFile(cite('d-3'))),
+    /^Write a step d-3 in the plan, or cite another source for full\.$/);
+  fails(push(fixture(), 'build-plan', planFile(cite('d-3'))),
+    /^Write a step d-3 in the plan, or cite another source for locked\.$/);
+  // The form has a number of one or more digits, with no 0 first.
+  for (const id of ['d-0', 'd-01', 'step 1']) {
+    fails(push(fixture(), 'build-plan', planFile(cite(id, [rows[0]]))),
+      /^Write the Source of full in build-plan\.md in one of its four forms\./);
+  }
+});
+
+test('build-plan: a full row with no command returns the finding to add a step', () => {
+  const finding = /^Write a command for full in ## Commands of build-plan\.md\. If the repository has no full test suite, add a step that creates one, and write its command in the row\.$/;
+  const row = '| full | `npm test` | `reports/junit.xml` | found: `package.json:12` |';
+  assert.ok(PLAN.includes(row));
+  for (const cell of ['none', '`none`', '']) {
+    fails(push(fixture(), 'build-plan', planFile(PLAN.replace(row,
+      `| full | ${cell} | none | The repository has no tests. |`))), finding);
+  }
+  // A full row with no Command and no Source gets the one finding, and no second one on its Source.
+  const bare = push(fixture(), 'build-plan', planFile(PLAN.replace(row, '| full |  | none |  |')));
+  fails(bare, finding);
+  assert.equal(bare.findings.slice(0, -1).filter((line) => /full/.test(line)).length, 1,
+    bare.out);
+  // An empty Command cell fails also with a Source of a valid form.
+  fails(push(fixture(), 'build-plan', planFile(PLAN.replace(row,
+    '| full |  | `reports/junit.xml` | found: `package.json:12` |'))), finding);
+  // A plan with a command passes; lint and build keep none with a reason.
+  passes(push(fixture(), 'build-plan', planFile(PLAN)), 'build-plan');
 });
 
 test('build-plan: the columns of both tables', () => {

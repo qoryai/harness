@@ -65,6 +65,12 @@ const TEXTS = {
     fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
       'in Workspace settings > Secrets and variables, then run another round.',
   }),
+  // A sign-in that fails with every variable set: a change to the app or its data repairs it.
+  signInSetup: (names) => ({
+    text: `The sign-in of the app failed with the values of ${names} set in the workspace's ` +
+      'variables.',
+    fix: 'Make the sign-in of the app work with the variables set, then run another round.',
+  }),
   // origin is NEW_WINDOW for a new window that sent no request to another origin.
   outside: ({ address, origin }) => ({
     text: origin === NEW_WINDOW ? `The app at ${address} opens a new window during sign-in, ` +
@@ -82,11 +88,18 @@ const FIRST = {
   broken: 'End the session with points.json: the browser of the dev container failed.',
   app: 'End the session with points.json: the app did not start in the dev container.',
   signIn: 'End the session with points.json: the sign-in to the app failed.',
+  signInSetup: 'End the session with points.json: the sign-in to the app failed.',
   outside: 'End the session with points.json: the sign-in opened a page outside the app.',
 };
+// The line that ends each finding, for the session to sort: a cause that no change to the
+// repository repairs, "Kind: outside", or one that a change repairs, "Kind: setup". A sign-in
+// that fails is a setup fault, except one that types a variable that the workspace lacks.
+const KIND = { browser: 'outside', signIn: 'outside', signInSetup: 'setup', app: 'setup',
+  outside: 'setup' };
 const FALLBACK = {
   app: 'the serve command of the build plan',
   signIn: 'the sign-in variables of the demo scripts',
+  signInSetup: 'the sign-in variables of the demo scripts',
 };
 
 // The words that take the place of an origin that contains a typed value, such as
@@ -176,11 +189,23 @@ module.exports = (lib) => {
   // serveOf returns { command, url, cwd } of the serve row and the line "App address:" of the
   // build plan that the preflight reads, or null when the plan has no serve row with a command.
   // The plan comes from the folder of given.artifacts, or of qory.start_artifacts in the
-  // inputs.json of given.inputs, else from the artifact folder of the session. A serve row with
+  // inputs.json of given.inputs, else from the artifact folder of the session. In a run, with
+  // QORY_RUN_ID set, it comes from qory.start_artifacts only: the verbs that type a secret or
+  // start the app never read a build plan that a member of the run wrote. A serve row with
   // a host that the browser cannot take, or with no address, throws Missing with the cause.
   function serveOf(io, given) {
     const starts = startOf(lib);
     const start = starts.readStart(io.cwd, given.inputs, io.env);
+    if (io.env.QORY_RUN_ID && given.inputs === undefined) {
+      throw new Missing('Give --inputs, the input file of the run, to read the build plan that ' +
+        'the run started with.', ['In a run, the build plan comes from qory.start_artifacts ' +
+        'only, so no other folder counts.']);
+    }
+    if (io.env.QORY_RUN_ID && !start.artifacts) {
+      throw new Missing('Plan the build, so that a run pushes the build plan, then start the ' +
+        'run again.', ['qory.start_artifacts in inputs.json is empty: the run pulled no build ' +
+        'plans at its start.', 'Cause: the build plan is missing.']);
+    }
     const pinned = starts.planIo(io, given.artifacts, start);
     const plan = withCause('the build plan is missing', () => lib.readPlan(pinned));
     const row = plan.commands.serve;
@@ -325,7 +350,45 @@ module.exports = (lib) => {
     } catch {
       // No points.json, or one that cannot be read: the new points take its place.
     }
-    writeJson(file, [...kept, ...points].slice(-MAX_POINTS));
+    const unique = points.filter((one, at) => points.findIndex((other) =>
+      other.text === one.text) === at);
+    writeJson(file, [...kept, ...unique].slice(-MAX_POINTS));
+    // The texts of every call that wrote points, so that a later call that passes removes
+    // those and no other.
+    let before = [];
+    try {
+      before = JSON.parse(fs.readFileSync(writtenFile(root), 'utf8'));
+    } catch {
+      // No list yet, or one that cannot be read: this call's texts start it.
+    }
+    fs.mkdirSync(path.dirname(writtenFile(root)), { recursive: true });
+    writeJson(writtenFile(root), [...new Set([...(Array.isArray(before) ? before : []),
+      ...unique.map((one) => one.text)])]);
+  }
+
+  // writtenFile returns the path of the file that lists the texts of the points that preflight
+  // wrote to points.json of root.
+  const writtenFile = (root) => path.join(root, '.reports', 'preflight', 'points-written.json');
+
+  // clearPoints removes from points.json of root the points that an earlier preflight wrote,
+  // and the file when no point is left: a retry that passes leaves no point of the fault that
+  // it repaired, so that no later end of the session reads a stale one. A point that another
+  // step wrote stays.
+  function clearPoints(root) {
+    const file = path.join(root, 'points.json');
+    let written;
+    let list;
+    try {
+      written = JSON.parse(fs.readFileSync(writtenFile(root), 'utf8'));
+      list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      return;
+    }
+    if (!Array.isArray(written) || !Array.isArray(list)) return;
+    const left = list.filter((one) => !(one && written.includes(one.text)));
+    if (left.length) writeJson(file, left);
+    else fs.rmSync(file, { force: true });
+    fs.rmSync(writtenFile(root), { force: true });
   }
 
   // keyOfQory throws the Missing of a setup of setups that types a variable of qory, of an
@@ -357,10 +420,13 @@ module.exports = (lib) => {
         why: whyOf(of((one) => !one.browser && one.outside === origin)) });
     }
     const failed = of((one) => !one.ok && !one.browser && !one.outside);
-    if (failed.length) {
-      found.push({ kind: 'signIn', part: 'the sign-in',
-        value: joined([...new Set(failed.flatMap((setup) => setup.names))]),
-        why: whyOf(failed) });
+    const lacking = failed.filter((setup) => results[setups.indexOf(setup)].variable);
+    const wrong = failed.filter((setup) => !lacking.includes(setup));
+    for (const [some, lack] of [[lacking, true], [wrong, false]]) {
+      if (!some.length) continue;
+      found.push({ kind: lack ? 'signIn' : 'signInSetup', part: 'the sign-in',
+        value: joined([...new Set(some.flatMap((setup) => setup.names))]),
+        why: whyOf(some) });
     }
     return found;
   }
@@ -410,6 +476,7 @@ module.exports = (lib) => {
     }
     const checked = `Checked ${joined(did)}`;
     if (!found.length) {
+      clearPoints(root);
       const signIn = !serve ? ', and no app or sign-in: the build plan has no serve command'
         : !setups.length ? ', and no sign-in: no demo script types a variable in its setup'
           : '';
@@ -419,7 +486,7 @@ module.exports = (lib) => {
     const points = found.map((one) => pointOf(one.kind, one.value, checks));
     savePoints(root, points);
     const findings = found.map((one, at) => `${one.first || FIRST[one.kind]}\n${one.why}\n` +
-      `The fix of its point: ${points[at].fix}`);
+      `The fix of its point: ${points[at].fix}\nKind: ${KIND[one.kind]}`);
     const parts = new Set(found.map((one) => one.part)).size;
     return { status: 1, findings, points, last: `${checked}: ${parts} of ` +
       `${plural(did.length, 'part')} ${parts === 1 ? 'is' : 'are'} missing, and ` +
