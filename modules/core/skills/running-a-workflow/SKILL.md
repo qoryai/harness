@@ -427,10 +427,10 @@ check reads those files and finds:
 - an `inputs.json` that exists and is no JSON object, and a stage that declares an output
   while `qory.outbox` is present and is not an absolute path ("Set qory.outbox in the
   inputs file ..."). The setup of the run must fix these; no output file does;
-- a link in the outbox folder, in the folder above it, or in the folder of the type, which
-  the fix "Remove the link ..." names, and a file that is a link, is no regular file, has
-  more than 1 MiB, or has a path that cannot be read, each with a cause line that says
-  which. A link above the parent of the outbox folder is followed;
+- a link in the outbox folder, in the folder above it, or in the folder of the type, with the
+  fix "Remove the link ...", and a file that is a link, is no regular file, has more than
+  1 MiB, or has a path that cannot be read, each with its cause on the next line. A link
+  above the parent of the outbox folder is followed;
 - a member that qory sets or fills after the push, such as `target` or a member that the
   schema marks `x-qory-fill`: the session writes none, so remove it;
 - a schema that the check cannot run, such as a leftover `$ref` or a `$ref` that leads back

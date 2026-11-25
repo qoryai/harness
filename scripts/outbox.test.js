@@ -117,6 +117,7 @@ function passes(qory, files = {}) {
 function unread(one, code) {
   const found = end(one);
   assert.equal(found.status, 1, code);
+  assert.match(found.text, new RegExp(`^Fix the finding of ${FILE} `, 'm'));
   assert.match(found.text, new RegExp(`^Write ${FILE} as a regular file of at most 1048576 ` +
     `bytes\\.\\n\\s+Its path cannot be read: ${code}\\.$`, 'm'));
 }

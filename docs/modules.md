@@ -1223,7 +1223,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
     set it;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
-    is followed. A file that is a link, is no regular file, or has more than 1 MiB, and a
+    is followed. A file that is a link, is no regular file, has more than 1 MiB, or has a
     path that cannot be read, such as one below a regular file, gets one cause line for each
     of these;
   - a file that is no JSON;
