@@ -1473,7 +1473,7 @@ test('revert-attempt: an ignored file where the base has a file that HEAD lacks 
   // The cases: the same path, a file where the base has a folder, a folder with a file where the
   // base has a file.
   for (const [is, ignore, put] of [['ign', 'ign', 'ign'], ['dir/x', 'dir', 'dir'],
-    ['out', 'out', 'out/keep']]) {
+    ['out', 'out', 'out/keep'], ['out', 'out', 'out/a/keep']]) {
     const { dir, start } = stopped(is, ignore, put);
     assert.equal(fs.readFileSync(path.join(dir, put), 'utf8'), 'mine\n');
     fs.rmSync(path.join(dir, put.split('/')[0]), { recursive: true, force: true });
@@ -1487,7 +1487,7 @@ function foldsNames(a, b) {
   fs.writeFileSync(path.join(probe, a), '');
   return fs.existsSync(path.join(probe, b));
 }
-const NO_FOLD = 'this file system keeps the two names as two files, so reset never writes through one';
+const NO_FOLD = 'this file system keeps the two names as two files, so reset writes through neither';
 
 test('revert-attempt: names that differ only in case are one path where the file system folds case', {
   skip: foldsNames('caseprobe', 'CASEPROBE') ? false : NO_FOLD,
@@ -1576,25 +1576,165 @@ test('revert-attempt: a nested repository at a parent of an added path stops it,
   assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
 });
 
-test('revert-attempt: a name that is not UTF-8 counts as taken', (t) => {
+const TAKE = 'Take each untracked or ignored file that the base has out of the checkout, then run again.';
+const BAD_NAME = Buffer.from([0x62, 0xff, 0x63]);
+
+// withBadName returns a checkout that HEAD has, and a commit on it that adds the file with the
+// name BAD_NAME, built with git plumbing: that name is no UTF-8, and a file system may refuse it.
+function withBadName() {
   const dir = checkout();
-  const name = Buffer.from([0x62, 0xff, 0x63]);
+  write(dir, '.gitignore', '.qory/\nb*\n');
+  sh(dir, 'add', '-A');
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'start');
+  const index = path.join(tmp, `index-${count}`);
+  const env = { ...process.env, GIT_INDEX_FILE: index, GIT_AUTHOR_NAME: 't', GIT_COMMITTER_NAME: 't',
+    GIT_AUTHOR_EMAIL: 't@example.com', GIT_COMMITTER_EMAIL: 't@example.com' };
+  const plumbing = (input, ...args) => {
+    const ran = childProcess.spawnSync('git', ['-C', dir, ...args], { env, input });
+    assert.equal(ran.status, 0, `git ${args.join(' ')}: ${ran.stderr}`);
+    return ran.stdout.toString().trim();
+  };
+  plumbing('', 'read-tree', 'HEAD');
+  const blob = plumbing('data\n', 'hash-object', '-w', '--stdin');
+  plumbing(Buffer.concat([Buffer.from(`100644 ${blob}\t`), BAD_NAME, Buffer.from('\n')]),
+    'update-index', '--index-info');
+  const tree = plumbing('', 'write-tree');
+  return { dir, base: plumbing('', 'commit-tree', tree, '-p', 'HEAD', '-m', 'adds a file') };
+}
+
+// holdsBadName reports whether the file system of the tests holds a file with the name BAD_NAME.
+function holdsBadName(dir) {
   try {
-    fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), name]), 'tracked\n');
+    fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]), 'x');
+    fs.rmSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]));
+    return true;
   } catch {
-    t.skip('this file system accepts no name that is not UTF-8');
+    return false;
+  }
+}
+
+test('revert-attempt: a base that adds a name that is not UTF-8 stops no revert when the checkout lacks it', () => {
+  const { dir, base } = withBadName();
+  const got = call(dir, ['revert-attempt', '--base', base]);
+  assert.notEqual(got.lines[0], TAKE);
+  if (holdsBadName(dir)) {
+    assert.equal(got.status, 0, got.out + got.err);
+    assert.equal(fs.readFileSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]), 'utf8'), 'data\n');
+  }
+});
+
+test('revert-attempt: a name that is not UTF-8 that the checkout has stops it', (t) => {
+  const { dir, base } = withBadName();
+  if (!holdsBadName(dir)) {
+    t.skip('this file system holds no name that is not UTF-8');
     return;
   }
-  write(dir, '.gitignore', '.qory/\nb*\n');
+  fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), BAD_NAME]), 'mine\n');
+  const got = call(dir, ['revert-attempt', '--base', base]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], TAKE);
+});
+
+// gitlink commits, on the checkout, the path sm as a submodule entry, as git writes it, with the
+// commit of the checkout as its id.
+function gitlink(dir) {
+  sh(dir, 'update-index', '--add', '--cacheinfo', `160000,${sh(dir, 'rev-parse', 'HEAD')},sm`);
+  sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'submodule');
+}
+
+test('revert-attempt: a path that is a submodule in HEAD or in the base stops it, whichever way', () => {
+  // The base has the file sm, HEAD has the submodule sm, and its folder holds a file that git
+  // does not list.
+  const into = checkout();
+  write(into, 'sm', 'file\n');
+  sh(into, 'add', '-A');
+  sh(into, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
+  const start = sh(into, 'rev-parse', 'HEAD');
+  sh(into, 'rm', '-q', 'sm');
+  gitlink(into);
+  write(into, 'sm/secret.env', 'mine\n');
+  // The base lacks sm, HEAD has the submodule sm.
+  const out = checkout();
+  const before = sh(out, 'rev-parse', 'HEAD');
+  gitlink(out);
+  fs.mkdirSync(path.join(out, 'sm'));
+  // The base has the submodule sm, HEAD lacks it.
+  const gone = checkout();
+  gitlink(gone);
+  const kept = sh(gone, 'rev-parse', 'HEAD');
+  sh(gone, 'update-index', '--force-remove', 'sm');
+  sh(gone, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'drop');
+  for (const [dir, base] of [[into, start], [out, before], [gone, kept]]) {
+    const head = sh(dir, 'rev-parse', 'HEAD');
+    const got = call(dir, ['revert-attempt', '--base', base]);
+    assert.equal(got.status, 3, got.out + got.err);
+    assert.equal(got.lines[0], 'Report to a member: the revert cannot cross a submodule.');
+    assert.equal(got.lines[1], '  "sm" is a submodule in HEAD or in the base.');
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  }
+  assert.equal(fs.readFileSync(path.join(into, 'sm/secret.env'), 'utf8'), 'mine\n');
+});
+
+test('revert-attempt: a tracked file under .qory with a change in the checkout stops it', () => {
+  const dir = checkout();
+  const commit = (message) => sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com',
+    'commit', '-q', '-m', message);
+  write(dir, '.qory/x', '1\n');
+  sh(dir, 'add', '-f', '.qory/x');
+  commit('base');
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, '.qory/x', '2\n');
+  sh(dir, 'add', '-f', '.qory/x');
+  commit('attempt');
+  const head = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, '.qory/x', 'mine\n');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Commit or undo each change, then run revert-attempt again.');
+  assert.equal(got.lines[1], '  The checkout has 1 changed path, such as ".qory/x".');
+  assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+  assert.equal(fs.readFileSync(path.join(dir, '.qory/x'), 'utf8'), 'mine\n');
+  write(dir, '.qory/x', '2\n');
+  assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
+  assert.equal(fs.readFileSync(path.join(dir, '.qory/x'), 'utf8'), '1\n');
+});
+
+// A folder that no one may read or search stops it, as git and the file system can tell nothing
+// of what is in it. root reads any folder.
+const ROOT = typeof process.getuid === 'function' && process.getuid() === 0;
+for (const [name, is, put] of [['read', 'out', 'out/keep'], ['search', 'd/f', 'd/x']]) {
+  test(`revert-attempt: a folder that no one may ${name} stops it`, { skip: ROOT && 'root may read each folder' }, () => {
+    const { dir, start, head } = ignoredBase(is, is.split('/')[0]);
+    write(dir, put, 'mine\n');
+    const folder = path.join(dir, put.split('/')[0]);
+    fs.chmodSync(folder, 0);
+    try {
+      const got = call(dir, ['revert-attempt', '--base', start]);
+      assert.equal(got.status, 3, got.out + got.err);
+      assert.equal(got.lines[0], TAKE);
+      assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+    } finally {
+      fs.chmodSync(folder, 0o755);
+    }
+  });
+}
+
+test('revert-attempt: an ignored file that is a hard link to a tracked file that the base lacks does not stop it', () => {
+  const dir = checkout();
+  write(dir, '.gitignore', '.qory/\np\n');
+  write(dir, 'p', 'x\n');
   sh(dir, 'add', '-f', '-A');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'base');
   const start = sh(dir, 'rev-parse', 'HEAD');
-  sh(dir, 'rm', '-q', '--', 'b*');
+  sh(dir, 'rm', '-q', 'p');
+  write(dir, 'h', 'x\n');
+  sh(dir, 'add', 'h');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', 'attempt');
-  fs.writeFileSync(Buffer.concat([Buffer.from(`${dir}/`), name]), 'mine\n');
+  fs.linkSync(path.join(dir, 'h'), path.join(dir, 'p'));
   const got = call(dir, ['revert-attempt', '--base', start]);
-  assert.equal(got.status, 3, got.out + got.err);
-  assert.equal(got.lines[0], 'Take each untracked or ignored file that the base has out of the checkout, then run again.');
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.equal(fs.existsSync(path.join(dir, 'h')), false);
+  assert.equal(fs.readFileSync(path.join(dir, 'p'), 'utf8'), 'x\n');
 });
 
 test('revert-attempt: a HEAD with no commit exits 3', () => {

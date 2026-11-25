@@ -52,8 +52,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   with the fix first when the checkout has a change that is not committed, when the branch has
   no commit, when the checkout already has a path that the base adds (an untracked or ignored
   file, link or folder with such an entry, or a nested repository, found by the file system,
-  whatever its case or normalisation rules), when the base is no commit of the checkout, and when
-  HEAD has the tree of the base already. Nothing calls it yet.
+  whatever its case or normalisation rules), when a path that differs is a submodule on either
+  side (a revert across a submodule stops), when a file under `.qory` that differs has a change
+  in the checkout, when the base is no commit of the checkout, and when HEAD has the tree of the
+  base already. Nothing calls it yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
