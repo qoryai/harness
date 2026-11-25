@@ -83,8 +83,8 @@ test('each new agent has its guardrails, stop conditions and expected output, an
   assert.match(planner, /\nTool exception: Edit, because /);
 });
 
-test('the stack declares plan-the-build with the tier thinking, the access write and its ' +
-  'plan', () => {
+test('the stack declares triage-review and plan-the-build with the tier thinking, the access ' +
+  'write and their plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
   assert.match(stack,
     /\n {2}triage-review: \{tier: thinking, access: write, plan: build-plan\}\n/);
