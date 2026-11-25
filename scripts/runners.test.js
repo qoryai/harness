@@ -1481,7 +1481,7 @@ test('key shapes: scope and freeze stop on a qory.key_shapes whose file cannot b
   assert.equal(call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env: good }).status, 0);
 });
 
-test('key shapes: freeze finds a shape of the file, and a long name goes on its own line', () => {
+test('key shapes: freeze finds a shape of the file, and a long name goes on the line after the fix', () => {
   const dir = checkout();
   const head = sh(dir, 'rev-parse', 'HEAD');
   write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.k = 'acme_${'0a'.repeat(6)}';\n`);
