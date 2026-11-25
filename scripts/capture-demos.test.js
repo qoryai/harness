@@ -219,35 +219,57 @@ test('film: a film that is over the limit after both passes exits 1, with the si
   assert.equal(ffmpeg.calls().length, 2);
 });
 
-test('film recode: with no kept frames it exits 3, and with under 20 s of the call left it exits 3 and keeps them', () => {
+// sleepy returns an ffmpeg that runs for 5 s, and the file of its log of calls.
+function sleepy() {
+  const file = next('ffmpeg');
+  fs.writeFileSync(file, '#!/bin/sh\nexec sleep 5\n', { mode: 0o755 });
+  return file;
+}
+
+test('film recode: with no kept frames it exits 3, and a pass 2 that runs out of time is a cause outside', () => {
   const ffmpeg = sized(2 * MIB, 100);
   const here = filming(ffmpeg, MIB);
   const none = call(['film', 'recode', 'scenario-1'], here.deps);
   assert.equal(none.status, 3, none.out + none.err);
   assert.equal(none.out.split('\n')[0], 'Run film scenario-1, then run film recode ' +
     'scenario-1 again.');
+  assert.doesNotMatch(none.out, /Kind:/);
   assert.equal(call(['film', 'scenario-1', '--artifacts', here.plan], here.deps).status, 4);
-  // The clock jumps 570 s when the verb reads the kept frames, which it does after the start
-  // of its call: 15 s are left.
-  const clock = Date.now;
-  const reader = fs.readFileSync;
-  let late;
-  fs.readFileSync = (file, ...rest) => {
-    if (String(file).endsWith('capture.json')) Date.now = () => clock() + 570000;
-    return reader(file, ...rest);
-  };
-  try {
-    late = call(['film', 'recode', 'scenario-1'], here.deps);
-  } finally {
-    Date.now = clock;
-    fs.readFileSync = reader;
-  }
+  const slow = { ...here.deps, preflight: { ...here.deps.preflight, ffmpegs: [sleepy()],
+    ffmpegMs: 300 } };
+  const late = call(['film', 'recode', 'scenario-1'], slow);
   assert.equal(late.status, 3, late.out + late.err);
-  assert.equal(late.out.split('\n')[0], 'Run film recode scenario-1 again.');
-  assert.match(late.out.split('\n')[1], /^ {2}Only 1[45] s of the 585 s of the call are left for ffmpeg\.$/);
+  assert.deepEqual(late.out.trim().split('\n').slice(0, 3), [
+    'Give the dev container more CPU, then run film recode scenario-1 again.',
+    '  ffmpeg did not finish pass 2 of the film of scenario-1 within 0 s, after pass 1 did not ' +
+      'fit or did not finish.',
+    '  Kind: outside']);
+  // With no ffmpeg at all, the cause is outside too. The frames stay in both cases, so the call
+  // can run again, with an ffmpeg that finishes.
   assert.ok(fs.existsSync(path.join(here.film, 'f000001.jpg')));
-  assert.equal(ffmpeg.calls().length, 1);
+  const absent = call(['film', 'recode', 'scenario-1'], { ...here.deps, preflight: {
+    ...here.deps.preflight, ffmpegs: [path.join(tmp, 'none')] } });
+  assert.equal(absent.status, 3, absent.out + absent.err);
+  assert.match(absent.out, /^ {2}Kind: outside$/m);
   assert.equal(call(['film', 'recode', 'scenario-1'], here.deps).status, 0);
+});
+
+test('film: a pass 1 that runs out of time keeps the frames and exits 4, and film recode is its retry', () => {
+  const ffmpeg = sized(100);
+  const here = filming(ffmpeg, MIB);
+  const slow = { ...here.deps, preflight: { ...here.deps.preflight, ffmpegs: [sleepy()],
+    ffmpegMs: 300 } };
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], slow);
+  assert.equal(done.status, 4, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Run film recode scenario-1.');
+  assert.match(lines[1], /^ {2}ffmpeg did not finish pass 1 of the film of scenario-1 within \d+ s\.$/);
+  assert.equal(lines.at(-1), 'Kept the frames of scenario-1: pass 1 ran out of time.');
+  assert.deepEqual(fs.readdirSync(here.film).sort(),
+    ['capture.json', 'f000001.jpg', 'f000002.jpg', 'scenario-1.vtt']);
+  const again = call(['film', 'recode', 'scenario-1'], here.deps);
+  assert.equal(again.status, 0, again.out + again.err);
+  assert.deepEqual(fs.readdirSync(here.film).sort(), ['scenario-1.mp4', 'scenario-1.vtt']);
 });
 
 test('film recode: a capture file with a frame that is no object or a link is refused, and nothing is encoded', () => {
@@ -264,6 +286,224 @@ test('film recode: a capture file with a frame that is no object or a link is re
   assert.equal(outside.out.split('\n')[0], 'End the run: the runner stored a frame that cannot ' +
     'be read.');
   assert.equal(ffmpeg.calls().length, 1);
+});
+
+// ---- a run that fails, and the kind of each cause --------------------------------------------
+
+// runnerOf returns a runner that returns the result of one run, with the members of run, and the
+// frames or the pictures that it wrote before it stopped: film is { frames, starts, end } and
+// pictures a list of file names. app is the result of the start of the app.
+function runnerOf(run, { film, pictures, app } = {}) {
+  const file = `${next('runner')}.cjs`;
+  fs.writeFileSync(file, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const dir = spec.runs[0] && spec.runs[0].capture ? spec.runs[0].capture.dir : null;
+const run = ${JSON.stringify(run)};
+const film = ${JSON.stringify(film || null)};
+const pictures = ${JSON.stringify(pictures || null)};
+if (dir && film) {
+  const frames = [];
+  for (let n = 1; n <= film.frames; n += 1) {
+    const name = 'f' + String(n).padStart(6, '0') + '.jpg';
+    fs.writeFileSync(dir + '/' + name, 'x');
+    frames.push({ file: name, at: (n - 1) * 40 });
+  }
+  run.capture = { kind: 'film', frames, starts: film.starts, end: film.end };
+}
+if (dir && pictures) {
+  for (const name of pictures) fs.writeFileSync(dir + '/' + name, 'x');
+  run.capture = { kind: 'pictures', files: pictures };
+}
+const result = { app: ${JSON.stringify(app || { started: true, ran: true, why: null })},
+  signIns: [], runs: [run], unfinished: null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+  return file;
+}
+
+// failing returns a checkout with the script of scenario-1 of the kind and the steps of one(),
+// and a film that runs the runner of run, and an ffmpeg that writes a film of 100 bytes.
+function failing(one, run, options) {
+  const ffmpeg = sized(100);
+  const here = checkout([one]);
+  here.deps.preflight = { ...here.deps.preflight, runner: runnerOf(run, options),
+    ffmpegs: [ffmpeg.file] };
+  return { ...here, film: path.join(here.root, '.film', 'scenario-1') };
+}
+
+const STEP_FAILED = { ok: false, step: 1, why: 'action 1 (click text=Order 1042) failed: no ' +
+  'element', outside: null };
+
+test('film: a run that fails in a step keeps its film up to that step for demo-reviewer, and exits 5', () => {
+  const here = failing(two('scenario-1'), STEP_FAILED, { film: { frames: 2, starts: [0],
+    end: 1040 } });
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 5, done.out + done.err);
+  assert.deepEqual(done.out.trim().split('\n'), [
+    'Start demo-reviewer on step 1 of scenario-1, then record it.',
+    '  action 1 (click text=Order 1042) failed: no element.',
+    'Filmed scenario-1 up to step 1: it failed in step 1.']);
+  // The film and its captions of the begun step stay, with the file that names the step.
+  assert.deepEqual(fs.readdirSync(here.film).sort(),
+    ['failed.json', 'scenario-1.mp4', 'scenario-1.vtt']);
+  const cues = filmVerb.cuesOf(fs.readFileSync(path.join(here.film, 'scenario-1.vtt'), 'utf8'));
+  assert.equal(cues.length, 1);
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(here.film, 'failed.json'), 'utf8')),
+    { step: 1, why: STEP_FAILED.why });
+  // The report of demo-reviewer sorts the failure, and the evidence has no media.
+  committed(here.dir);
+  let reports = 0;
+  const review = (...lines) => {
+    const file = path.join(here.dir, `review-${++reports}.md`);
+    fs.writeFileSync(file, `${lines.join('\n')}\nchanges-needed\n`);
+    return file;
+  };
+  const report = review('Step 1: failed: The page has no order.', 'Step 2: not-reached',
+    'Class: product');
+  const withMedia = call(['film', 'record', 'scenario-1', '--review', report, '--media', '1'],
+    here.deps);
+  assert.equal(withMedia.status, 1, withMedia.out);
+  assert.equal(withMedia.out.split('\n')[0], 'Leave out --media.');
+  const passed = call(['film', 'record', 'scenario-1', '--review',
+    review('Step 1: passed', 'Step 2: passed')], here.deps);
+  assert.equal(passed.status, 1, passed.out);
+  assert.equal(passed.out.split('\n')[0],
+    'Report step 1 as failed and each later step as not-reached.');
+  const recorded = call(['film', 'record', 'scenario-1', '--review', report], here.deps);
+  assert.equal(recorded.status, 0, recorded.out + recorded.err);
+  const data = JSON.parse(fs.readFileSync(path.join(here.root, 'scenario-1.json'), 'utf8'));
+  assert.deepEqual([data.evidence, data.verdict, data.class, data.media],
+    ['none', 'failed', 'product', undefined]);
+  assert.deepEqual(data.steps.map((step) => [step.verdict, step.frames.length]),
+    [['failed', 0], ['not-reached', 0]]);
+  assert.equal(call(['check', 'demo-evidence', path.join(here.root, 'scenario-1.json')],
+    here.deps).status, 0);
+});
+
+test('film: a run of pictures that fails in a step keeps the pictures before it, and one that fails in step 1 keeps none', () => {
+  const second = { ...STEP_FAILED, step: 2 };
+  const here = failing(two('scenario-1', 'pictures'), second, {
+    pictures: ['scenario-1-step-1.png'] });
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 5, done.out + done.err);
+  assert.equal(done.out.trim().split('\n').at(-1),
+    'Took 1 picture of scenario-1 before step 2: it failed in step 2.');
+  assert.deepEqual(fs.readdirSync(here.film).sort(), ['failed.json', 'scenario-1-step-1.png']);
+  const first = failing(two('scenario-1', 'pictures'), STEP_FAILED);
+  const none = call(['film', 'scenario-1', '--artifacts', first.plan], first.deps);
+  assert.equal(none.status, 1, none.out + none.err);
+  assert.equal(none.out.trim().split('\n').at(-1), 'Stored no pictures: it failed in step 1.');
+  assert.equal(fs.existsSync(first.film), false);
+});
+
+test('film: a step that fails before the runner stored a frame stores nothing and exits 1', () => {
+  const here = failing(two('scenario-1'), { ...STEP_FAILED, step: 2 });
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.out.trim().split('\n').at(-1), 'Stored no film: it failed in step 2.');
+  assert.equal(fs.existsSync(here.film), false);
+});
+
+test('film: a sign-in that fails is of kind setup, and a variable with no value is of kind outside', () => {
+  const signIn = failing(script('scenario-1'), { ok: false, step: 0, why: 'action 2 (type ' +
+    'into #password) failed: the sign-in did not finish', outside: null });
+  const failed = call(['film', 'scenario-1', '--artifacts', signIn.plan], signIn.deps);
+  assert.equal(failed.status, 1, failed.out + failed.err);
+  assert.deepEqual(failed.out.trim().split('\n'), [
+    'Check the sign-in against the app, then run film scenario-1 again.',
+    '  action 2 (type into #password) failed: the sign-in did not finish.',
+    '  Kind: setup', 'Stored no film: it failed in the sign-in.']);
+  for (const step of [0, 1]) {
+    const missing = failing(script('scenario-1'), { ok: false, step, why: 'action 2 (type into ' +
+      '#password) failed: the variable SHOP_PASSWORD has no value', outside: null,
+    variable: 'SHOP_PASSWORD' }, { film: { frames: 2, starts: [0], end: 1040 } });
+    const out = call(['film', 'scenario-1', '--artifacts', missing.plan], missing.deps);
+    assert.equal(out.status, 1, out.out + out.err);
+    const lines = out.out.trim().split('\n');
+    assert.equal(lines[0], 'Ask an owner or admin of your organisation to add SHOP_PASSWORD in ' +
+      'Workspace settings > Secrets and variables, then run film scenario-1 again.');
+    assert.equal(lines.at(-2), '  Kind: outside');
+    assert.equal(fs.existsSync(missing.film), false);
+  }
+});
+
+test('film: a title with --> is a fault of the script at its step, with no film', () => {
+  const arrow = script('scenario-1');
+  arrow.steps[0].title = 'Open --> the order.';
+  const here = failing(arrow, STEP_FAILED);
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Change the Action of step 1 in the demo scenario so it has no "-->", ' +
+    'then film it again.');
+  assert.equal(lines.at(-1), 'Stored no film: it failed in step 1.');
+  assert.equal(fs.existsSync(here.film), false);
+});
+
+test('film: each cause that the session sorts ends with a Kind line, and a failure of the call has none', () => {
+  const kind = (done) => (/^ {2}Kind: (\w+)$/m.exec(done.out) || [])[1];
+  const ok = { ok: true, step: null, why: null, outside: null };
+  // No ffmpeg and no browser, in the dev container: outside.
+  const absent = failing(script('scenario-1'), ok);
+  const noFfmpeg = call(['film', 'scenario-1', '--artifacts', absent.plan], { ...absent.deps,
+    preflight: { ...absent.deps.preflight, ffmpegs: [path.join(tmp, 'none')] } });
+  assert.deepEqual([noFfmpeg.status, kind(noFfmpeg)], [3, 'outside']);
+  assert.equal(noFfmpeg.out.split('\n')[0], 'Add ffmpeg to the dev container, then run film again.');
+  const noBrowser = call(['film', 'scenario-1', '--artifacts', absent.plan], { ...absent.deps,
+    preflight: { ...absent.deps.preflight, browsers: [path.join(tmp, 'none')] } });
+  assert.deepEqual([noBrowser.status, kind(noBrowser)], [3, 'outside']);
+  // A browser that fails in the run is outside, and an app that does not start is a setup.
+  const broken = failing(script('scenario-1'), { ok: false, step: 0, browser: true,
+    why: 'the browser failed: it did not start' });
+  const browser = call(['film', 'scenario-1', '--artifacts', broken.plan], broken.deps);
+  assert.deepEqual([browser.status, kind(browser)], [3, 'outside']);
+  assert.equal(browser.out.split('\n')[0],
+    'Fix the browser of the dev container, then run film scenario-1 again.');
+  const down = failing(script('scenario-1'), ok, { app: { started: false, ran: true,
+    why: 'the command exited with 1 before the address of the app returned a response' } });
+  const app = call(['film', 'scenario-1', '--artifacts', down.plan], down.deps);
+  assert.deepEqual([app.status, kind(app)], [3, 'setup']);
+  // The 120 s that ran out before the browser started are a setup too.
+  const late = failing(script('scenario-1'), { ok: false, step: 0, late: true,
+    why: 'the time for the start ran out' });
+  const slow = call(['film', 'scenario-1', '--artifacts', late.plan], late.deps);
+  assert.deepEqual([slow.status, kind(slow)], [3, 'setup']);
+  // A missing demo script is no cause of either kind: the session ends as Failures lists.
+  const missing = call(['film', 'scenario-2', '--artifacts', absent.plan], absent.deps);
+  assert.deepEqual([missing.status, kind(missing)], [3, undefined]);
+});
+
+test('film: with neither --inputs nor --artifacts it reads no build plan and exits 3', () => {
+  const here = failing(script('scenario-1'), { ok: true, step: null, why: null, outside: null });
+  for (const argv of [['film', 'scenario-1'], ['film', 'pages', '/orders']]) {
+    const done = call(argv, here.deps);
+    assert.equal(done.status, 3, done.out + done.err);
+    assert.equal(done.out.split('\n')[0], 'Give --inputs, the input file of the run, to read ' +
+      'the build plan that the run started with.');
+  }
+});
+
+test('preflight: a retry that passes removes the points that the failed one wrote, and keeps others', () => {
+  const here = checkout([script('scenario-1')]);
+  const plan = pinnedPlan(['App address: `http://127.0.0.1:4010/`'], 'none');
+  const missing = { ...here.deps, preflight: { browsers: [path.join(tmp, 'none')] } };
+  const failed = call(['preflight', '--artifacts', plan], missing);
+  assert.equal(failed.status, 1, failed.out + failed.err);
+  const file = path.join(here.root, 'points.json');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).length, 1);
+  const list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  list.push({ text: 'Another step wrote this point.', action: 'run_again', fix: 'Run it again.' });
+  fs.writeFileSync(file, JSON.stringify(list));
+  const passed = call(['preflight', '--artifacts', plan], here.deps);
+  assert.equal(passed.status, 0, passed.out + passed.err);
+  assert.deepEqual(JSON.parse(fs.readFileSync(file, 'utf8')).map((one) => one.text),
+    ['Another step wrote this point.']);
+  // With no other point, the file goes.
+  const again = call(['preflight', '--artifacts', plan], missing);
+  assert.equal(again.status, 1);
+  fs.writeFileSync(file, JSON.stringify(JSON.parse(fs.readFileSync(file, 'utf8')).slice(-1)));
+  assert.equal(call(['preflight', '--artifacts', plan], here.deps).status, 0);
+  assert.equal(fs.existsSync(file), false);
 });
 
 // ---- film frames and film todo ---------------------------------------------------------------
@@ -306,6 +546,26 @@ test('film frames: two pictures for each step, at the start of the step and a fr
     assert.equal(fs.readFileSync(path.join(dir, 'frames', name)).subarray(1, 4).toString(),
       'PNG');
   }
+});
+
+test('film frames: the first line says which step the run failed in', { skip: NO_FFMPEG }, () => {
+  const here = checkout([two('scenario-1')]);
+  const dir = path.join(here.root, '.film', 'scenario-1');
+  fs.mkdirSync(dir, { recursive: true });
+  assert.equal(childProcess.spawnSync(FFMPEG, ['-v', 'error', '-f', 'lavfi', '-i',
+    'testsrc2=size=320x180:rate=25', '-t', '2', '-pix_fmt', 'yuv420p',
+    path.join(dir, 'scenario-1.mp4')]).status, 0);
+  fs.writeFileSync(path.join(dir, 'scenario-1.vtt'), filmVerb.captions(
+    { steps: [{ title: 'Open.' }, { title: 'Read.' }] }, { starts: [0], end: 2000 }));
+  fs.writeFileSync(path.join(dir, 'failed.json'),
+    JSON.stringify({ step: 1, why: 'action 1 (click text=Order) failed: no element' }));
+  const done = call(['film', 'frames', 'scenario-1'], { ...here.deps,
+    preflight: { ffmpegs: [ffmpegPath()] } });
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.deepEqual(done.out.trim().split('\n'), [
+    'The run failed in step 1: "action 1 (click text=Order) failed: no element".',
+    'Step 1: step-1-start.png at 0 ms, step-1-reached.png at 1960 ms.',
+    'Took 2 pictures of scenario-1 in .film/scenario-1/frames/, two for each step.']);
 });
 
 test('film frames: a scenario with no film exits 3 with the fix first', () => {
@@ -415,6 +675,24 @@ test('film todo: a rerun lists the scenario with no evidence for the commit, and
     ['To film: none.', 'To withdraw: none.']);
 });
 
+test('film todo: a scenario that failed in the setup on this commit is filmed again, and a product or script fault stands', () => {
+  const here = checkout([]);
+  const head = committed(here.dir);
+  const failed = (id, klass) => ({ ...evidence(id, head), verdict: 'failed', class: klass });
+  const entries = [
+    stored(here.root, 'demo-scenarios', 'main', { 'demo-scenarios.md': SCENARIO_TEXT }, true),
+    stored(here.root, 'demo-script', 'scenario-1', { 'scenario-1.json': JSON.stringify(script('scenario-1')) }),
+    stored(here.root, 'demo-script', 'scenario-2', { 'scenario-2.json': JSON.stringify(script('scenario-2')) }),
+    stored(here.root, 'demo-evidence', 'scenario-1', { 'scenario-1.json': JSON.stringify(failed('scenario-1', 'setup')) }),
+    stored(here.root, 'demo-evidence', 'scenario-2', { 'scenario-2.json': JSON.stringify(failed('scenario-2', 'product')) }),
+  ];
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify({ artifacts: entries }));
+  assert.equal(call(['film', 'todo'], here.deps).out.split('\n')[0], 'To film: scenario-1.');
+  fs.writeFileSync(path.join(here.root, 'demo-evidence', 'scenario-2', 'v1', 'scenario-2.json'),
+    JSON.stringify(failed('scenario-2', 'script')));
+  assert.equal(call(['film', 'todo'], here.deps).out.split('\n')[0], 'To film: scenario-1.');
+});
+
 // ---- film record -----------------------------------------------------------------------------
 
 // two returns a demo script of id with two steps.
@@ -471,6 +749,15 @@ test('film record: a film whose steps passed is a passed evidence with two frame
     [{ at: 'start', time_ms: 0 }, { at: 'reached', time_ms: 1960 }],
     [{ at: 'start', time_ms: 2000 }, { at: 'reached', time_ms: 3960 }]]);
   assert.equal(here.pushed().status, 0, here.pushed().out);
+});
+
+test('film record: a review of a film that did not fail needs --media', () => {
+  const here = filmed();
+  const done = call(['film', 'record', 'scenario-1', '--review',
+    here.review('Step 1: passed', 'Step 2: passed')], here.deps);
+  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.out.split('\n')[0], 'Give --media the version of the film or pictures ' +
+    'that the session pushed.');
 });
 
 test('film record: a failed step needs its finding and a class, and the evidence keeps both', () => {
@@ -570,12 +857,13 @@ function ledgered(rows, first = JSON.stringify(scriptTwo('text=Delayed order')))
   return root;
 }
 
-// pushing runs the push check of demo-script on the file of a script in root.
+// pushing runs the push check of demo-script on the file of a script, in the push form, as
+// qory runs it: the folder root is the push store, with the pushed versions that the check reads.
 function pushing(root, data) {
-  const file = path.join(root, 'draft', 'scenario-2.json');
+  const file = path.join(tmp, `draft-${++folders}`, 'scenario-2.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });
   fs.writeFileSync(file, typeof data === 'string' ? data : JSON.stringify(data));
-  return call(['check', 'demo-script', file], { cwd: tmp, artifacts: [root] });
+  return call(['push', 'demo-script', file], { cwd: root });
 }
 
 test('push check of demo-script: a changed frozen script needs the next step in the ledger', () => {
@@ -596,6 +884,107 @@ test('push check of demo-script: a changed frozen script needs the next step in 
   assert.equal(pushing(ledgered(begun), changed).status, 0);
   const other = [...rows, row('script:scenario-1#2', 'running')];
   assert.equal(pushing(ledgered(other), changed).status, 1);
+});
+
+// The qory stub of step begin, with a store: a push of build-ledger runs its push check in the
+// store and stores the version, and a pull copies build-ledger and index.json into ARTIFACTS.
+const PUSH = path.join(SKILL, 'workflow-checks.cjs');
+function stubbed(store, bin) {
+  const listing = path.join(bin, 'list.js');
+  fs.writeFileSync(listing, `const fs = require('fs');
+const [file, number, run] = process.argv.slice(2);
+const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+let entry = index.artifacts.find((one) => one.type === 'build-ledger');
+if (!entry) {
+  entry = { type: 'build-ledger', name: 'main', approved_version: null, versions: [] };
+  index.artifacts.push(entry);
+}
+entry.versions.push({ id: 'av_bl' + number, number: Number(number),
+  writer: { kind: 'run', run_id: run } });
+entry.newest_version = Math.max(...entry.versions.map((one) => one.number));
+fs.writeFileSync(file, JSON.stringify(index));
+`);
+  const qory = path.join(bin, 'qory');
+  fs.writeFileSync(qory, `#!/bin/sh
+case "$1 $2 $3" in
+'artifact push build-ledger')
+  cd '${store}' || exit 1
+  '${process.execPath}' '${PUSH}' push build-ledger "$4" >&2 || exit 1
+  n=0
+  for dir in build-ledger/main/v*; do [ -d "$dir" ] && n=$((n + 1)); done
+  n=$((n + 1))
+  mkdir -p "build-ledger/main/v$n" && cp "$4" "build-ledger/main/v$n/build-ledger.json"
+  '${process.execPath}' '${listing}' '${store}/index.json' "$n" "$QORY_RUN_ID"
+  echo "Pushed build-ledger version $n."
+  exit 0;;
+'artifact pull build-ledger')
+  rm -rf "$ARTIFACTS/build-ledger"
+  [ -d '${store}/build-ledger' ] && cp -R '${store}/build-ledger' "$ARTIFACTS/"
+  cp '${store}/index.json' "$ARTIFACTS/index.json"
+  echo "$ARTIFACTS/"
+  exit 0;;
+esac
+exit 9
+`, { mode: 0o755 });
+  return qory;
+}
+
+test('demo-script: the check of the draft passes after step begin pushed the row of the correction, before the push of the script', () => {
+  const frozenText = JSON.stringify(scriptTwo('text=Delayed order'));
+  const changed = JSON.stringify(scriptTwo('text=Delayed order reply'));
+  const dir = next('work');
+  const store = next('store');
+  const bin = next('bin');
+  const artifacts = next('artifacts');
+  const inputs = next('inputs');
+  for (const folder of [dir, store, bin, artifacts, inputs]) fs.mkdirSync(folder, { recursive: true });
+  assert.equal(childProcess.spawnSync('git', ['-C', dir, 'init', '-q']).status, 0);
+  fs.writeFileSync(path.join(dir, 'README.md'), 'The shop.\n');
+  assert.equal(childProcess.spawnSync('git', ['-C', dir, 'add', '-A']).status, 0);
+  committed(dir);
+  // The store has the approved scenarios and the frozen script as pushed version 1, and no
+  // build ledger yet.
+  const entries = [
+    stored(store, 'demo-scenarios', 'main', { 'demo-scenarios.md': SCENARIOS }, true),
+    stored(store, 'demo-script', 'scenario-2', { 'scenario-2.json': frozenText })];
+  fs.writeFileSync(path.join(store, 'index.json'), JSON.stringify({ version: 1,
+    artifacts: entries }));
+  const env = { ...process.env, ARTIFACTS: artifacts, QORY_RUN_ID: 'run-1' };
+  delete env.QORY_SESSION;
+  const session = (...argv) => call(argv, { cwd: dir, artifacts: [artifacts], env,
+    qory: stubbed(store, bin), plugin: PLUGIN });
+  const files = ['plan.md', 'skill.md', 'agent.md'].map((name) => {
+    fs.writeFileSync(path.join(inputs, name), `The ${name} of the step.\n`);
+    return path.join(inputs, name);
+  });
+  const draft = path.join(artifacts, '.demo', 'scenario-2.json');
+  fs.mkdirSync(path.dirname(draft), { recursive: true });
+  fs.writeFileSync(draft, changed);
+  // The first pass: begin the step, end it done with the sha256 of the frozen script.
+  assert.equal(session('resume').status, 0);
+  const first = session('step', 'begin', 'script:scenario-2', 'implement-changes', ...files);
+  assert.equal(first.status, 0, first.out + first.err);
+  const ended = session('step', 'end', 'script:scenario-2', 'done', '--script-sha256',
+    sha256(frozenText));
+  assert.equal(ended.status, 0, ended.out + ended.err);
+  // The next session pulls the ledger with the done row, then begins the correction. The pushed
+  // row is in the store, and the pulled folder still has the ledger of the pull.
+  assert.equal(session('resume').status, 0);
+  for (const type of ['demo-scenarios', 'demo-script']) {
+    fs.cpSync(path.join(store, type), path.join(artifacts, type), { recursive: true });
+  }
+  const begun = session('step', 'begin', 'script:scenario-2#2', 'implement-changes', ...files);
+  assert.equal(begun.status, 0, begun.out + begun.err);
+  const pulled = JSON.parse(fs.readFileSync(path.join(artifacts, 'build-ledger', 'main',
+    fs.readdirSync(path.join(artifacts, 'build-ledger', 'main')).sort().at(-1),
+    'build-ledger.json'), 'utf8'));
+  assert.equal(pulled.steps.some((one) => one.id === 'script:scenario-2#2'), false);
+  // The check of step 6 of scripting-demos finds no fault, and the push check passes too, in
+  // the store that now has the row. Before the push no row of the correction is in the folder.
+  const checked = session('check', 'demo-script', draft);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  const pushed = call(['push', 'demo-script', draft], { cwd: store });
+  assert.equal(pushed.status, 0, pushed.out + pushed.err);
 });
 
 test('push check of demo-script: a third correction fails', () => {

@@ -41,7 +41,7 @@ function familyOf(id) {
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
   const { Context, MATRIX_RECORD, Missing, agentModel, approvedNumber, artifactFolder, cut,
-    isObject, liveCriteria, parseJson, plural, writeJson } = lib;
+    isObject, liveCriteria, parseJson, plainLine, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
@@ -117,6 +117,19 @@ module.exports = (lib) => {
     });
   }
 
+  // failedText returns the sentence for a demo that failed: the scenario, the step, the class
+  // and the finding of that step, which Build reads in the row of the matrix, such as "The demo
+  // of scenario-1 failed in step 2 (setup): The app did not start." The finding is one plain
+  // line, so that the text keeps the bound of the schema.
+  function failedText({ scenario, data }) {
+    const step = (Array.isArray(data.steps) ? data.steps : [])
+      .find((one) => isObject(one) && one.verdict === 'failed');
+    const finding = step && typeof step.finding === 'string'
+      ? plainLine(step.finding).replace(/[\s.]+$/, '') : '';
+    return cut(`The demo of ${scenario} failed${step ? ` in step ${step.step}` : ''}` +
+      `${data.class ? ` (${data.class})` : ''}${finding ? `: ${finding}` : ''}.`, 2000);
+  }
+
   // byDemo returns { state, text } of a criterion with the check `Demo: <title>` from the
   // demo-evidence of the scenario with that title on commit, or { reason }. With no context,
   // because the demo-evidence could not be pulled, it gives a reason.
@@ -133,8 +146,7 @@ module.exports = (lib) => {
     }
     const failed = found.find((one) => one.data.verdict !== 'passed');
     if (failed) {
-      return { state: 'not_met', text: `The demo of ${failed.scenario} failed, so the criterion ` +
-        'is not shown.' };
+      return { state: 'not_met', text: failedText(failed) };
     }
     const shown = found.find((one) => one.data.evidence === 'film' ||
       one.data.evidence === 'pictures');

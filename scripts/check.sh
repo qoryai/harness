@@ -2846,6 +2846,10 @@ expect "the tool guard's tests pass" 0 "$ROOT" node --test scripts/tool-guard.te
 # the demo scripts, and of the verb film. The tests that open a page start a browser, and skip
 # when the machine has none; the tests of a film also skip with no ffmpeg and ffprobe.
 expect "the preflight tests pass" 0 "$ROOT" node --test scripts/preflight.test.js
+# The tests of the workflow capture-demos: the verbs film, recode, todo and record on a fake
+# ffmpeg, the push check of demo-script on the build ledger, and the verdict of a run. They
+# frames skip with no ffmpeg and ffprobe.
+expect "the capture-demos tests pass" 0 "$ROOT" node --test scripts/capture-demos.test.js
 # Rule 9: the testdata passes the push programs of core and software-factory, which run the
 # push form of the checks script. $TMP/artifacts is a copy
 # with version 1 of the acceptance criteria and the questions, which the checks of the
@@ -2905,7 +2909,7 @@ build-report:software-factory:
 decision-record:software-factory:acceptance-criteria,questions
 demo-evidence:software-factory:demo-script
 demo-scenarios:software-factory:acceptance-criteria
-demo-script:software-factory:demo-scenarios
+demo-script:software-factory:demo-scenarios,build-ledger
 demo-video:software-factory:demo-script
 proposal:software-factory:
 pull-request:software-factory:

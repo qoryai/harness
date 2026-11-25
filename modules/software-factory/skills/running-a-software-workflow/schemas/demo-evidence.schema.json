@@ -54,11 +54,6 @@
         "setup"
       ]
     },
-    "retries": {
-      "type": "integer",
-      "minimum": 0,
-      "maximum": 1
-    },
     "script": {
       "$ref": "#/$defs/version"
     },

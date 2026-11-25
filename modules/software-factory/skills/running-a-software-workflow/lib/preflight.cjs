@@ -84,6 +84,9 @@ const FIRST = {
   signIn: 'End the session with points.json: the sign-in to the app failed.',
   outside: 'End the session with points.json: the sign-in opened a page outside the app.',
 };
+// The line that ends each finding, for the session to sort: a cause that no change to the
+// repository repairs, "Kind: outside", or one that a change repairs, "Kind: setup".
+const KIND = { browser: 'outside', signIn: 'outside', app: 'setup', outside: 'setup' };
 const FALLBACK = {
   app: 'the serve command of the build plan',
   signIn: 'the sign-in variables of the demo scripts',
@@ -326,6 +329,34 @@ module.exports = (lib) => {
       // No points.json, or one that cannot be read: the new points take its place.
     }
     writeJson(file, [...kept, ...points].slice(-MAX_POINTS));
+    // The texts that this call wrote, so that a later call that passes removes only those.
+    fs.mkdirSync(path.dirname(writtenFile(root)), { recursive: true });
+    writeJson(writtenFile(root), points.map((one) => one.text));
+  }
+
+  // writtenFile returns the path of the file that lists the texts of the points that preflight
+  // wrote to points.json of root.
+  const writtenFile = (root) => path.join(root, '.reports', 'preflight', 'points-written.json');
+
+  // clearPoints removes from points.json of root the points that an earlier preflight wrote,
+  // and the file when no point is left: a retry that passes leaves no point of the fault that
+  // it repaired, so that no later end of the session reads a stale one. A point that another
+  // step wrote stays.
+  function clearPoints(root) {
+    const file = path.join(root, 'points.json');
+    let written;
+    let list;
+    try {
+      written = JSON.parse(fs.readFileSync(writtenFile(root), 'utf8'));
+      list = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      return;
+    }
+    if (!Array.isArray(written) || !Array.isArray(list)) return;
+    const left = list.filter((one) => !(one && written.includes(one.text)));
+    if (left.length) writeJson(file, left);
+    else fs.rmSync(file, { force: true });
+    fs.rmSync(writtenFile(root), { force: true });
   }
 
   // keyOfQory throws the Missing of a setup of setups that types a variable of qory, of an
@@ -410,6 +441,7 @@ module.exports = (lib) => {
     }
     const checked = `Checked ${joined(did)}`;
     if (!found.length) {
+      clearPoints(root);
       const signIn = !serve ? ', and no app or sign-in: the build plan has no serve command'
         : !setups.length ? ', and no sign-in: no demo script types a variable in its setup'
           : '';
@@ -419,7 +451,7 @@ module.exports = (lib) => {
     const points = found.map((one) => pointOf(one.kind, one.value, checks));
     savePoints(root, points);
     const findings = found.map((one, at) => `${one.first || FIRST[one.kind]}\n${one.why}\n` +
-      `The fix of its point: ${points[at].fix}`);
+      `The fix of its point: ${points[at].fix}\nKind: ${KIND[one.kind]}`);
     const parts = new Set(found.map((one) => one.part)).size;
     return { status: 1, findings, points, last: `${checked}: ${parts} of ` +
       `${plural(did.length, 'part')} ${parts === 1 ? 'is' : 'are'} missing, and ` +

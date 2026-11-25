@@ -22,11 +22,14 @@ module.exports = (lib) => {
   // frozen finds a script that differs from the one that the build ledger froze: the newest
   // done step script:<id> has another sha256, and the ledger has no step for the next
   // correction yet, or the scenario has had its 2 corrections. A scenario with no done step is
-  // unfrozen.
+  // unfrozen. Only the push checks it: step begin pushes the row of the correction, and the
+  // folder of a check still holds the ledger that the last pull stored, so a check of the draft
+  // before the push would find no row. demo check reads the copy of the ledger under .reports.
   // shortcut: the next correction is taken as #<done rows + 1>, which assumes the done rows are
   // contiguous from the first pass; replace it with the highest id of the ledger when a row can
   // be missing.
   function frozen(run, file, data, text) {
+    if (run.context.mode !== 'push') return;
     const ledger = ledgerOf(run.context);
     const rows = doneRows(ledger, data.scenario);
     if (!rows.length || sha256(text) === rows[rows.length - 1].script_sha256) return;

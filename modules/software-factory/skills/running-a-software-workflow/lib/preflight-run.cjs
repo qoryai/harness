@@ -275,7 +275,9 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
 
 // runs replays each script of spec.runs, { setup, steps, names, capture }: its setup as a
 // sign-in, then the actions of each step in order, and resolves to { ok, step, why, outside,
-// capture } for each. step is the number of the step that failed, 0 for the setup, or null.
+// capture, variable } for each. step is the number of the step that failed, 0 for the setup, or
+// null. variable is the name of a variable with no value that failed the run, and capture of a
+// run that failed in a step holds what the steps before it and the failed one stored.
 // With capture, { kind, dir, name, widths } of lib/capture.cjs, the page has the window of a
 // film, the setup is no part of what is stored, and capture of the result is what finish of
 // lib/capture.cjs returns.
@@ -292,8 +294,21 @@ const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
       if (taken) await taken.begin(place);
       const done = await replay(page, step, { ...options, origin });
       if (done.failure) {
-        return { ok: false, step: place + 1, why: done.failure.words,
-          outside: done.failure.outside };
+        const failed = { ok: false, step: place + 1, why: done.failure.words,
+          outside: done.failure.outside,
+          ...(done.failure.variable ? { variable: done.failure.variable } : {}) };
+        // A film keeps its frames up to the failed step, and pictures the pictures of the steps
+        // before it, for the reviewer. A capture that fails to write them leaves the failure
+        // as it is.
+        if (taken) {
+          try {
+            failed.capture = await taken.finish();
+          } catch {
+            // shortcut: a capture that cannot finish stores nothing for the failed run; replace
+            // it with the frames written so far when a run image makes finish fail.
+          }
+        }
+        return failed;
       }
       if (taken) await taken.end(place);
     }
