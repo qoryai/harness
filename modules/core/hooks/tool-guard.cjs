@@ -706,6 +706,8 @@ function lockTypeOf(args) {
 // guard reads no other record. Every other file stays locked, also when the type has no
 // `lock.writable`, when it throws, or when it returns no list; an entry of the list that is no
 // text lifts nothing. name is the name of the agent of the call, or null for the main session.
+// When `lock.writable` throws the line of a failed pull, `qory artifact pull` and what to run,
+// the lock that it returns has `retry`, that text, which the deny shows.
 function liftedLock(lock, { io, name, fold, type }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
     name === null || !type) return lock;
@@ -714,8 +716,10 @@ function liftedLock(lock, { io, name, fold, type }) {
   let free;
   try {
     free = writable({ io: io(), agent: name, checks: lock.checks, fold });
-  } catch {
-    return lock;
+  } catch (error) {
+    const lines = String((error && error.message) || '').split('\n');
+    return /^Run `qory artifact pull/.test(lines[0]) ? { ...lock, retry: lines.slice(1)
+      .concat(lines[0]).join(' ') } : lock;
   }
   if (!Array.isArray(free)) return lock;
   const lifted = new Set(free.filter((one) => typeof one === 'string').map(fold));
@@ -2344,11 +2348,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   // link outside the root to a locked file passes the file tools; keptFiles, the push check and
   // lock --verify catch it, replace it when every written path is compared by device and inode.
   if (paths.some((full) => inside(full, root))) {
-    const { files = [], what, problem, type } = lockOf();
+    const { files = [], what, problem, type, retry } = lockOf();
     if (problem) return unread({ type, problem });
     const file = paths.find((full) => files.some((one) => fold(one) === fold(full) ||
       sameFile(full, one)));
-    if (file) return lockedReason(file, root, what);
+    if (file) return lockedReason(file, root, what, retry);
   }
   const unsure = walked.find((one) => one.unsure);
   if (unsure) return `${UNSURE}The call writes ${unsure.real}.`;
@@ -2614,10 +2618,10 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
     const target = (one.shell || [one.full]).find((full) => hit(full, one.folder, one.step));
     if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
-  const { files = [], what, problem, type } = lockOf();
+  const { files = [], what, problem, type, retry } = lockOf();
   if (problem) return unread({ type, problem });
   const file = files.find((full) => hit(full, false));
-  if (file) return lockedReason(file, root, what);
+  if (file) return lockedReason(file, root, what, retry);
   // A command whose writes the guard does not read: a locked file or .qory/build/ in the text
   // of the call denies it.
   const reached = dark && reaches(all, files, path.join(root, BUILD), root, how);
@@ -2846,11 +2850,13 @@ function linked(pattern) {
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on
-// the second line, so that the first line stays within 100 characters.
-function lockedReason(file, root, what) {
+// the second line, so that the first line stays within 100 characters. With retry, the text of
+// a failed pull of the lift, a third line has the cause and the command to run.
+function lockedReason(file, root, what, retry) {
   const shown = under(file, root) ? path.relative(root, file) : file;
   return `Leave the locked file as it is: ${what} locks it.\nThe call writes ${shown}. ` +
-    "A change to a locked file fails Verify's lock --verify --version <N>.";
+    "A change to a locked file fails Verify's lock --verify --version <N>." +
+    (retry ? `\nThe lift of a changed check failed: ${retry}` : '');
 }
 
 // placeOf returns { cwd, root, artifacts } of a call: the folder of the hook's input, root

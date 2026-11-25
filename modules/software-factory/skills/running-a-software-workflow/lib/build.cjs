@@ -522,26 +522,29 @@ module.exports = (lib) => {
   }
 
   // criteriaReads returns { questions, locks, criteria }: what criteriaTarget reads of the store
-  // besides index.json, for the criteria versions that a note links and no person wrote.
-  // questions is the number of the newest version of the questions that counts in index.json,
-  // as newest reads it, or null for none. locks lists the numbers of the acceptance-lock
-  // versions it reads: the newest one older than each such version, as lockBefore picks it, and
-  // the newest one when a version is linked to an answer. criteria lists the numbers of the
-  // versions linked to an answer, whose files the question rule reads. A run pulls each of
-  // them, by number, before it calls criteriaTarget.
+  // besides index.json. Only a version above the approved one, which a note links to an answer,
+  // that no person wrote and whose time parses, can change its result by a read: the others
+  // read none. For such a version, locks lists the newest lock, which lockedByNewest reads, and
+  // when a lock is older than the version, as lockBefore picks it, that lock too, criteria
+  // lists the version, whose file the question rule reads, and questions is the number of the
+  // newest version of the questions that counts in index.json, as newest reads it, or null.
+  // A run pulls each of them, by number, before it calls criteriaTarget.
   function criteriaReads(context) {
+    const found = { questions: null, locks: new Set(), criteria: new Set() };
+    const approvedVersion = approvedNumber(context, 'acceptance-criteria');
+    if (approvedVersion === null) return { questions: null, locks: [], criteria: [] };
     const locks = liveLocks(context);
-    const found = { questions: context.counted('questions'), locks: new Set(),
-      criteria: new Set() };
     for (const one of countedOf(context, 'acceptance-criteria')) {
-      if (byPerson(one) || !linked(one)) continue;
-      const { last } = lockBefore(context, locks, one);
-      if (last !== null) found.locks.add(last.number);
-      if (!ANSWER.test(one.decision)) continue;
-      found.criteria.add(one.number);
+      if (one.number <= approvedVersion || byPerson(one) || !linked(one) ||
+        !ANSWER.test(one.decision) || Number.isNaN(timeOf(one.at))) continue;
       if (locks.length && !context.withdrawn('acceptance-lock')) {
         found.locks.add(locks.reduce((a, b) => (b.number > a.number ? b : a)).number);
       }
+      const { last } = lockBefore(context, locks, one);
+      if (last === null) continue;
+      found.locks.add(last.number);
+      found.criteria.add(one.number);
+      found.questions = context.counted('questions');
     }
     return { questions: found.questions, locks: [...found.locks], criteria: [...found.criteria] };
   }
