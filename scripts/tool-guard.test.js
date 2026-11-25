@@ -5503,7 +5503,10 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   const glob = 'qory-artifacts/.step-report?';
   for (const command of [`rsync -R ${glob} ${above}`, `rsync -aR ${glob} ${above}`,
     `rsync --relative -a ${glob} ${above}`, `cp --parents ${glob}/x.json ${above}`,
-    `cp -R --parents ${glob} ${above}`, `cp x ${link}/.step-report?/`,
+    `cp -R --parents ${glob} ${above}`, `cp --pa ${glob}/x.json ${above}`,
+    `cp --parent ${glob}/x.json ${above}`, `cp --path ${glob}/x.json ${above}`,
+    `rsync --files-from=list.txt . ${above}`, `rsync -a --files-from list.txt . ${above}`,
+    `cp x ${link}/.step-report?/`,
     `cp -R src/. ${link}/.step*`, `mv x ${link}/.step-report?`, `rm -rf ${link}/.step*`,
     `rsync -a src/ ${link}/.step-report?/`]) {
     firstLine(call(command), STEP_KEPT);
@@ -5516,7 +5519,9 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   // path into .qory/, which only the step reports read so.
   for (const command of [`rsync -R ${glob} /x`, `cp --parents ${glob}/x.json /x`,
     `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`,
-    'rsync -R src/a .qory/', `rsync -a -- -R ${above}`]) {
+    'rsync -R src/a .qory/', `rsync -a -- -R ${above}`, `cp --p ${glob}/x.json ${above}`,
+    // rsync stops at a shortened long option, as popt matches only whole names.
+    `rsync --rel ${glob} ${above}`]) {
     assert.equal(call(command), null, command);
   }
 });

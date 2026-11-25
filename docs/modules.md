@@ -1907,7 +1907,8 @@ tool's error. The first line of each reason starts with what to do. The guard de
   when a source has the name of the folder below it, as in `cp -R qory-artifacts /tmp`, is
   vague, as in `"$f"`, or ends with `/` or `/.`, as in `cp -R stage/. /tmp`, and so are
   `cp -rT` and a copy that writes each source by its path below the destination:
-  `cp --parents`, `rsync -R` and `rsync --relative`. So is a move or a removal of such a
+  `cp --parents`, also as `--path` or a prefix of either from `--pa`, and `rsync -R`,
+  `--relative` or `--files-from`, which implies `-R`. So is a move or a removal of such a
   folder. A glob reaches the folder through a link to the artifact folder, as in
   `rm -rf link/.step*`. A move whose source the guard cannot tell from its destination is
   denied too: `find ... -exec mv {} /tmp \;`, `xargs -I{} mv {} /tmp`, `sh -c 'mv a /tmp'`
@@ -1920,8 +1921,9 @@ tool's error. The first line of each reason starts with what to do. The guard de
   as in `find src -exec cp -R {} /tmp \;`, a copy that the guard splits at a redirect, as in
   `cp -R src/. /x 2>&1 /tmp`, a copy of `.`, as in `cp -R . /tmp`, a copy with `-t` in a
   combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, a copy by `ditto`,
-  as in `ditto stage /tmp`, and a glob whose wildcard matches a link, as in
-  `cp x lin?/.step-report?/`. On Gemini CLI, Cursor and Copilot CLI no guard protects
+  as in `ditto stage /tmp`, a glob whose wildcard matches a link, as in
+  `cp x lin?/.step-report?/`, and a copy by `gcp`, the name of GNU cp in a Homebrew install,
+  as in `gcp --parents a/b /tmp`. On Gemini CLI, Cursor and Copilot CLI no guard protects
   `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of

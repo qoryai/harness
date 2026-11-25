@@ -1819,14 +1819,18 @@ function contentsInto(words) {
 }
 
 // keepsPaths reports whether words, a cp or an rsync, write each source by its path below the
-// destination: cp with --parents, and rsync with -R or --relative, as in rsync -R a/b /x.
+// destination: cp with --parents, --path or a prefix from --pa, as GNU getopt reads one, and
+// rsync with -R, --relative or --files-from; rsync's popt reads no shortened long option.
 function keepsPaths(words) {
   const tool = path.basename(words[0] || '');
   const end = words.indexOf('--');
   const options = words.slice(1, end < 0 ? words.length : end);
-  if (tool === 'cp') return options.includes('--parents');
+  if (tool === 'cp') {
+    return options.some((word) => word.length >= 4 &&
+      ['--parents', '--path'].some((name) => name.startsWith(word)));
+  }
   return tool === 'rsync' && options.some((word) => word === '--relative' ||
-    /^-[^-]*R/.test(word));
+    /^--files-from(?:=|$)/.test(word) || /^-[^-]*R/.test(word));
 }
 
 // movesInto reports whether words, a mv, move sources into dest, so that it removes the sources
