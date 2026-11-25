@@ -424,6 +424,17 @@ test('feedback open leaves out an answer to a question, and lists a question wit
   const ended = open(store(types(answered, { ...Q5, state: 'answered',
     answer: { note: 'Both.', by: SAM, at: AT } })), [GD1, GD2]);
   assert.deepEqual([ended.status, ended.lines.length], [0, 1]);
+  // The check of feedback leaves out the answer too: it needs no source, and gets none.
+  const answer = notes[2];
+  const draft = (data) => {
+    const root = store(types(answered, Q5));
+    write(path.join(root, 'feedback.json'), data);
+    return run(root, notes, ['check', 'feedback', path.join(root, 'feedback.json')]);
+  };
+  passes(draft(ASKED));
+  const key = commentKey(answer.at, answer.note);
+  fails(draft({ ...ASKED, sources: [...ASKED.sources, sourceOf(key, 'comment', answer.note)] }),
+    `Remove source ${key} from feedback.json.`);
 });
 
 test('feedback open exits 3 when the notes cannot be read', () => {

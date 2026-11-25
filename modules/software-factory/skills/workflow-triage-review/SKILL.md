@@ -43,9 +43,11 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
    `<skill folder>/checks.cjs starts <run> triage-review-1-feedback-triager 3`, as "Count
    the starts" of `running-a-workflow` lists. With sources, it drafts `feedback.json`.
 4. With sources, run `<skill folder>/checks.cjs check feedback <folder>/feedback.json`. With
-   1, start the triager again with every line quoted, then check again. At the third check
-   that exits with 1, or when `starts` exits with 1, push nothing and do "Feedback that
-   cannot be sorted".
+   1, start the triager again with every line quoted, then check again. A finding "Add the
+   source <id> to feedback.json." is a note that came during the run: before that start, run
+   `<qory> artifact pull questions`, then `<skill folder>/checks.cjs feedback open`, and give
+   the triager its lines too. At the third check that exits with 1, or when `starts` exits
+   with 1, push nothing and do "Feedback that cannot be sorted".
 5. When the triager's list "What only a person can settle" has an item, start
    ${qory:agents/questions-writer} with the input file's path, the artifact folder, the
    run's number and the triager's two lists. Then run
@@ -56,7 +58,8 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
    and the ids of the questions. It adds the `reply` of each new point. Then run the check
    of step 4 again. A finding on a `reply` goes to the reply writer, and a finding on a
    question, such as "Give q5 2 to 4 options.", to the questions writer, as "Check before
-   each push" lists. Any other finding goes to the triager, as step 4 lists.
+   each push" lists. Any other finding goes to the triager, as step 4 lists; when the triager
+   adds points then, start the reply writer again with their ids.
 7. With sources, push the feedback:
    `<qory> artifact push feedback <folder>/feedback.json`. Then take the time, as "The time
    of a version" of `run-artifacts` lists. With no source, the time is the largest `at` in

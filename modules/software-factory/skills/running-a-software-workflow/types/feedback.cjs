@@ -58,7 +58,8 @@ module.exports = (lib) => {
       return;
     }
     run.did('notes of the work item');
-    const all = new Map(sourcesOf(read.notes).map((source) => [source.id, source]));
+    const open = sourcesOf(read.notes, stored(run.context));
+    const all = new Map(open.map((source) => [source.id, source]));
     for (const source of data.sources.slice(before.sources.length)) {
       const note = all.get(source.id);
       if (!note) {
@@ -69,7 +70,7 @@ module.exports = (lib) => {
       }
     }
     if (run.context.mode !== 'check') return;
-    for (const note of sourcesOf(read.notes, stored(run.context))) {
+    for (const note of open) {
       if (!lists(data, note)) {
         run.find(`Add the source ${note.id} to ${FILE}.\nThe work item has that note, ` +
           'and no source has its id.');
