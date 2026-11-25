@@ -545,9 +545,9 @@ test('process.yaml lists the seven custom types of Build and Verify last, with t
   }
 });
 
-// The track texts are the ones the user signed off on 2026-11-16. Qory Apiary offers a
-// track at a gate only when the document declares it, and refuses a verdict with another track
-// (422). shortcut: only `standard` is declared; add `fast-track` with H-32d.
+// Qory Apiary offers a track at a gate only when the document declares it, and refuses a
+// verdict with another track (422).
+// shortcut: only `standard` is declared; add the fast track's id with its workflow.
 test('process.yaml declares the track standard, and Explore\'s gate offers it alone', () => {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const declared = /\n {2}tracks:\n((?: {4}.*\n| {6}.*\n)+) {2}stages:\n/.exec(yaml);
