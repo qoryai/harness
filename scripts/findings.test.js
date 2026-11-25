@@ -138,19 +138,51 @@ test('reviewing-changes has the steps to write one file and, when the reviewer c
   assert.match(REVIEWING, /--before-context\s+--regexp`/);
   assert.match(REVIEWING, /Start no agent and use no network\./);
   assert.match(REVIEWING, /with\s+Write or, on Codex, with `apply_patch`/);
-  // The report has no result word, no list of unverified claims and no closing of a finding.
-  for (const gone of ['changes-needed', 'Unverified', 'Earlier findings', 'Closed:',
-    'no break', 'planted fault']) {
+  // The report has no result word and no list of unverified claims.
+  for (const gone of ['changes-needed', 'Unverified', 'Closed:', 'no break', 'planted fault',
+    'Nobody closes a finding']) {
     assert.ok(!REVIEWING.includes(gone), gone);
   }
-  assert.match(REVIEWING, /Nobody closes a finding/);
+});
+
+// The report of a later round, the second fenced json block of "The report".
+const LATER_EXAMPLE = JSON.parse([...REVIEWING.matchAll(/```json\n([\s\S]*?)\n```/g)][1][1]);
+
+test('reviewing-changes repeats and closes earlier findings by id, and caps a report at 100', () => {
+  assert.deepEqual(problems(LATER_EXAMPLE), []);
+  assert.deepEqual(LATER_EXAMPLE.findings.map((one) => one.id), ['f3']);
+  assert.deepEqual(LATER_EXAMPLE.closes.map((one) => one.state), ['fixed', 'dismissed']);
+  const earlier = /## Earlier findings\n([\s\S]*?)\n## /.exec(REVIEWING)[1].replace(/\s+/g, ' ');
+  for (const text of ['repeat it in `findings` with its `id`',
+    'A repeat of a closed finding opens it again.', 'close it in `closes` as `fixed`',
+    'close it in `closes` as `dismissed`', 'You may dismiss a finding of yours that nobody ' +
+      'disputed.', 'A finding of yours that your report neither repeats nor closes stays open.',
+    'check it against the frozen state, and never take it as proof',
+    'Repeat or close only findings of your role in this stage, and never repeat and close one ' +
+      'id']) {
+    assert.ok(earlier.includes(text), text);
+  }
+  // The core definition of blocking, in words of any kind of work.
+  assert.ok(REVIEWING.replace(/\s+/g, ' ').includes('the finding breaks an acceptance ' +
+    'criterion, loses data, opens a security hole, such as an exposed secret, or fails a ' +
+    'required check.'));
+  // Each reviewer of a change caps its report as the format does.
+  const cap = 'Report at most 100 findings, the blocking ones first.';
+  assert.ok(REVIEWING.includes(cap));
+  for (const agent of ['code', 'test', 'acceptance', 'security', 'data', 'failure', 'tamper',
+    'verification']) {
+    const text = fs.readFileSync(path.join(MODULES, 'software-factory', 'agents',
+      `${agent}-reviewer.md`), 'utf8').replace(/\s+/g, ' ');
+    assert.ok(text.includes(cap), agent);
+    assert.ok(!text.includes('this is the first round'), agent);
+  }
 });
 
 test('judging-findings defines a blocking finding word for word, and lists the values', () => {
   assert.ok(JUDGING.includes('a bug, a security hole, data loss, a broken acceptance criterion ' +
     'or a failing test; every other finding is non-blocking'));
-  for (const name of ['commit', 'diff', 'suite_result', 'previous_findings', 'build_report',
-    'report']) {
+  for (const name of ['commit', 'commit_folder', 'diff', 'suite_result', 'previous_findings',
+    'build_report', 'report']) {
     assert.match(JUDGING, new RegExp(`^- \`${name}\`: `, 'm'), name);
   }
   assert.match(JUDGING, /\$\{qory:skills\/reviewing-changes\}/);

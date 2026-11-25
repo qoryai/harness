@@ -62,13 +62,15 @@ The prompt contains the path of the input file. Read `qory.review_session` and
 `qory.start_artifacts` in it. Where a skill lists a value of `qory.review`, read the member
 of the same name in `qory.review_session`. In `qory.review_session`, `commit` is the commit
 under review, `diff` is the path of the file with the diff of the change,
-`previous_findings`, when it exists, is the path of `open-findings.json`, `reports` is the
-report folder, `suite_result`, when it exists, is the path of the file with the suite
-result, `{tests, failed, skipped, output_tail}`, and `build_report`, when it exists, is the
-path of the file with the report of the build. The working folder is the read-only copy of
-the change at `commit`. The report goes to `<reports>/verification-reviewer.json`, not to
-the path that `reviewing-changes` gives. You get no summary from another session. You fetch
-no web page. A refused tool call stays refused. Read through no link.
+`previous_findings`, when it exists, is the path of the file with the earlier findings of
+the stage, as `judging-findings` lists, `reports` is the report folder, `suite_result`, when
+it exists, is the path of the file with the suite result,
+`{tests, failed, skipped, output_tail}`, and `build_report`, when it exists, is the path of
+the file with the report of the build. `commit_folder` is the path of the read-only copy of
+the change at `commit`: read the change there, because the working folder is empty. The
+report goes to `<reports>/verification-reviewer.json`, not to the path that
+`reviewing-changes` gives. You get no summary from another session. You fetch no web page. A
+refused tool call stays refused. Read through no link.
 
 ## Stop conditions
 
@@ -89,8 +91,9 @@ because your session ended with no report.
 
 These cases are no reason to stop:
 
-- With no `previous_findings` in `qory.review_session`, this is the first round: go on. The
-  same holds when its file has no open finding. Judge the matrix from the files alone.
+- With no `previous_findings` in `qory.review_session`, the stage has no earlier finding of
+  a reviewer: go on. The same holds when its file has no finding of your role. Judge the
+  matrix from the files alone.
 - A finding that only a person can settle is a finding: write it, with the severity that
   the definition of `blocking` sets. A review of a change has no route to a person.
 - A finding outside the area of this review: leave it out, because the reviewer of that
@@ -101,9 +104,9 @@ These cases are no reason to stop:
 
 Write the report as the section "The report" of `reviewing-changes` lists: one JSON file
 with `reviewer` set to `verification-reviewer` and the list `findings`, empty when you find
-nothing. Each lowered state is one `blocking` finding.
-Write it once, as your last step, at `<reports>/verification-reviewer.json`. Your text after
-the write is no part of the review.
+nothing. Report at most 100 findings, the blocking ones first. Each lowered state is one
+`blocking` finding. Write it once, as your last step, at
+`<reports>/verification-reviewer.json`. Your text after the write is no part of the review.
 
 A report of this review with one finding looks like this:
 

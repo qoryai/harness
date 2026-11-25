@@ -60,7 +60,8 @@ const REVIEWERS = ['code-reviewer', 'test-reviewer', 'acceptance-reviewer'];
 // The members of qory.review_session that each reviewer of a review session reads, in the
 // words of judging-findings. Change the names here, and the test shows each text to change.
 const SESSION_VALUES = 'Read each value from `qory.review_session`, which qory writes: ' +
-  '`commit`, `diff`, `suite_result` and, when qory writes them, `previous_findings`, ' +
+  '`commit`, `commit_folder`, `diff`, `suite_result` and, when qory writes them, ' +
+  '`previous_findings`, ' +
   '`build_report` and `outputs`.';
 // The members of the group role reviewers with paths; REVIEWERS have none, so they start for
 // every change.
@@ -142,7 +143,8 @@ test('each reviewer reads qory.review, or qory.review_session in a review sessio
     says(text, 'has neither `qory.review` nor `qory.review_session`');
     says(text, 'In a review session, also `reports` is missing from `qory.review_session`.');
     says(text, '`previous_findings` is given, and the file at its path cannot be read.');
-    says(text, 'With no `previous_findings`, this is the first round: go on.');
+    says(text, 'With no `previous_findings`, the stage has no earlier finding of a reviewer: ' +
+      'go on.');
     assert.doesNotMatch(text, /`qory\.review\.report`/, name);
   }
 });
