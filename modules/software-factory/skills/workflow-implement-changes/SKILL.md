@@ -229,7 +229,7 @@ with 128, as for a new repository folder with no commit or a file that git canno
 commit has only the changes to files that git tracks, and no new file; when git cannot read
 a tracked file, `git commit` exits with 128 too and makes no commit. When a submodule or a
 new repository folder has changed files, those files stay out of the commit. In both cases
-the end check stops each end, and its third stop ends the run with its point.
+the end check stops each end, and its third stop ends the run with the end check's point.
 
 Then do "The submission". When a case of "The submission" ends the run, end as that case
 lists. Otherwise write no `points.json`, run no verdict command, and do no later step.

@@ -157,7 +157,7 @@ test('the session starts the developer twice and the debugger once per step, the
     'file; when git cannot read a tracked file, `git commit` exits with 128 too and makes no ' +
     'commit. When a submodule or a new repository folder has changed files, those files stay ' +
     'out of the commit. In both cases the end check stops each end, and its third stop ends ' +
-    'the run with its point.');
+    'the run with the end check\'s point.');
   assert.doesNotMatch(oneLine(failed), /git checkout|rm -rf|scope --plan|same: /);
   contains(failed, 'Then do "The ' +
     'submission". When a case of "The submission" ends the run, end as that case lists. ' +
