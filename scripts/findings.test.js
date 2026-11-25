@@ -337,8 +337,8 @@ test('findings open: the point loses control characters and stops at 500 charact
 test('findings open: each broken form of the file exits 3 with the fix on line 1', () => {
   const SOURCE = new RegExp('a source whose kind is not reviewer, check, hook, criterion or ' +
     'scenario, or that has no name');
-  const PERSON = new RegExp('open-\\d+\\.json: finding 1 has source kind person, which no ' +
-    'module of this harness adds\\.');
+  const PERSON = new RegExp('Add the module that adds source kind person to the harness: ' +
+    'open-\\d+\\.json has it in finding 1, and no module of this harness adds it\\.');
   const REPLIES = /replies that are not a list of a kind, a reason and a round/;
   const finding = (change) => ledger(1, [{ reviewer: 'code-reviewer',
     findings: [{ ...FINDING, ...change }] }]);
@@ -1251,8 +1251,8 @@ test('findings open: with core alone, a finding of the kind criterion exits 3', 
   assert.equal(result.status, 3, result.out + result.err);
   assert.deepEqual((result.out + result.err).split('\n').slice(0, 2), [
     'Give findings open the open-findings.json that qory wrote.',
-    `  ${path.basename(file)}: finding 1 has source kind criterion, which no module of this ` +
-      'harness adds.']);
+    '  Add the module that adds source kind criterion to the harness: ' +
+      `${path.basename(file)} has it in finding 1, and no module of this harness adds it.`]);
   assert.equal(call(['findings', 'open', put(ROUND)], plugin).status, 1);
 });
 

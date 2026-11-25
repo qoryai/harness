@@ -230,8 +230,9 @@ function readOpen(data, name, kinds,
         `${known.slice(0, -1).join(', ')} or ${known.at(-1)}, or that has no name`);
     }
     if (!kinds.has(source.kind)) {
-      throw new Missing(`${fix}\n${short(plain(name), 60)}: ${which} has source kind ` +
-        `${short(plain(source.kind), 40)}, which no module of this harness adds.`);
+      const kind = short(plain(source.kind), 40);
+      throw new Missing(`${fix}\nAdd the module that adds source kind ${kind} to the harness: ` +
+        `${short(plain(name), 60)} has it in ${which}, and no module of this harness adds it.`);
     }
     const label = kinds.get(source.kind);
     if (!SEVERITIES.includes(finding.severity)) {
