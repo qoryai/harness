@@ -1028,14 +1028,14 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '7. Before the first run of a script in this session, run ' +
       '`<skill folder>/checks.cjs preflight --inputs <inputs>` once',
     '8. Run `<skill folder>/checks.cjs demo run <id> --inputs <inputs>`',
-    '9. Push it, as "Push only what changed"',
+    '9. Run `<skill folder>/checks.cjs step end <step> done` once more',
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'When a line of the finding starts with',
     '"Push the frozen script"',
     'Otherwise run',
     'a script has 2',
-    'With 0 and a line that starts with "Start check-reviewer"');
+    'With 0, have the script reviewed. A line that starts with "Start check-reviewer"');
   inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
     'skip steps 2 to 4, do step 1, and go on from step 5',
     'starts with "Push the frozen script", the pushed script differs from the newest done ' +
@@ -1044,9 +1044,52 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     'Run this step once for each `<step>`');
   inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',
     'Open only pages under <App address> in the sign-in steps of <script>.',
-    'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
-      'that passed, whether the author wrote it or it is a copy of the pushed file',
-    'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"');
+    'With 0, have the script reviewed. A line that starts with "Start check-reviewer" means ' +
+      'that the draft changes a script that passed, whether the author wrote it or it is a ' +
+      'copy of the pushed file; for the first script there is no such line',
+    '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
+    'Count the start, as "Count the starts" of `running-a-workflow` lists. For the first ' +
+      'review of `script:<id>`, run `<skill folder>/checks.cjs starts <run> ' +
+      'implement-changes-check-reviewer-<id> 1`.',
+    // After a lost session, the first review of the scenario is in the counts of the run.
+    'When that `starts` exits with 1 because the first script of the scenario had its first ' +
+      'review earlier in this run, count the review as a later review. With 0, run ' +
+      '`<skill folder>/checks.cjs starts <run> implement-changes-first-scripts 12`: the first ' +
+      'script of a scenario has 1 start, and only the first review of each first script ' +
+      'counts toward the 12 of the run.',
+    'For each later review of `script:<id>`, such as of a script that the author fixed after ' +
+      'a finding, and for a correction, run `<skill folder>/checks.cjs starts <run> ' +
+      'implement-changes-<n>-check-reviewer 3`: these reviews have the 3 starts of the ' +
+      'corrections. All scenarios of a follow share these 3 starts. When another `starts` ' +
+      'exits with 1, run `step end <step> failed`',
+    'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
+    'For a correction, add the line "Review the change to a demo script" and the path of the ' +
+      'script that passed',
+    // A review with only non-blocking findings after the last of the 3 starts gets no fix.
+    'With `changes-needed` and only non-blocking findings in its report file, after a ' +
+      '`starts` of `implement-changes-<n>-check-reviewer 3` in this follow printed "This is ' +
+      'the last start.", no start of the 3 is left: start no author, and go on to step 6 with ' +
+      'the script as it was reviewed.',
+    // starts prints that line whenever a count reaches its limit, as each first review does.
+    'Only the line of that `starts` counts; the `starts` of a first review prints "This is ' +
+      'the last start." every time.',
+    'A session that started again after a lost session cannot see whether that line was ' +
+      'printed, so it starts the author as before.',
+    'Step 10 then ends the step `done` with the sha256 of that script, and the report of that ' +
+      'sha256 has those findings.',
+    'With any other `changes-needed`, do "Start the author again", with each finding quoted; ' +
+      'the review of the fixed script has the 3 starts of the corrections. While a start of ' +
+      'the 3 is left, a non-blocking finding needs a fix and a later review too.',
+    'review a script that changes after its review again');
+  // The report file is read after each review, before the run and the push of the script.
+  inText(SCRIPTING, 'With `blocked`, run `step end <step> failed`, and end as "Failures" lists. ' +
+    'Then run the same call of `step end` again for the report file, as "The build ledger" ' +
+    'lists, and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" ' +
+    'or "Fix the blocking findings".', '8. Run `<skill folder>/checks.cjs demo run <id>',
+    '9. Run `<skill folder>/checks.cjs step end <step> done` once more.',
+    'go back to the review of step 5. Otherwise push the script',
+    'With a line that starts with "Run demo run", the sha256 is not that of `.demo/<id>.json`: ' +
+      'do steps 8 to 10 again, once. With that line again, run `step end <step> failed`');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',
     'With no such plan, it compares nothing');
@@ -1064,4 +1107,19 @@ test('check-reviewer: a branch for the change to a demo script that passed', () 
     'A removed action, a changed `open` address, a changed variable name, a changed sign-in',
     'so a difference there is a finding too', '## Stop conditions',
     'In the review of a demo script, you get none.');
+});
+
+test('check-reviewer: a branch for the first demo script of a scenario', () => {
+  inText(SCRIPTING, '`check-reviewer` reviews the first script and each correction before it runs');
+  // A start that writes only the report counts toward no limit, as for every reviewer.
+  assert.ok(!SCRIPTING.includes('writes only the report of a first script'));
+  inText(REVIEWER, 'Also reviews the first demo script of a scenario', '## A demo script',
+    'when your input has the line "Review the first demo script"',
+    'the paths of the input file, the artifact folder, the demo scenarios and the new script, ' +
+      'and the id of the scenario', 'you need no draft lock and no "Changed paths:"',
+    'Report each of these as a finding marked `writer`, `no direction` and `break`',
+    'the actions of a step do not do what its Action in the scenario describes',
+    'What the viewer sees', 'the starting state of the scenario',
+    'no code of the working folder can produce the target of a click or type action',
+    'a password, key or token', '## Stop conditions');
 });

@@ -1162,14 +1162,20 @@ test('demo-script: the check of the draft passes after step begin pushed the row
   });
   const draft = path.join(artifacts, '.demo', 'scenario-2.json');
   fs.mkdirSync(path.dirname(draft), { recursive: true });
-  fs.writeFileSync(draft, changed);
-  // The first pass: begin the step, end it done with the sha256 of the frozen script.
+  fs.writeFileSync(draft, frozenText);
+  // The first pass: begin the step, end it done with the sha256 of the frozen script, which
+  // check-reviewer passed in its report for that sha256. Then the author changes the draft.
   assert.equal(session('resume').status, 0);
   const first = session('step', 'begin', 'script:scenario-2', 'implement-changes', ...files);
   assert.equal(first.status, 0, first.out + first.err);
+  const report = path.join(artifacts, '.step-reports', 'check-reviewer',
+    `${sha256(frozenText)}.json`);
+  fs.mkdirSync(path.dirname(report), { recursive: true });
+  fs.writeFileSync(report, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
   const ended = session('step', 'end', 'script:scenario-2', 'done', '--script-sha256',
     sha256(frozenText));
   assert.equal(ended.status, 0, ended.out + ended.err);
+  fs.writeFileSync(draft, changed);
   // The next session pulls the ledger with the done row, then begins the correction. The pushed
   // row is in the store, and the pulled folder still has the ledger of the pull.
   assert.equal(session('resume').status, 0);

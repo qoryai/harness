@@ -8,8 +8,9 @@
 // whose input has no agent_id, and a read-only agent on Claude Code are exempt: their stop is
 // the time limit and the end check. A read-only agent is one whose file
 // $QORY_HARNESS_HOME/modules/<module>/agents/<name>.md has a `tools` key that lists tools,
-// none of them in WRITING; readOnly reads the name from agent_type. On Codex, every agent
-// counts, because apply_patch writes in every role.
+// none of them in WRITING, or Write alone for an agent of STEP_REVIEWERS, which writes one
+// report; readOnly reads the name from agent_type. On Codex, every agent counts, because
+// apply_patch writes in every role.
 //
 // The count of an agent is in <root>/.qory/build/steps/<session_id>--<agent_id>.json, where
 // root is the working folder of the run. The guard denies an agent's write to .qory/build/,
@@ -49,6 +50,9 @@ const UNWRITABLE = 'Report to a member: the step limit cannot write the step cou
   'agent.\nThe count folder is ';
 // The tools whose presence in an agent's `tools` key make it an agent that may write.
 const WRITING = new Set(['Write', 'Edit', 'MultiEdit', 'NotebookEdit', 'Bash', 'apply_patch']);
+// The agents that review the file of a step inside a session: tool-guard.cjs lets each of them
+// write one file, its report, so Write in their `tools` key leaves them read-only agents.
+const STEP_REVIEWERS = new Set(['check-reviewer', 'plan-reviewer']);
 // The prefix of an agent of the harness's Claude Code plugin in agent_type.
 const PLUGIN = 'harness:';
 // The folder of the counts, below the working folder, in the folder that the guard keeps
@@ -72,14 +76,15 @@ function filesOf(root, input) {
 }
 
 // readOnly reports whether the agent of agent_type has a `tools` key that lists tools, none
-// of them in WRITING, in its file under <home>/modules/*/agents/, where home is the composed
-// harness. Only on Claude Code, where agent_type is PLUGIN and the name: a bare name can also
-// be an agent of the project, so it may write. On Codex, every role can run apply_patch,
-// whatever its file lists, so no agent is read-only. The key lists its tools on its line,
-// split by commas, or as a YAML list on the lines after it. An agent with no file, no `tools`
-// key or an empty list may write. When the home or the agent's file lies below root, the
-// working folder, the file must lie in the real folder of the home, below root, where
-// tool-guard.cjs denies each write; else an agent could edit its `tools` key.
+// of them in WRITING but the Write of an agent of STEP_REVIEWERS, in its file under
+// <home>/modules/*/agents/, where home is the composed harness. Only on Claude Code, where
+// agent_type is PLUGIN and the name: a bare name can also be an agent of the project, so it
+// may write. On Codex, every role can run apply_patch, whatever its file lists, so no agent
+// is read-only. The key lists its tools on its line, split by commas, or as a YAML list on
+// the lines after it. An agent with no file, no `tools` key or an empty list may write.
+// When the home or the agent's file lies below root, the working folder, the file must lie
+// in the real folder of the home, below root, where tool-guard.cjs denies each write; else
+// an agent could edit its `tools` key.
 function readOnly(home, agentType, runtime, root) {
   if (typeof home !== 'string' || home === '') return false;
   if (typeof agentType !== 'string' || agentType === '') return false;
@@ -104,7 +109,8 @@ function readOnly(home, agentType, runtime, root) {
     }
     const front = /^﻿?---\r?\n([\s\S]*?)\r?\n---/.exec(text);
     const tools = front && toolsOf(front[1]);
-    return Boolean(tools && tools.length) && !tools.some((one) => WRITING.has(one));
+    return Boolean(tools && tools.length) && !tools.some((one) => WRITING.has(one) &&
+      !(one === 'Write' && STEP_REVIEWERS.has(name)));
   }
   return false;
 }
@@ -356,5 +362,6 @@ function clear(root, session) {
   }
 }
 
-module.exports = { LIMIT, REASON, UNWRITABLE, readOnly, limited, endStep, stepWithoutCalls,
-  appendCall, takeCalls, appendDenied, takeDenied, clear, folderOf, rootOf, homeBelow };
+module.exports = { LIMIT, REASON, UNWRITABLE, STEP_REVIEWERS, readOnly, limited, endStep,
+  stepWithoutCalls, appendCall, takeCalls, appendDenied, takeDenied, clear, folderOf, rootOf,
+  homeBelow };

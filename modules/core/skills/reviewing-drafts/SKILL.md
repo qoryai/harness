@@ -190,3 +190,40 @@ The last line is one word:
 
 Leave out "Unverified:" when it has no item. It does not change the last line.
 Put any other line, such as a list of sources, before the last line.
+
+## The report file
+
+Only an agent whose file refers to this section writes a report file, besides its text
+report. The run gives you its path, which ends in a SHA-256 of what you review.
+Write it as your last step before the text report, also when you have no finding. When the
+file exists, read it, then write it. With the last word `blocked`, write no report file.
+
+The file is one JSON object: `reviewer` is your agent's name, and `findings` has one item
+for each finding of your text report, and is empty with none. An item has these members and
+no other:
+
+- `severity`: `blocking` for a finding marked `break` and for one that quotes a line of
+  "Checks:", because each keeps the draft from passing. Every other finding is
+  `non-blocking`.
+- `quote`, `problem`, `fix` and `point`: the texts of the finding. The first three have at
+  most 2,000 characters each.
+- `proof`: one text of at most 1,000 characters. For a `blocking` finding, it starts with
+  `failing check: ` and the line of "Checks:", or with `failing input: ` and the words that
+  the draft breaks. For a `non-blocking` finding, it starts with `broken rule: ` and the
+  rule.
+
+```json
+{
+  "reviewer": "plan-reviewer",
+  "findings": [
+    {
+      "severity": "blocking",
+      "quote": "Export the first 1,000 orders.",
+      "problem": "AC-2 asks for each order, and the plan exports the first 1,000.",
+      "fix": "The plan exports each order.",
+      "proof": "failing input: AC-2, \"The export has each order of the month\".",
+      "point": "The plan leaves out each order after the first 1,000."
+    }
+  ]
+}
+```
