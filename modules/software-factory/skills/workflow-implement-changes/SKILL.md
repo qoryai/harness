@@ -231,9 +231,10 @@ failed step started.
    When a line has no full path, such as for a key in the name of a file, a long name or a
    name that is not UTF-8, take the path from
    `git status --porcelain --untracked-files=all`. For a key in a line that starts with
-   `Rewrite commit <c>`, run `git show <c>:<path> | cmp -s - <path>` first. When it exits
-   with another status than 0, the file changed after that commit: leave it. When the file
-   still has the key, step 4 prints the key for the commit of step 3.
+   `Rewrite commit <c>`, run
+   `test "$(git hash-object -- <path>)" = "$(git rev-parse <c>:<path>)"` first. When it
+   exits with a status other than 0, the file changed after that commit: leave it. When the
+   file still has the key, step 4 prints a line for the key in the commit of step 3.
 3. When the checkout has a change, commit it with the two commands of "The end".
 4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4
    again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures"

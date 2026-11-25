@@ -1122,12 +1122,12 @@ test('after a step that fails, the session takes out what the check of the push 
     'when `<base>` does not have it. Both lose the other changes of the step to that file.');
   contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
     'long name or a name that is not UTF-8, take the path from');
-  contains(fails, 'When it exits with another status than 0, the file changed after that ' +
-    'commit: leave it. When the file still has the key, step 4 prints the key for the commit ' +
-    'of step 3.');
+  contains(fails, 'When it exits with a status other than 0, the file changed after that ' +
+    'commit: leave it. When the file still has the key, step 4 prints a line for the key in ' +
+    'the commit of step 3.');
   const restore = commandOf('A step that fails', /run\s+`(git checkout [^`]+)`/);
   const status = commandOf('A step that fails', /from\s+`(git status [^`]+)`/);
-  const same = commandOf('A step that fails', /run\s+`(git show <c>:<path> \| cmp [^`]+)`/);
+  const same = commandOf('A step that fails', /run\s+`(test "\$\(git hash-object [^`]+)`/);
   const scope = commandOf('A step that fails', /checks\.cjs (scope --plan[^`]+)`/).split(' ');
   const passes = (w, command) => {
     const ran = shell(w, command);
@@ -1226,6 +1226,21 @@ test('after a step that fails, the session takes out what the check of the push 
     }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
     (w, base, red) => {
       assert.equal(changed(w, committed(red, 2), 'tests/key.txt'), 0);
+      takeKey(w, base, 'tests/key.txt');
+    }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
+    // With text=auto, the blob has LF and the file CRLF: the check of "A step that fails"
+    // finds no change, where a compare of the bytes would.
+    ['a commit of the failed step with a key in a file with CRLF', (w) => {
+      writeFile(w, 'tests/.gitattributes', '*.txt text=auto\n');
+      writeFile(w, 'tests/key.txt', `one\r\n${key}\r\n`);
+      assert.equal(commitChanges(w, 'Write the header').status, 0);
+      writeFile(w, 'tests/other.txt', 'other\n');
+    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
+    (w, base, red) => {
+      const commit = committed(red, 2);
+      assert.equal(shell(w, `git show ${commit}:tests/key.txt | cmp -s - tests/key.txt`).status,
+        1);
+      assert.equal(changed(w, commit, 'tests/key.txt'), 0);
       takeKey(w, base, 'tests/key.txt');
     }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
     // The file changed after the commit and still has the key: the commit of step 3 has it,
