@@ -32,29 +32,29 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   <criterion>...` runs only the new checks. With no lock, no build plan or no approved
   criteria, the run is full, as before.
 - The tool guard lifts a locked check file for the acceptance check writer when the lock that
-  counts lists it, and every check at that file is a check of a criterion that the newer
-  target criteria version changed or no longer has. A support file, a file with a check of an
-  unchanged criterion, every other agent and the main session stay denied, and so does every
-  file when the target cannot be read. `lock.writable` of the type `acceptance-lock` decides
-  this from the lock and the criteria, and the guard reads no `changes.json`; it keeps every
-  file locked when the type has no `lock.writable` or the function throws. In a run, the lift
-  pulls, each by version number, what `criteriaTarget` reads: the version of the questions that
-  `index.json` counts, each lock that it compares a linked version with, each criteria version
-  that an answer links, and the target version. It reads only the versions that these pulls
-  returned, and in them only the files that `index.json` lists for the version, so a file or
-  folder in `.qory/artifacts` that no pull returned or the entry does not list counts for
-  nothing,
-  and it reads `index.json` again after the last pull. A pull that fails or has no time left
-  lifts nothing, and the deny of the locked file then has a third line with the cause of the
-  pull and the command to run again. A person's version, a version linked to another kind of
-  note and the approved version need no pull beyond the target version. Outside a run it reads
-  the artifact folder, which an agent can write. A check of a criterion that left Tests stays
-  locked. A forged `.qory/build/changes.json` can steer
-  what `plan-the-build` plans: `keptFiles` and `lock --verify` reject a wrong result. The check
-  of a build plan reads no `changes.json` that is a link or has more than one link. Two limits
-  stay: a hard link outside the working folder to a locked file passes the file tools, which
-  `keptFiles`, the push check and `lock --verify` catch, and a brace range of one word, such as
-  `{b..b}`, passes the brace rule, which skips the main session.
+  counts lists it, and every check at that file is a check of a criterion that the newer target
+  criteria version changed or no longer has. A support file, a file with a check of an unchanged
+  criterion, every other agent and the main session stay denied, and so does every file when the
+  target cannot be read. `lock.writable` of the type `acceptance-lock` decides this from the
+  lock and the criteria, and the guard reads no `changes.json`; it keeps every file locked when
+  the type has no `lock.writable` or the function throws. In a run, the lift pulls, each by
+  version number, what `criteriaTarget` reads: the version of the questions that `index.json`
+  counts, each lock that it compares a linked version with, each criteria version that an answer
+  links, and the target version. It reads only the versions that these pulls returned, and in
+  them only the files that `index.json` lists for the version, so a file or folder in
+  `.qory/artifacts` that no pull returned or the entry does not list counts for nothing, and it
+  reads `index.json` again after the last pull. A pull that fails or has no time left, or an
+  `index.json` that changed during the pulls, lifts nothing, and the deny of the locked file
+  then has a third line with the cause and the command to run again. A person's version, a
+  version linked to another kind of note, a version that no lock is older than, and the approved
+  version need no pull beyond the target version. Outside a run it reads the artifact folder,
+  which an agent can write. A check of a criterion that left Tests stays locked. A forged
+  `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
+  `lock --verify` reject a wrong result. The check of a build plan reads no `changes.json` that
+  is a link or has more than one link. Two limits stay: a hard link outside the working folder to a
+  locked file passes the file tools, which `keptFiles`, the push check and `lock --verify`
+  catch, and a brace range of one word, such as `{b..b}`, passes the brace rule, which skips the
+  main session.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and
   the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and

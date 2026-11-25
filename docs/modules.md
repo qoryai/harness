@@ -5196,20 +5196,22 @@ In a run, `qory artifact pull <type>` writes `index.json` and a version folder o
 each by version number, what `criteriaTarget` reads: the target version, and for each version
 above the approved one that a note links to an answer and no person wrote, the newest lock, the
 lock before it, that version, and the version of the questions that `index.json` counts; a
-person's version, a version linked to another kind of note, and the approved version need no other
-pull. The first pull of the criteria has no number, and the lift reads `index.json` from it only.
-The lift reads only the versions that these pulls returned, and in them only the files that the
-entry of the version in `index.json` lists: a folder, a name, a version or a file that no pull of
-the call returned, or that the entry does not list, does not exist for it, so planted questions, a
-planted name, a planted file, a withdrawn name, and the newest version of a cancelled run count
-for nothing. After the last pull it reads `index.json` again, and lifts nothing when that file
-needs a version that no pull returned, or has another target. A pull that fails, or has no time
-left, lifts nothing, and the deny of the locked file then has a third line with the cause of the
-pull and the command to run again. Outside a run the lift reads the artifact folder. These limits
-stay:
+person's version, a version linked to another kind of note, a version that no lock is older than,
+and the approved version need no other pull. The first pull of the criteria has no number, and the
+lift reads `index.json` from it only. The lift reads only the versions that these pulls returned,
+and in them only the files that the entry of the version in `index.json` lists: a folder, a name,
+a version or a file that no pull of the call returned, or that the entry does not list, does not
+exist for it, so planted questions, a planted name, a planted file, a withdrawn name, and the
+newest version of a cancelled run count for nothing. After the last pull it reads `index.json`
+again. A pull that fails or has no time left, and an `index.json` that needs a version that no
+pull returned or has another target, lift nothing, and the deny of the locked file then has a
+third line with the cause and the command to run again. Outside a run the lift reads the artifact
+folder. These limits stay:
 
 - Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
   store that no agent call can write.
+- The lift pulls the questions also when a free-text note frees the question rule, so one pull is
+  needless. The limit ends when `criteriaReads` repeats that test of the rule.
 - An agent call that rewrites a pulled file after its pull and before the read is not stopped.
   The limit ends when the read checks each file against the SHA-256 of `index.json`, or the
   pulls make a folder that no agent call can write.
