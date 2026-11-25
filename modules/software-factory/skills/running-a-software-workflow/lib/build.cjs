@@ -158,13 +158,14 @@ module.exports = (lib) => {
 
   // commandsTable checks the table of ## Commands in part, a section of file, whose columns
   // are Kind, Command, Result file and Source. Each row has a kind of kinds once, and a
-  // Command that is none with the reason in Source, or a Source of one of three forms. The
-  // kind full has a command, as qory starts the suite from it: a Command of none or an empty
-  // Command gets the finding noSuite, the text that the caller gives. Each kind of required
-  // has a row. With steps, a Set of the ids of the steps of the plan, a Source of the form
-  // "plan: d-<N>" is valid when steps has d-<N>; without steps that form is no form. It
-  // returns { given, seen }: the kinds whose Command is not none, and the kinds with a row, or
-  // null after the finding of a missing table.
+  // Command that is none with the reason in Source, or a Source of one of the forms: three
+  // in a proposal and, with steps, four in a build plan. The kind full has a command, as qory
+  // starts the suite from it: a Command of none or an empty Command gets the finding noSuite,
+  // the text that the caller gives. Each kind of required has a row. With steps, a Set of the
+  // ids of the steps of the plan, a Source of the form "plan: d-<N>" is valid when steps has
+  // d-<N>; without steps that form is no form. It returns { given, seen }: the kinds whose
+  // Command is not none, and the kinds with a row, or null after the finding of a missing
+  // table.
   function commandsTable(run, part, { file, kinds, required, noSuite, steps }) {
     const found = sectionTable(run, file, part, ['Kind', 'Command', 'Result file', 'Source']);
     if (!found) return null;

@@ -31,12 +31,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   cite another source for <kind>." A proposal has no such form. With no full test suite,
   `planning-builds` and `build-planner` make `d-1` create it, which counts in the 7
   deliverables, and the rows `full`, `targeted` and `locked` have `plan: d-1` as Source.
-  `checking-build-plans` lists for `plan-reviewer` as findings a `full` row of `none`, and a
-  row that cites a step that does not add the suite. `writing-proposals` says to write the track
+  `checking-build-plans` makes a `full` row of `none`, and a row that cites a step that does
+  not add the suite, findings for `plan-reviewer`. `writing-proposals` says to write the track
   Standard with no full test suite, `proposal-writer` never writes `none` in `full`, and
   `checking-proposals` reports a `full` row of `none` or empty.
-- `## Track` of a proposal is read from its lines outside a code block, as the check of
-  the sections does, which skips code blocks: a code block before the track line no longer
+- `## Track` of a proposal is read from its lines outside a code block, as the
+  section check reads it (`trackLine`): a code block before the track line no longer
   gives the finding "Start ## Track of proposal.md with…".
 - `run lint` and `run build` read their commands from `## Commands` of the approved version
   of `proposal` when the folder of `--artifacts` or `qory.start_artifacts` has one whose

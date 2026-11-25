@@ -95,10 +95,10 @@ runs `write-acceptance-checks`, so every Build has locked checks.
   rules of `full`. qory is to run it after the session, as it runs `full`. With no such
   command, write `none`, as for the other kinds.
 - **lint, types, build, serve:** the Result file is `none`.
-- **Command:** a command that the explorer's report or a file shows. With no such command,
-  write `none` in Command, and in Source the reason, such as "The repository has no
-  linter."
-- **Source:** where the command comes from, in one of three forms: `repository: <file>`,
+- **Command:** a command that the explorer's report or a file shows. For a kind other than
+  `full` with no such command, write `none` in Command, and in Source the reason, such as
+  "The repository has no linter."
+- **Source:** where the command comes from, in one of four forms: `repository: <file>`,
   when a file of the repository declares it; `module: <name>`, when a technology module
   provides it; `found: <file>:<line>`, the file and line that state it; or `plan: d-<N>`,
   when deliverable `d-<N>` of this plan creates the command.
