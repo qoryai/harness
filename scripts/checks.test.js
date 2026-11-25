@@ -5024,7 +5024,7 @@ test('panel --previous: a member with an open finding starts whatever its paths'
       ['data-reviewer', ['**/*.sql']], ['rust-reviewer', ['**/*.go']]],
     files: ['src/app.py'],
   });
-  // data-reviewer's finding was closed by a run, and test-reviewer is no member of the group.
+  // data-reviewer's finding was closed by a run, and test-reviewer is not a member of the group.
   const previous = previousOf(work, [['f1', 'security-reviewer', 'open'],
     ['f2', 'data-reviewer', 'fixed'], ['f3', 'test-reviewer', 'open'],
     ['f4', 'code-reviewer', 'open'], ['f5', 'code-reviewer', 'open']]);

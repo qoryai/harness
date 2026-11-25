@@ -164,7 +164,7 @@ function previousFindings(io, file) {
     stat = null;
   }
   if (!stat || !stat.isFile() || stat.size > MAX_BYTES) {
-    throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is no regular file of at ` +
+    throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is not a regular file of at ` +
       `most ${MAX_BYTES / 1024} KB.`);
   }
   let data;
@@ -172,7 +172,7 @@ function previousFindings(io, file) {
     data = JSON.parse(readLimited(full, name, stat.size));
   } catch (error) {
     if (error instanceof Missing) throw error;
-    throw new Missing(`${PREVIOUS_FIX}\n${name} is no JSON.`);
+    throw new Missing(`${PREVIOUS_FIX}\n${name} is not JSON.`);
   }
   const { findings } = readOpen(data, name, PREVIOUS_FIX);
   const stages = new Set(findings.map((one) => one.stage));

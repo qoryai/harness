@@ -316,6 +316,9 @@ test('findings open: the point loses control characters and stops at 500 charact
 });
 
 test('findings open: each broken form of the file exits 3 with the fix on line 1', () => {
+  const SOURCE = new RegExp('a source whose kind is not reviewer, check, criterion, scenario ' +
+    'or hook, or that has no name');
+  const REPLIES = /replies that are not a list of a kind, a reason and a round/;
   const finding = (change) => ledger(1, [{ reviewer: 'code-reviewer',
     findings: [{ ...FINDING, ...change }] }]);
   const forms = [
@@ -327,15 +330,15 @@ test('findings open: each broken form of the file exits 3 with the fix on line 1
     [{ round: 1 }, /no list findings/],
     [{ round: 1, reviewers: [] }, /no list findings/],
     [{ round: 1, findings: ['x'] }, /finding 1 as a string/],
-    [finding({ source: undefined }), /a source that is no kind/],
-    [finding({ source: { kind: 'person', name: 'a' } }), /a source that is no kind/],
-    [finding({ source: { kind: 'reviewer', name: ' ' } }), /a source that is no kind/],
+    [finding({ source: undefined }), SOURCE],
+    [finding({ source: { kind: 'person', name: 'a' } }), SOURCE],
+    [finding({ source: { kind: 'reviewer', name: ' ' } }), SOURCE],
     [finding({ state: 'closed' }), /a state that is none of open, fixed, dismissed, accepted/],
     [finding({ stage: undefined }), /stage as missing, not text/],
     [finding({ disputed: 'no' }), /disputed that is neither true nor false/],
-    [finding({ replies: undefined }), /replies that are no list/],
-    [finding({ replies: [{ kind: 'agreed', reason: 'x', round: 1 }] }), /replies that are no/],
-    [finding({ replies: [{ kind: 'fixed', reason: 'x', round: 0 }] }), /replies that are no/],
+    [finding({ replies: undefined }), REPLIES],
+    [finding({ replies: [{ kind: 'agreed', reason: 'x', round: 1 }] }), REPLIES],
+    [finding({ replies: [{ kind: 'fixed', reason: 'x', round: 0 }] }), REPLIES],
     [finding({ id: 'g1' }), /no id of the form f<number>/],
     [finding({ id: undefined }), /no id of the form f<number>/],
     [finding({ id: ['f1'] }), /no id of the form f<number>/],
@@ -977,7 +980,7 @@ test('findings round: more than 100 findings or closes, and a bad close, are inv
     [{ findings: Array.from({ length: 101 }, () => LATER) }, 'it has more than 100 findings.'],
     [{ findings: [], closes: Array.from({ length: 101 }, (_, at) => ({ ...close,
       id: `f${at + 1}` })) }, 'it has more than 100 closes.'],
-    [{ findings: [], closes: {} }, 'it has closes that is no list.'],
+    [{ findings: [], closes: {} }, 'its closes is not a list.'],
     [{ findings: [], closes: ['f1'] }, 'close 1 is a string.'],
     [{ findings: [], closes: [{ ...close, why: 'x' }] }, 'close 1 has the member why.'],
     [{ findings: [], closes: [{ ...close, id: 'F1' }] }, 'close 1 has no id of the form ' +
@@ -1016,7 +1019,7 @@ test('findings round --previous: a file that is missing, broken or of two stages
     ['f2', 'code-reviewer', 'open', { stage: 'verify' }]]);
   const broken = path.join(tmp, `previous-${++files}.json`);
   fs.writeFileSync(broken, JSON.stringify({ round: 1, reviewers: [] }));
-  for (const [file, cause] of [[path.join(tmp, 'absent-previous.json'), /is no regular file/],
+  for (const [file, cause] of [[path.join(tmp, 'absent-previous.json'), /is not a regular file/],
     [broken, /has no list findings/], [two, /has findings of 2 stages\./]]) {
     const got = withPrevious(dir, suite, ['code-reviewer'], file);
     assert.equal(got.status, 3, got.out);

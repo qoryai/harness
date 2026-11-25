@@ -1335,7 +1335,7 @@ test('ledger: step end done of a fix of a finding needs one line Reply:, and rec
   assert.equal(row.reply.kind, 'disputed');
   assert.equal([...row.reply.reason].length, 2000);
   assert.ok(row.reply.reason.startsWith('Export the first limit rows. x'));
-  // A fix of a step whose id is no finding of the work item needs no reply, and a failed fix
+  // A fix of a step whose id is not a finding of the work item needs no reply, and a failed fix
   // records none.
   assert.equal(begin(call, w, 'fix:p1').status, 0);
   const other = call('step', 'end', 'fix:p1', 'done', '--report',

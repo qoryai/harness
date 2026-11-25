@@ -135,7 +135,7 @@ function reportProblem(data, name, known = new Set()) {
     }
   }
   if (data.closes !== undefined) {
-    if (!Array.isArray(data.closes)) return 'it has closes that is no list';
+    if (!Array.isArray(data.closes)) return 'its closes is not a list';
     if (data.closes.length > MAX_ITEMS) return `it has more than ${MAX_ITEMS} closes`;
     for (const [at, close] of data.closes.entries()) {
       const problem = closeProblem(close, at);
@@ -179,7 +179,8 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
     const source = finding.source;
     if (!isObject(source) || !KINDS.includes(source.kind) || typeof source.name !== 'string' ||
       !plain(source.name)) {
-      throw broken(`has ${which} with a source that is no kind ${KINDS.join(', ')} and a name`);
+      const kinds = `${KINDS.slice(0, -1).join(', ')} or ${KINDS.at(-1)}`;
+      throw broken(`has ${which} with a source whose kind is not ${kinds}, or that has no name`);
     }
     if (!SEVERITIES.includes(finding.severity)) {
       throw broken(`has ${which} with a severity that is neither blocking nor non-blocking`);
@@ -202,7 +203,8 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
     if (!Array.isArray(finding.replies) || !finding.replies.every((one) => isObject(one) &&
       REPLIES.includes(one.kind) && typeof one.reason === 'string' &&
       Number.isInteger(one.round) && one.round >= 1)) {
-      throw broken(`has ${which} with replies that are no list of a kind, a reason and a round`);
+      throw broken(`has ${which} with replies that are not a list of a kind, a reason and a ` +
+        'round');
     }
     return { id: finding.id, stage: plain(finding.stage),
       source: { kind: source.kind, name: plain(source.name) },

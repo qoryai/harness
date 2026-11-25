@@ -1143,30 +1143,30 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   or `accepted`), `quote`, `point`, `problem`, `fix` and `proof`, `file` and `line` when
   they apply, `disputed` (`true` or `false`) and `replies`, each `{kind, reason, round}`
   with the kind `fixed` or `disputed`. An id is `f` and a number from 1 of at most 9 digits,
-  which Qory Apiary gives per work item. The verb prints `Fix first: <id> (<severity>, from
-  <source>[, disputed][, <file>[:<line>]]): <point>` for each finding with the state `open`,
-  the `blocking` ones first and then in the order of the file. The source is the name, such
-  as `code-reviewer`, or `criterion <name>` and `scenario <name>` for those two kinds. The
-  point is cut at 500 characters and printed without control, refused or hidden characters
-  (the Unicode classes Default_Ignorable_Code_Point and Cf, which include the tag
-  characters, the joiners, the variation selectors, the Hangul fillers, the soft hyphen and
-  the format characters of several scripts, and also the object replacement character and a
-  lone surrogate), then one line on what it checked, and exits with 1 while it prints a
-  finding. With more than 200 findings it prints 200 and the line `Fix first: <n> more
-  findings in <file>`. It exits with 0 when the file has no open finding, and when the file
-  does not exist, with the line `no open findings file at <path>` on stderr, so that a
-  mistyped path shows. It exits with 3 when the file is a link or a folder, or has another
-  form: a missing or non-integer `round`, a missing `findings` list, an `id` that is not
-  `f<number>`, a `source` with another kind or no name, another severity or state, a text
-  member that is not text, an empty point, a `line` below 1, a `disputed` that is neither
-  `true` nor `false`, or `replies` that is no list of a kind, a reason and a `round` of 1 or
-  more. A regular file over 256 KB is read up to 256 KB, never whole: when its JSON ends
-  inside that part, the verb exits with 3 and the first line is the fix: open the file with
-  Read. It reads the file and writes nothing. It prints each path whole, without the
-  80-character cut of other messages, and the first line of a fault is plain text. A report
-  that a reviewer writes is a JSON file that qory's report schema checks; only `findings
-  round` reads it, and `report`, `starts` and `end` have no check for the reviewers of a
-  change.
+  which Qory Apiary gives per work item. The verb prints
+  `Fix first: <id> (<severity>, from <source>[, disputed][, <file>[:<line>]]): <point>` for
+  each finding with the state `open`, the `blocking` ones first and then in the order of the
+  file. The source is the name, such as `code-reviewer`, or `criterion <name>` and
+  `scenario <name>` for those two kinds. The point is cut at 500 characters and printed
+  without control, refused or hidden characters (the Unicode classes
+  Default_Ignorable_Code_Point and Cf, which include the tag characters, the joiners, the
+  variation selectors, the Hangul fillers, the soft hyphen and the format characters of
+  several scripts, and also the object replacement character and a lone surrogate), then one
+  line on what it checked, and exits with 1 while it prints a finding. With more than 200
+  findings it prints 200 and the line `Fix first: <n> more findings in <file>`. It exits
+  with 0 when the file has no open finding, and when the file does not exist, with the line
+  `no open findings file at <path>` on stderr, so that a mistyped path shows. It exits with
+  3 when the file is a link or a folder, or has another form: a missing or non-integer
+  `round`, a missing `findings` list, an `id` that is not `f<number>`, a `source` with
+  another kind or no name, another severity or state, a text member that is not text, an
+  empty point, a `line` below 1, a `disputed` that is neither `true` nor `false`, or
+  `replies` that is not a list of a kind, a reason and a `round` of 1 or more. A regular
+  file over 256 KB is read up to 256 KB, never whole: when its JSON ends inside that part,
+  the verb exits with 3 and the first line is the fix: open the file with Read. It reads the
+  file and writes nothing. It prints each path whole, without the 80-character cut of other
+  messages, and the first line of a fault is plain text. A report that a reviewer writes is
+  a JSON file that qory's report schema checks; only `findings round` reads it, and
+  `report`, `starts` and `end` have no check for the reviewers of a change.
 - `checks.cjs findings round <reports> --reviewers <names> [--suite <file>] [--previous
   <file>]`: a review session runs it once, after its reviewers returned. It reads
   `<reports>/<name>.json` of each name of `--reviewers`, agent names joined by commas, each
@@ -1176,17 +1176,17 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   leaves the flag out. A given file that is missing, unreadable, failed or all skipped is
   still one blocking finding. The file of `--previous` has the shape of
   `open-findings.json`, with the findings of the reviewers of one stage: the open ones and
-  those that a run closed. A file that is no regular file of at most 256 KB, no JSON, in
-  another form, or with findings of two stages or more exits 3. A report that is missing, a
-  link, no regular file, over 1 MiB, no UTF-8, no JSON object, outside the review report
-  format or of another reviewer is one blocking finding of that reviewer, such as `Reviewer
-  code-reviewer wrote no report.`. So is a report with more than 100 findings or 100
-  closes, a report that repeats or closes an id that is no finding of that reviewer in the
-  file of `--previous`, open or closed, one that repeats and closes one id, and one that
-  lists one id twice. After such a report, the earlier open findings of that reviewer stay
-  open. After a valid report, the open findings are those of the report and each earlier
-  open finding of that reviewer that the report neither repeats nor closes. The suite
-  result has qory's form `{tests, failed, skipped, output_tail}`, with counts that are
+  those that a run closed. A file that is not a regular file of at most 256 KB, is not JSON,
+  is in another form, or has findings of two stages or more exits 3. A report that is
+  missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, outside the review
+  report format or of another reviewer is one blocking finding of that reviewer, such as
+  `Reviewer code-reviewer wrote no report.`. So is a report with more than 100 findings or
+  100 closes, a report that repeats or closes an id that is not a finding of that reviewer
+  in the file of `--previous`, open or closed, one that repeats and closes one id, and one
+  that lists one id twice. After such a report, the earlier open findings of that reviewer
+  stay open. After a valid report, the open findings are those of the report and each
+  earlier open finding of that reviewer that the report neither repeats nor closes. The
+  suite result has qory's form `{tests, failed, skipped, output_tail}`, with counts that are
   integers of 0 or more. A suite with `failed` over 0, a suite whose tests were all skipped,
   and a result that is missing, over 4 MiB or in another form are one blocking finding of
   `full-suite`. The rule of that form comes from the registry: `lib/suite.cjs` of
@@ -1200,8 +1200,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   <c> closed.`, where `<c>` counts the closes of the valid reports. It exits with 1 while a
   finding is blocking and with 0 otherwise, 2 for a wrong argument and 3 when the report
   folder is a link or no folder, or the file of `--previous` cannot be read. The exit
-  records no verdict: after `review-changes`, qory sends the verdict, and Verify records
-  its verdict from the exit and its other steps. It writes no file.
+  records no verdict: after `review-changes`, qory sends the verdict, and Verify records its
+  verdict from the exit and its other steps. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in
   `software-factory`, `acceptance-lock`, whose draft `acceptance-lock.json` lists the file
