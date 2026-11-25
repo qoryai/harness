@@ -34,7 +34,7 @@ module.exports = (lib) => {
     const step = `script:${data.scenario}#${rows.length + 1}`;
     if (rows.length >= MOST_ROWS) {
       run.find(`Keep the script of ${data.scenario} as it is: it has had 2 corrections, and a ` +
-        `third is refused.\nPush the file that the done step ${last.id} froze.`);
+        `third correction fails.\nPush the file that the done step ${last.id} froze.`);
     } else if (!ledger.steps.some((row) => row.id === step)) {
       run.find(`Run the step ${step}, then push ${file} again.\n${file} has another sha256 than ` +
         `the done step ${last.id}, and the build ledger has no step ${step}.`);

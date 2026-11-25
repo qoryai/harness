@@ -110,9 +110,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `demo-evidence`, `demo-video` and `screenshot` of removed scenarios, which the session
   withdraws. The stack entry is `capture-demos: {tier: light, access: write-no-push}`, with
   no `plan`: `film` and `preflight` read the approved `build-plan` from
-  `qory.start_artifacts`. The workflow never starts `demo-author`, so a stack without
-  `browser-screens` composes it; `scripts/check.sh` uses a test workflow `fixture-demos`
-  for the compose failure of a role with no agent.
+  `qory.start_artifacts`, or from the artifact folder of the session when it is the empty
+  string, and exit 3 with "Cause: the build plan is missing." when that folder has none.
+  The workflow never starts `demo-author`, so a stack without `browser-screens` composes
+  it; `scripts/check.sh` uses a test workflow `fixture-demos` for the compose failure of a
+  role with no agent.
 - One `demo-video` fits one qory version. `film` encodes with `-crf 28` and a bitrate cap
   `min(1500, floor(0.8 x 25,153,536 x 8 / 1000 / seconds))` kbit/s, 300 for a film of 535 s.
   A film that is still over 32 MiB as qory counts it (base64 of the files and 16 KiB) exits 4

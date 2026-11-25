@@ -341,10 +341,13 @@ checkout of the work, with the access `write-no-push` and no `plan`: the stack e
 `plan` and an access other than `write`, so `film` and `preflight` read the build plan from
 the folder of `qory.start_artifacts` of the input file, whose `build-plan` is the approved
 version; with no `build-plan` there, `preflight` exits 3 with the cause "the build plan is
-missing". The session pushes `demo-video`, `screenshot` and `demo-evidence`, and writes no
-outbox file and no commit. It starts only `demo-reviewer`, never the role `demo-author`,
-and loads no `scripting-demos`, so a stack without `browser-screens` composes it. Its
-steps, in order:
+missing". When `qory.start_artifacts` is the empty string, the run pulled no build plans at
+the start, and `film` and `preflight` read the build plan from the artifact folder of the
+session, as without `--inputs`; with no `build-plan` in that folder they exit 3 with "Cause:
+the build plan is missing." The session pushes `demo-video`, `screenshot` and
+`demo-evidence`, and writes no outbox file and no commit. It starts only `demo-reviewer`,
+never the role `demo-author`, and loads no `scripting-demos`, so a stack without
+`browser-screens` composes it. Its steps, in order:
 
 1. It pulls, runs `work-item show`, and runs `film todo`, which prints the scenarios to film
    and the artifacts to withdraw. A scenario is to film when the approved demo scenarios have
@@ -3994,7 +3997,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     call are left for ffmpeg, and then keeps the frames.
   - `film frames <scenario>` writes `.film/<scenario>/frames/step-<N>-start.png` and
     `step-<N>-reached.png` from the film, for `demo-reviewer`.
-  - `film todo` prints "To film: <ids>." and "To withdraw: <type> <id>, ....".
+  - `film todo` prints "To film: <ids>." and "To withdraw: <type> <id>, ....". When the
+    store has no approved `demo-scenarios`, it exits 3 with "Pull the artifacts again." and
+    prints no list, so no artifact is withdrawn.
   - `film record <scenario> --review <file> --media <N>` or `film record <scenario> --class
     <class> --cause <text> [--step <N>]` writes `<scenario>.json`, the demo evidence, for
     the commit of the checkout and the newest demo script that counts. The first form reads
@@ -4875,12 +4880,12 @@ The check and the freeze of a script:
   file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
   fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
   or to push the frozen script again. The push check of `demo-script` reads the newest
-  `build-ledger` too: a changed frozen script is refused at the push, unless the ledger has
-  the step of the next correction, and a change after 2 corrections is refused. A frozen
+  `build-ledger` too: a changed frozen script fails at the push, unless the ledger has the
+  step of the next correction, and a change after 2 corrections fails. A frozen
   script that the newest `demo-evidence` of the scenario faults, with the verdict `failed`,
   the class `script` and the version of the script that counts, is a fault of `demo check`
   too, and its fix is a correction: "Fix the actions of <id>: Verify found the script at
-  fault in step <N>." The third correction is refused as for any other fault.
+  fault in step <N>." The third correction fails as for any other fault.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.

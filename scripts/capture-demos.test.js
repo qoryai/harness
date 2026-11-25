@@ -598,7 +598,7 @@ test('push check of demo-script: a changed frozen script needs the next step in 
   assert.equal(pushing(ledgered(other), changed).status, 1);
 });
 
-test('push check of demo-script: a third correction is refused', () => {
+test('push check of demo-script: a third correction fails', () => {
   const frozenText = JSON.stringify(scriptTwo('text=Delayed order'));
   const rows = [done('script:scenario-2', frozenText),
     done('script:scenario-2#2', JSON.stringify(scriptTwo('text=a'))),
@@ -608,7 +608,7 @@ test('push check of demo-script: a third correction is refused', () => {
   const refused = pushing(ledgered(rows), scriptTwo('text=c'));
   assert.equal(refused.status, 1, refused.out);
   assert.equal(refused.out.split('\n')[0], 'Keep the script of scenario-2 as it is: it has had 2 ' +
-    'corrections, and a third is refused.');
+    'corrections, and a third correction fails.');
 });
 
 test('demo check: a frozen script that Verify faulted is a correction, and the third is refused', () => {
@@ -822,5 +822,30 @@ test('demo-evidence check: a version that index.json counts and the store lacks 
   fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify(index));
   const got = call(['check', 'demo-evidence', file], here.deps);
   assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.out.split('\n')[0],
+    'Run `qory artifact pull demo-script --version 2`, then check again.');
   assert.match(got.out, /demo-script version 2/);
+});
+
+test('film with an empty qory.start_artifacts reads the build plan of the session folder', () => {
+  const ffmpeg = sized(100);
+  const here = checkout([script('scenario-1')]);
+  here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file],
+    filmLimit: MIB };
+  const inputs = inputsOf(here, '');
+  // The session folder has no build plan: exit 3 with the cause.
+  const none = call(['film', 'scenario-1', '--inputs', inputs], here.deps);
+  assert.equal(none.status, 3, none.out + none.err);
+  assert.match(none.out, /^ {2}Cause: the build plan is missing\.$/m);
+  assert.equal(ffmpeg.calls().length, 0);
+  // With a build plan in the session folder, the call is the call that has no --inputs.
+  fs.cpSync(path.join(here.plan, 'build-plan'), path.join(here.root, 'build-plan'),
+    { recursive: true });
+  const index = JSON.parse(fs.readFileSync(path.join(here.root, 'index.json'), 'utf8'));
+  index.artifacts.push(artifact('build-plan', 'main', [1]));
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify(index));
+  const done = call(['film', 'scenario-1', '--inputs', inputs], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.deepEqual(fs.readdirSync(path.join(here.root, '.film', 'scenario-1')).sort(),
+    ['scenario-1.mp4', 'scenario-1.vtt']);
 });

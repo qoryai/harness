@@ -106,7 +106,7 @@ const RECODE_LEAST_MS = 20000;
 const CAPTURE_FILE = 'capture.json';
 const CLASSES = ['product', 'script', 'setup'];
 const RECORD_USAGE = 'Give film record a scenario id, then --review and --media, or --class ' +
-  'and --cause.';
+  'and --cause.\nAdd --step <N> with --class and --cause to name the failed step.';
 
 // rateCap returns the cap of pass 1 in kbit/s for a film of seconds: the rate at which the
 // film takes SHARE of FILES_BYTES, at most MOST_KBIT.
