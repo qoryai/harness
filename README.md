@@ -335,7 +335,8 @@ agents and the settings for a run of those workflows:
   runs each with `checks.cjs run targeted`, and drafts `acceptance-lock.json`.
 - `check-reviewer`: an agent that reviews the checks and the lock draft by
   `reviewing-drafts` against `checking-acceptance-checks`, and reports findings as text and
-  in one report file. The session passes it the changed paths of the working folder.
+  in one report file. The session passes it the changed paths of the working folder. In
+  `scripting-demos`, it reviews each demo script before the script runs.
 - `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
   The session builds each planned change that is not built, in the order of the build plan,
   then fixes each open finding of the review and each finding of Verify after a return: each

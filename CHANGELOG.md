@@ -8,28 +8,28 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- The review of a step's file, which `step end <id> done` needs for the plan, the checks
-  and a correction of a demo script. `plan-reviewer` and `check-reviewer` write
-  `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the file they reviewed, in
-  the review report format, besides their text. With no such report for the file as it is,
-  an invalid one or one with a blocking finding, `step end done` exits 1 with the reviewer
-  to start, the path of its report and the ledger unchanged. The SHA-256 of the checks
-  leaves out `commit` and takes the `sha256` of each listed file from the working folder,
-  so `freeze` and `lock` keep it, and an edit of a check file after the review does not.
-  The tool guard lets each of the two agents write only its report, and denies
-  `.step-reports` to every other call. Any edit after the review needs a new review, so
-  `workflow-plan-the-build` fixes no sentence after the last one. The first script of a
-  scenario and every other kind of step end as before, and on Claude Code the step limit
-  leaves the two agents out, as before.
+- The review of a step's file, which `step end <id> done` needs for the plan, the checks and
+  each demo script, the first script of a scenario included. `plan-reviewer` and
+  `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the
+  file they reviewed, in the review report format, besides their text. With no such report
+  for the file as it is, an invalid one or one with a blocking finding, `step end done`
+  exits 1 with the reviewer to start, the path of its report and the ledger unchanged. The
+  SHA-256 of the checks leaves out `commit` and takes the `sha256` of each listed file from
+  the working folder, so `freeze` and `lock` keep it, and an edit of a check file after the
+  review does not. The tool guard lets each of the two agents write only its report, and
+  denies `.step-reports` to every other call. Any edit after the review needs a new review,
+  so `workflow-plan-the-build` fixes no sentence after the last one. Every other kind of
+  step ends as before, and on Claude Code the step limit leaves the two agents out, as
+  before.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
   result of each step with the approved scenario by exact string, and `demo check` refuses a
   setup `open` whose address is outside the `App address:` of the build plan, with the fix
   first. The new verb `demo run <scenario>` runs a script once with video off and prints its
   sha256. `scripting-demos` freezes a script at its first pass in the build ledger, starts
-  `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
-  correction. The call of `preflight` moved from the run of the locked checks to before the
-  first run of a script, and it reads the drafts in `.demo/`.
+  `check-reviewer` on the first script and on each change to a frozen script, and `demo
+  check` refuses a third correction. The call of `preflight` moved from the run of the
+  locked checks to before the first run of a script, and it reads the drafts in `.demo/`.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a

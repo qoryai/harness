@@ -2804,29 +2804,28 @@ the commits of its checkout may be a person's.
 
 A step whose file a reviewer reviews ends `done` only with a passing report of that
 reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it is
-`check-reviewer` on `acceptance-lock.json`; and for a correction of a demo script,
-`script:<scenario>#2` or `#3`, it is `check-reviewer` on `.demo/<scenario>.json`, each in
-the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the review
-report format (`review-report.schema.json` of qory), which `step end` reads with the reader
-of `findings round`. `<sha256>` is the SHA-256 of that file. For `checks` it is the SHA-256
-of the content of the lock with no `commit`, with the `sha256` of each listed file from the
-working folder, and with the members of each object in the order of their names. So it is
-the same before and after `freeze` and `lock`, and an edit of the draft or of a check file
-after the review changes it. A listed file with no hash, such as a missing file or a link,
-is a finding of `step end`; a lock that is no JSON makes it exit 3.
+`check-reviewer` on `acceptance-lock.json`; and for a demo script, the first one
+`script:<scenario>` or a correction, it is `check-reviewer` on `.demo/<scenario>.json`, each
+in the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the
+review report format (`review-report.schema.json` of qory), which `step end` reads with the
+reader of `findings round`. `<sha256>` is the SHA-256 of that file. For `checks` it is the
+SHA-256 of the content of the lock with no `commit`, with the `sha256` of each listed file
+from the working folder, and with the members of each object in the order of their names. So
+it is the same before and after `freeze` and `lock`, and an edit of the draft or of a check
+file after the review changes it. A listed file with no hash, such as a missing file or a
+link, is a finding of `step end`; a lock that is no JSON makes it exit 3.
 
 With no such file, with no report or with an invalid one, the first line of the finding is
 "Start <reviewer> on <file>, then run step end <id> done again." With no report or an
 invalid one, its last line is "The report of this file is <path>.", with the path of the
-report from the artifact folder: the session runs `step end <id> done` with no flag before
-a review of a changed file, and gives the reviewer that path. For a correction of a demo
-script with no `--script-sha256`, that call exits 1 with the finding "Give --script-sha256
-to end a script step as done." too. With a blocking finding, the first line is "Fix the
-blocking findings on <file>, then start <reviewer> again." The verb then exits 1 and the
-ledger is unchanged. So any edit after the review needs a new review. Only a correction of
-a demo script has a reviewer, so the first script of a scenario and every other kind of
-step end with no report. The limits: the main session can write the report with a script,
-and on Gemini CLI, Cursor and Copilot CLI any agent can write it.
+report from the artifact folder: the session runs `step end <id> done` with no flag before a
+review of a changed file, and gives the reviewer that path. For the step of a demo script
+with no `--script-sha256`, that call exits 1 with the finding "Give --script-sha256 to end a
+script step as done." too. With a blocking finding, the first line is "Fix the blocking
+findings on <file>, then start <reviewer> again." The verb then exits 1 and the ledger is
+unchanged. So any edit after the review needs a new review. Every other kind of step ends
+with no report. The limits: the main session can write the report with a script, and on
+Gemini CLI, Cursor and Copilot CLI any agent can write it.
 
 The reviewer maps its findings as "The report file" of `reviewing-drafts` lists: a finding
 marked `break`, or one that quotes a line of "Checks:", is `blocking`, and any other is
@@ -4719,10 +4718,10 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
   runs `demo check <id>`, starts the agent again with the printed lines at most twice,
-  runs `check demo-script`, runs `preflight` once for the session, runs `demo run <id>`,
-  pushes the script with `qory artifact push demo-script --name <scenario>
-  <folder>/.demo/<scenario>.json`, and ends the step with `--script-sha256` of the script
-  that passed.
+  starts `check-reviewer` on the script, runs `check demo-script`, runs `preflight` once for
+  the session, runs `demo run <id>`, pushes the script with `qory artifact push demo-script
+  --name <scenario> <folder>/.demo/<scenario>.json`, and ends the step with
+  `--script-sha256` of the script that passed.
 
 The check and the freeze of a script:
 
@@ -4735,20 +4734,23 @@ The check and the freeze of a script:
   run, and it reads the drafts in `.demo/` as well as the pushed scripts.
 - A script is frozen at its first pass: the ledger step `script:<id>` is `done` with the
   `script_sha256` of the script. A script that differs from the newest done row is a
-  correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
-  skill with the line "Review the change to a demo script", before the correction runs, and
-  the step ends `done` only with its report file. A
-  third correction is refused by `demo check`, and the ledger refuses the id
-  `script:<id>#4`.
-  A draft that differs from the newest done row is a correction, also a copy of the pushed
-  file in `.demo/<id>.json`. A pushed script that differs from the newest done row is a
-  fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
-  file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
-  fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
-  or to push the frozen script again. The limits: the push check of `demo-script` does not
-  read the ledger, so a changed frozen script is found by the next `demo check`, not at
-  the push; and `demo check` finds no correction that Verify asks for when the script is
-  unchanged, because it compares only the script with the scenario and the ledger.
+  correction, the step `script:<id>#2` or `#3`.
+- `check-reviewer` reviews each script before the script runs, and the step ends `done` only
+  with a passing report of it. For the first script, `scripting-demos` starts the agent with
+  the line "Review the first demo script", and the agent compares the script with the
+  scenario and the screens. For a correction, the line is "Review the change to a demo
+  script", and the agent compares the two scripts.
+- A third correction is refused by `demo check`, and the ledger refuses the id
+  `script:<id>#4`. A draft that differs from the newest done row is a correction, also a
+  copy of the pushed file in `.demo/<id>.json`. A pushed script that differs from the newest
+  done row is a fault of `demo check`, whatever the draft is, unless the draft is a copy of
+  the pushed file: the draft may be missing, or a draft of an earlier pass may stay in
+  `.demo/`. The fix is to copy the pushed file to `.demo/<id>.json` and run the correction
+  step on it, or to push the frozen script again. The limits: the push check of
+  `demo-script` does not read the ledger, so a changed frozen script is found by the next
+  `demo check`, not at the push; and `demo check` finds no correction that Verify asks for
+  when the script is unchanged, because it compares only the script with the scenario and
+  the ledger.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.
