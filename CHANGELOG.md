@@ -27,20 +27,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   from the path that the call before the start printed. After the last of the 3 starts,
   which only the `starts` of those 3 shows, a review with only non-blocking findings ends
   the step `done` on the script as it was reviewed, with no fix, unless the session started
-  again after it was lost. The tool guard lets each of the two agents write only its report,
-  and denies `.step-reports` to every other call, also a copy or a move into a folder above
-  the artifact folder of a source that can have the name of the folder below, as for
-  `.reports`. The limits, as for `.reports`: an agent with a shell can write the report with
-  a path that a variable, `$( )`, a backquote or `eval` makes, with a script that a later
-  call runs, with a path that code joins from parts, with an archive that `tar`, `unzip` or
-  `ditto` extracts, with a copy of the sources that `find -exec` or `xargs` add, with a copy
-  that the guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, with a copy of `.`,
-  as in `cp -R . /tmp`, with a copy with `-t` in a combined option, as in
-  `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, or with a copy by `ditto`, as in
-  `ditto stage /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can write it. Any
-  edit after the review needs a new review, so `workflow-plan-the-build` fixes no sentence
-  after the last one. Every other kind of step ends as before, and on Claude Code the step
-  limit leaves the two agents out, as before.
+  again after a lost session. The tool guard lets each of the two agents write only its
+  report, and denies `.step-reports` to every other call, also a copy or a move into a
+  folder above the artifact folder of a source that can have the name of the folder below,
+  as for `.reports`. The limits, as for `.reports`: an agent with a shell can write the
+  report with a path that a variable, `$( )`, a backquote or `eval` makes, with a script
+  that a later call runs, with a path that code joins from parts, with an archive that
+  `tar`, `unzip` or `ditto` extracts, with a copy of the sources that `find -exec` or
+  `xargs` add, with a copy that the guard splits at a redirect, as in
+  `cp -R src/. /x 2>&1 /tmp`, with a copy of `.`, as in `cp -R . /tmp`, with a copy with
+  `-t` in a combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, or with a
+  copy by `ditto`, as in `ditto stage /tmp`; and on Gemini CLI, Cursor and Copilot CLI any
+  agent can write it. Any edit after the review needs a new review, so
+  `workflow-plan-the-build` fixes no sentence after the last one. Every other kind of step
+  ends as before, and on Claude Code the step limit leaves the two agents out, as before.
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
