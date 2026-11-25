@@ -2678,7 +2678,8 @@ find:
   newest lock that counts gives the push the same result as the check. A push store with
   the newest lock by number, cancelled or not, gives it only when the store also has the
   file of the lock that counts. Else the push cannot read which criteria version the lock
-  that counts locks, so only a person's upload after that lock opens a new lock;
+  that counts locks, so only a person's upload, or a free-text note, after that lock opens
+  a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or

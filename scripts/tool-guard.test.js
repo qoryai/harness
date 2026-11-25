@@ -391,6 +391,34 @@ test('the guard keeps a path locked when another check or a support file is ther
   assert.ok(shared.file);
 });
 
+test('on Codex the guard lifts a changed check for the role acceptance-check-writer only', () => {
+  const home = next('home');
+  fs.mkdirSync(path.join(home, 'codex', 'agents'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'codex', 'agents', 'acceptance-check-writer.toml'), '');
+  const { dir, file } = changeCase();
+  const run = (agent) => decide({ input: { ...codex('apply_patch', patch(CHECK_PATH), agent),
+    cwd: dir }, env: { ...RUN, QORY_HARNESS_HOME: home }, runtime: 'codex', root: dir,
+  locked: () => ({ what: 'acceptance-lock version 2', files: [file], number: 2,
+    checks: [{ file, criterion: 'ac-4' }] }) });
+  assert.equal(run('acceptance-check-writer'), null);
+  firstLine(run('default'), 'Leave the locked file as it is');
+  // A role with no file in the home is no writer of the checks.
+  firstLine(run('check-reviewer'), 'Leave the locked file as it is');
+});
+
+test('the guard denies the verb changes to an agent, and lets the main session run it', () => {
+  const { dir, call } = changeCase();
+  const verb = path.join(HOOKS, '..', 'skills', 'running-a-workflow', 'checks.cjs');
+  for (const command of [`node ${verb} changes`, `cd ${dir} && node ${verb} changes`,
+    `node "${verb}" 'changes'`]) {
+    firstLine(call(claude('Bash', { command }, WRITER)),
+      'Run checks.cjs changes in the main session, not in an agent.');
+  }
+  assert.equal(call(claude('Bash', { command: `node ${verb} changes` })), null);
+  assert.equal(call(claude('Bash', { command: `node ${verb} check build-plan x.md` }, WRITER)),
+    null);
+});
+
 test('the guard denies a write of the record by the writer, and reads no record through a link', () => {
   const { dir, file, call } = changeCase();
   const record = path.join(dir, '.qory', 'build', 'changes.json');

@@ -532,6 +532,40 @@ test('with no criterion changed since the lock, the skill starts no agent and ke
     'run changed no plan and wrote no checks."'), none);
 });
 
+test('with no criterion changed since the lock, a newer build plan starts no agent and pushes nothing', () => {
+  const w = work();
+  withPlan(w);
+  // The lock locks criteria version 1, which is the approved version, and a build plan of
+  // version 2 is newer than the lock.
+  const index = path.join(w.artifacts, 'index.json');
+  const lock = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
+    checks: [{ criterion: 'ac-1', path: 'tests/part-1.test.ts', command: 'npm test',
+      failed_with: 1, sha256: H, criterion_sha256: H }] };
+  version(w.artifacts, 'acceptance-lock', 1, 'acceptance-lock.json', JSON.stringify(lock));
+  listVersion(index, 'acceptance-lock', 1, 'run-0');
+  version(w.artifacts, 'build-plan', 2, 'build-plan.md', planOf(4));
+  listVersion(index, 'build-plan', 2, 'run-0');
+  const env = { ...w.env };
+  delete env.QORY_RUN_ID;
+  delete env.QORY_SESSION;
+  let out = '';
+  let err = '';
+  const first = watch();
+  const status = main(['changes'], { cwd: w.repo, artifacts: [w.artifacts], env,
+    plugin: PLUGIN, qory: w.qory, out: { write: (text) => { out += text; } },
+    err: { write: (text) => { err += text; } }, firstLine: first.firstLine });
+  first.check(status, err);
+  assert.equal(status, 0, out + err);
+  assert.equal(out, 'No criterion changed since acceptance-lock version 1.\n');
+  const record = JSON.parse(fs.readFileSync(path.join(w.repo, '.qory', 'build', 'changes.json'),
+    'utf8'));
+  assert.equal(record.mode, 'none');
+  // The run called qory for nothing: no pull, no push.
+  assert.equal(fs.existsSync(w.log), false);
+  // The newer build plan is the newest version, as the skill leaves it.
+  assert.equal(read(w.artifacts, 'build-plan', 'main', 'v2', 'build-plan.md'), planOf(4));
+});
+
 // ---- The check of a plan in change mode -----------------------------------------------------
 
 // changed writes the record of `checks.cjs changes` in the checkout of w, as that verb does.

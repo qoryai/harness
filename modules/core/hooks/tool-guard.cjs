@@ -610,6 +610,12 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
 // The record of `checks.cjs changes` below the working folder, which only that verb writes:
 // the BUILT rule denies a call that writes below .qory/build/.
 const CHANGES = path.join(BUILD, 'changes.json');
+// The word of the verb that writes the record, in a shell command of an agent.
+// shortcut: the guard reads the text of the command, so a command that builds the verb from
+// parts is not found; replace it when the verb refuses a call from an agent.
+const CHANGES_VERB = /checks\.cjs["']?\s+["']?changes(?![\w-])/;
+const CHANGES_MAIN = 'Run checks.cjs changes in the main session, not in an agent.\n' +
+  'The verb writes .qory/build/changes.json, which lifts the lock of a changed check. ';
 // The most bytes of the record that the guard reads.
 const CHANGES_BYTES = 1024 * 1024;
 
@@ -2108,6 +2114,9 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
   const artifacts = artifactFolder(root, env, runFolder);
   const kept = keptFiles(env, session, nocase, root, artifacts);
+  if (call.kind === 'shell' && agent && CHANGES_VERB.test(String(call.command))) {
+    return `${CHANGES_MAIN}The command is ${reviewShown(call.command)}.`;
+  }
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
       .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));

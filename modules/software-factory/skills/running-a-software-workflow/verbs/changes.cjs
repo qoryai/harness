@@ -55,6 +55,8 @@ module.exports = (lib) => {
       return 0;
     };
     // The mode is full when nothing is locked, or no build plan exists to keep.
+    // shortcut: with no lock that counts, the run redoes every criterion, because there is
+    // no locked criteria version to compare with; replace it when a run can name a base.
     const full = (reason) => done({ mode: 'full', reason }, [], `Full run: ${reason}.`);
     const lock = readLock(io, def, null, 'run changes');
     if (!lock.version) return full('no acceptance lock counts, so every criterion is new');
