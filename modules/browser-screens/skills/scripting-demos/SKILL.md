@@ -126,15 +126,18 @@ version; do this only for a script that this session wrote and still has as a fi
      lists. With `blocked`, run `step end <step> failed`, and end as "Failures" lists. Then
      run the same call of `step end` again for the report file, as "The build ledger" lists,
      and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" or
-     "Fix the blocking findings". With `changes-needed` and only non-blocking findings,
-     after a `starts` of `implement-changes-<n>-check-reviewer 3` in this follow printed
-     "This is the last start.", no start of the 3 is left: start no author, and go on to
-     step 6 with the script as it was reviewed. Step 10 then ends the step `done` with the
-     sha256 of that script, and the report of that sha256 has those findings. With any other
-     `changes-needed`, do "Start the author again", with each finding quoted; the review of
-     the fixed script has the 3 starts of the corrections. While a start of the 3 is left, a
-     non-blocking finding needs a fix and a later review too. Step 10 needs the review of
-     the script as it is, so review a script that changes after its review again.
+     "Fix the blocking findings". With `changes-needed` and only non-blocking findings in
+     its report file, after a `starts` of `implement-changes-<n>-check-reviewer 3` in this
+     follow printed "This is the last start.", no start of the 3 is left: start no author,
+     and go on to step 6 with the script as it was reviewed. Only the line of that `starts`
+     counts; the `starts` of a first review prints it every time. A session that started
+     again after it was lost does not know whether that line was printed, so it starts the
+     author as before. Step 10 then ends the step `done` with the sha256 of that script,
+     and the report of that sha256 has those findings. With any other `changes-needed`, do
+     "Start the author again", with each finding quoted; the review of the fixed script has
+     the 3 starts of the corrections. While a start of the 3 is left, a non-blocking finding
+     needs a fix and a later review too. Step 10 needs the review of the script as it is, so
+     review a script that changes after its review again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
    <inputs>`, as "Check before each push" of `running-a-workflow` lists. With 1, the script
    breaks a rule that `demo write` and `demo check` do not check: run `step end <step>

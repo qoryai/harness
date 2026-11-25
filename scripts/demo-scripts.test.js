@@ -1066,11 +1066,16 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed',
     // A review with only non-blocking findings after the last of the 3 starts gets no fix.
-    'With `changes-needed` and only non-blocking findings, after a `starts` of ' +
-      '`implement-changes-<n>-check-reviewer 3` in this follow printed "This is the last ' +
-      'start.", no start of the 3 is left: start no author, and go on to step 6 with the ' +
-      'script as it was reviewed. Step 10 then ends the step `done` with the sha256 of that ' +
-      'script, and the report of that sha256 has those findings.',
+    'With `changes-needed` and only non-blocking findings in its report file, after a ' +
+      '`starts` of `implement-changes-<n>-check-reviewer 3` in this follow printed "This is ' +
+      'the last start.", no start of the 3 is left: start no author, and go on to step 6 with ' +
+      'the script as it was reviewed.',
+    // starts prints that line whenever a count reaches its limit, as each first review does.
+    'Only the line of that `starts` counts; the `starts` of a first review prints it every time.',
+    'A session that started again after it was lost does not know whether that line was ' +
+      'printed, so it starts the author as before.',
+    'Step 10 then ends the step `done` with the sha256 of that script, and the report of that ' +
+      'sha256 has those findings.',
     'With any other `changes-needed`, do "Start the author again", with each finding quoted; ' +
       'the review of the fixed script has the 3 starts of the corrections. While a start of ' +
       'the 3 is left, a non-blocking finding needs a fix and a later review too.',
