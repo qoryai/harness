@@ -31,6 +31,18 @@
 //                         folder and the version of that script, and the pushed artifacts to
 //                         withdraw, those of a scenario that the approved demo scenarios
 //                         removed.
+//   film record <scenario> --review <file> --media <N>
+//   film record <scenario> --class <class> --cause <text> [--step <N>]
+//                         writes <folder>/<scenario>.json, the demo evidence of the scenario
+//                         for the commit of the working folder and the newest demo script that
+//                         counts. The first form reads the report of demo-reviewer in <file>,
+//                         one line "Step <N>: passed", "Step <N>: failed: <finding>" or "Step
+//                         <N>: not-reached" for each step, and the line "Class: product",
+//                         "Class: script" or "Class: setup" for a failed step; <N> of --media
+//                         is the version of the demo-video or the screenshot that the session
+//                         pushed. The second form records a scenario with no film: the steps
+//                         before step N passed, step N, the last by default, failed with the
+//                         cause as its finding, and the later steps were not reached.
 //   film pages <path>... [--inputs <path>] [--artifacts <folder>]
 //                         takes pictures of the pages that the paths open, for the two screen
 //                         reviewers: pages-<N>-<width>.png in <folder>/.film/pages/ for the
@@ -58,6 +70,7 @@ const { CALL_MS, RUN_BUDGET_MS, START_MS } = require('../lib/budget.cjs');
 const { FILM_HEIGHT } = require('../lib/capture.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
 const { ARTIFACTS_USAGE } = require('../lib/start.cjs');
+const { SCHEMAS } = require('../lib/template.cjs');
 const { INPUTS_USAGE } = require('./run.cjs');
 
 const FOLDER = '.film';
@@ -88,6 +101,9 @@ const MOST_KBIT = 1500;
 const RECODE_LEAST_MS = 20000;
 // The file that keeps the frames of a film between film and film recode.
 const CAPTURE_FILE = 'capture.json';
+const CLASSES = ['product', 'script', 'setup'];
+const RECORD_USAGE = 'Give film record a scenario id and --review <file> --media <N>, or ' +
+  '--class product, script or setup with --cause <text> and, if you like, --step <N>.';
 
 // rateCap returns the cap of pass 1 in kbit/s for a film of seconds: the rate at which the
 // film takes SHARE of FILES_BYTES, at most MOST_KBIT.
@@ -162,8 +178,8 @@ const pictureTimes = (cues) => cues.map((cue) => ({ start: cue.start,
   reached: Math.max(cue.end - 1000 / FRAMES_PER_SECOND, cue.start) }));
 
 module.exports = (lib) => {
-  const { Context, Missing, approved, artifactFolder, cut, isObject, newestNamed, parseJson,
-    plural, scenarios, short, within } = lib;
+  const { Context, MAX_BYTES, Missing, approved, artifactFolder, boundedText, cut, isObject,
+    newestNamed, parseJson, plural, scenarios, schema, short, within, writeJson } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
   // options returns { inputs, artifacts, rest } of the arguments, each undefined when it is not
@@ -532,6 +548,130 @@ module.exports = (lib) => {
     return 0;
   }
 
+  // recordOptions returns { review, media, klass, cause, step } of the arguments after the
+  // scenario of film record, or { problem }. Exactly one form is complete.
+  function recordOptions(args) {
+    let rest = args;
+    const got = {};
+    for (const [key, flag] of [['review', '--review'], ['media', '--media'],
+      ['klass', '--class'], ['cause', '--cause'], ['step', '--step']]) {
+      const taken = takeValue(rest, flag);
+      if (taken.value === null) return { problem: RECORD_USAGE };
+      got[key] = taken.value;
+      rest = taken.rest;
+    }
+    const whole = (text) => text === undefined || /^[1-9][0-9]{0,5}$/.test(text);
+    const reviewed = got.review !== undefined && got.media !== undefined &&
+      [got.klass, got.cause, got.step].every((one) => one === undefined);
+    const none = got.klass !== undefined && got.cause !== undefined &&
+      [got.review, got.media].every((one) => one === undefined);
+    if (rest.length || !(reviewed || none) || !whole(got.media) || !whole(got.step) ||
+      (got.klass !== undefined && !CLASSES.includes(got.klass))) return { problem: RECORD_USAGE };
+    return { ...got, media: got.media && Number(got.media), step: got.step && Number(got.step) };
+  }
+
+  // reviewOf returns the verdict of each step and the class from the report of demo-reviewer in
+  // file, as { steps: [{ verdict, finding }], klass }, or { problem } with the fix first.
+  function reviewOf(file, count) {
+    const read = boundedText(file);
+    if (read.why) {
+      return { problem: `Save the report of demo-reviewer in a file of at most ${MAX_BYTES} ` +
+        `bytes, then run film record again.\n${short(file, 80)} is no such file.` };
+    }
+    const steps = [];
+    let klass = null;
+    for (const line of read.text.split('\n')) {
+      const step = /^Step ([1-9][0-9]?): (passed|failed|not-reached)(?:: (.+))?$/.exec(line);
+      if (step && Number(step[1]) === steps.length + 1) {
+        steps.push({ verdict: step[2], finding: step[3] });
+      }
+      const named = /^Class: (product|script|setup)$/.exec(line);
+      if (named) klass = named[1];
+    }
+    const failed = steps.filter((one) => one.verdict === 'failed');
+    if (steps.length !== count) {
+      return { problem: `Give the report one line "Step <N>: passed", "Step <N>: failed: <the ` +
+        `finding>" or "Step <N>: not-reached" for each step, in order.\nThe script has ` +
+        `${plural(count, 'step')}, and the report has ${steps.length} such lines.` };
+    }
+    if (failed.some((one) => !one.finding) || (failed.length && !klass)) {
+      return { problem: 'Give each failed step a finding and the report the line "Class: ' +
+        'product", "Class: script" or "Class: setup".\nThe report lacks one of them.' };
+    }
+    return { steps, klass };
+  }
+
+  // recordOf writes the demo evidence of scenario id, from the arguments that recordOptions
+  // returns in given.
+  function recordOf(io, id, given) {
+    const root = artifactFolder(io);
+    const head = git.head(io.cwd, io.env);
+    if (!head) {
+      throw new Missing('Run the verb in the checkout of the work.\ngit has no HEAD there.');
+    }
+    const script = checks.demoScripts(root, io).find((one) => one.scenario === id);
+    if (!script) {
+      throw new Missing(`Push the demo script of ${id}, then run film record ${id} again.\n` +
+        `The artifact folder has no demo script named ${id} that counts.`);
+    }
+    const version = new Context(root, 'check', io.home).counted('demo-script', id);
+    const dir = path.join(root, FOLDER, id);
+    let steps;
+    let evidence = 'none';
+    let verdict = 'failed';
+    let klass = given.klass;
+    let media = null;
+    if (given.review === undefined) {
+      const failed = given.step || script.steps.length;
+      if (failed > script.steps.length) {
+        io.print([`Give --step a step of ${id}.\n${id} has ${plural(script.steps.length, 'step')}.`],
+          'Wrote no demo evidence.');
+        return 1;
+      }
+      steps = script.steps.map((_, at) => ({ verdict: at + 1 < failed ? 'passed'
+        : at + 1 === failed ? 'failed' : 'not-reached',
+      finding: at + 1 === failed ? given.cause : undefined }));
+    } else {
+      const reviewed = reviewOf(path.resolve(io.cwd, given.review), script.steps.length);
+      if (reviewed.problem) {
+        io.print([reviewed.problem], 'Wrote no demo evidence.');
+        return 1;
+      }
+      ({ steps, klass } = reviewed);
+      verdict = steps.every((one) => one.verdict === 'passed') ? 'passed' : 'failed';
+      evidence = regular(path.join(dir, `${id}.mp4`)) ? 'film'
+        : regular(path.join(dir, `${id}-step-1.png`)) ? 'pictures' : null;
+      if (!evidence) {
+        throw new Missing(`Run film ${id}, then run film record ${id} again.\n` +
+          `${path.join(FOLDER, id)} has no film and no pictures.`);
+      }
+      media = { type: evidence === 'film' ? 'demo-video' : 'screenshot', name: id,
+        version: given.media };
+    }
+    const times = evidence === 'film'
+      ? pictureTimes(cuesOf(fs.readFileSync(path.join(dir, `${id}.vtt`), 'utf8'))) : [];
+    const data = { scenario: id, title: script.title, commit: head, planned: script.evidence,
+      evidence, verdict, ...(verdict === 'failed' ? { class: klass } : {}),
+      script: { type: 'demo-script', name: id, version }, ...(media ? { media } : {}),
+      steps: script.steps.map((step, at) => ({ step: at + 1, title: step.title,
+        expected: step.expected, verdict: steps[at].verdict,
+        frames: evidence === 'film' && times[at]
+          ? [{ at: 'start', time_ms: Math.round(times[at].start) },
+            { at: 'reached', time_ms: Math.round(times[at].reached) }]
+          : evidence === 'pictures' ? [{ at: 'reached', file: `${id}-step-${at + 1}.png` }] : [],
+        ...(steps[at].finding ? { finding: steps[at].finding } : {}) })) };
+    const found = schema.errors(schema.load(SCHEMAS, 'demo-evidence'), data, `${id}.json`);
+    if (found.length) {
+      io.print([`Fix the input of film record ${id}.\nThe evidence breaks its schema: ` +
+        `${short(found[0].split('\n')[0], 120)}`], 'Wrote no demo evidence.');
+      return 1;
+    }
+    writeJson(path.join(root, `${id}.json`), data);
+    io.print([], `Wrote ${id}.json, the demo evidence of ${id}: ${verdict}, evidence ` +
+      `${evidence}.`);
+    return 0;
+  }
+
   // pagesOf takes the pictures of the pages that paths open.
   function pagesOf(io, paths, given) {
     const root = artifactFolder(io);
@@ -570,6 +710,8 @@ module.exports = (lib) => {
     film: {
       usage: ['film <scenario> [--inputs <path>] [--artifacts <folder>]',
         'film recode <scenario>', 'film frames <scenario>', 'film todo',
+        'film record <scenario> --review <file> --media <N>',
+        'film record <scenario> --class <class> --cause <text> [--step <N>]',
         'film pages <path>... [--inputs <path>] [--artifacts <folder>]'],
       args: (io, what, rest) => {
         const given = options([what, ...rest].filter((one) => one !== undefined));
@@ -582,6 +724,9 @@ module.exports = (lib) => {
           return null;
         }
         if (first === 'todo' && !paths.length && given.rest.length === 1) return null;
+        if (first === 'record' && ID.test(paths[0] || '')) {
+          return recordOptions(paths.slice(1)).problem || null;
+        }
         return USAGE;
       },
       run: (io, what, rest) => {
@@ -590,6 +735,7 @@ module.exports = (lib) => {
         if (first === 'recode') return recodeOf(io, paths[0]);
         if (first === 'frames') return framesOf(io, paths[0]);
         if (first === 'todo') return todoOf(io);
+        if (first === 'record') return recordOf(io, paths[0], recordOptions(paths.slice(1)));
         return first === 'pages' ? pagesOf(io, paths, given) : filmOf(io, first, given);
       },
     },

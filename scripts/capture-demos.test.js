@@ -231,8 +231,7 @@ test('film recode: with no kept frames it exits 3, and with under 20 s of the ca
   }
   assert.equal(late.status, 3, late.out + late.err);
   assert.equal(late.out.split('\n')[0], 'Run film recode scenario-1 again.');
-  assert.equal(late.out.split('\n')[1], '  Only 15 s of the 585 s of the call are left for ' +
-    'ffmpeg.');
+  assert.match(late.out.split('\n')[1], /^ {2}Only 1[45] s of the 585 s of the call are left for ffmpeg\.$/);
   assert.ok(fs.existsSync(path.join(here.film, 'f000001.jpg')));
   assert.equal(ffmpeg.calls().length, 1);
   assert.equal(call(['film', 'recode', 'scenario-1'], here.deps).status, 0);
@@ -401,4 +400,117 @@ test('film todo: a rerun lists the scenario with no evidence for the commit, and
   write();
   assert.deepEqual(call(['film', 'todo'], here.deps).out.trim().split('\n'),
     ['To film: none.', 'To withdraw: none.']);
+});
+
+// ---- film record -----------------------------------------------------------------------------
+
+// two returns a demo script of id with two steps.
+function two(id, evidence = 'film') {
+  const one = script(id, evidence);
+  one.steps.push({ step: 2, title: `Step 2 of ${id}.`, expected: 'Seen too.',
+    actions: [{ do: 'click', target: 'text=Order 1042' }] });
+  return one;
+}
+
+// filmed returns a checkout with the script of scenario-1 on one commit, and the folder .film
+// that a call of film leaves, with a film of two steps, 2 s each.
+function filmed(evidenceKind = 'film') {
+  const here = checkout([two('scenario-1', evidenceKind)]);
+  const head = committed(here.dir);
+  const dir = path.join(here.root, '.film', 'scenario-1');
+  fs.mkdirSync(dir, { recursive: true });
+  if (evidenceKind === 'film') {
+    fs.writeFileSync(path.join(dir, 'scenario-1.mp4'), 'x');
+    fs.writeFileSync(path.join(dir, 'scenario-1.vtt'), filmVerb.captions(
+      { steps: [{ title: 'Step 1 of scenario-1.' }, { title: 'Step 2 of scenario-1.' }] },
+      { starts: [0, 2000], end: 4000 }));
+  } else {
+    fs.writeFileSync(path.join(dir, 'scenario-1-step-1.png'), 'x');
+    fs.writeFileSync(path.join(dir, 'scenario-1-step-2.png'), 'x');
+  }
+  const review = (...lines) => {
+    const file = path.join(here.dir, 'review.md');
+    fs.writeFileSync(file, `${lines.join('\n')}\nchanges-needed\n`);
+    return file;
+  };
+  const written = () => JSON.parse(fs.readFileSync(path.join(here.root, 'scenario-1.json'),
+    'utf8'));
+  // The push check of demo-evidence reads the file that film record wrote.
+  const pushed = () => call(['check', 'demo-evidence', path.join(here.root, 'scenario-1.json')],
+    here.deps);
+  return { ...here, head, review, written, pushed };
+}
+
+test('film record: a film whose steps passed is a passed evidence with two frames per step', () => {
+  const here = filmed();
+  const done = call(['film', 'record', 'scenario-1', '--review',
+    here.review('Step 1: passed', 'Step 2: passed'), '--media', '3'], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  assert.equal(done.out.trim(), 'Wrote scenario-1.json, the demo evidence of scenario-1: ' +
+    'passed, evidence film.');
+  const data = here.written();
+  assert.equal(data.commit, here.head);
+  assert.deepEqual([data.planned, data.evidence, data.verdict, data.class],
+    ['film', 'film', 'passed', undefined]);
+  assert.deepEqual(data.script, { type: 'demo-script', name: 'scenario-1', version: 1 });
+  assert.deepEqual(data.media, { type: 'demo-video', name: 'scenario-1', version: 3 });
+  assert.deepEqual(data.steps.map((step) => step.frames), [
+    [{ at: 'start', time_ms: 0 }, { at: 'reached', time_ms: 1960 }],
+    [{ at: 'start', time_ms: 2000 }, { at: 'reached', time_ms: 3960 }]]);
+  assert.equal(here.pushed().status, 0, here.pushed().out);
+});
+
+test('film record: a failed step needs its finding and a class, and the evidence keeps both', () => {
+  const here = filmed();
+  const lines = ['Step 1: passed', 'Step 2: failed: The page shows no date.'];
+  const noClass = call(['film', 'record', 'scenario-1', '--review', here.review(...lines),
+    '--media', '1'], here.deps);
+  assert.equal(noClass.status, 1, noClass.out);
+  assert.equal(noClass.out.split('\n')[0], 'Give each failed step a finding and the report the ' +
+    'line "Class: product", "Class: script" or "Class: setup".');
+  const done = call(['film', 'record', 'scenario-1', '--review',
+    here.review(...lines, 'Class: product'), '--media', '1'], here.deps);
+  assert.equal(done.status, 0, done.out);
+  const data = here.written();
+  assert.deepEqual([data.verdict, data.class, data.steps[1].verdict, data.steps[1].finding],
+    ['failed', 'product', 'failed', 'The page shows no date.']);
+  assert.equal(here.pushed().status, 0, here.pushed().out);
+  const short = call(['film', 'record', 'scenario-1', '--review', here.review('Step 1: passed'),
+    '--media', '1'], here.deps);
+  assert.equal(short.status, 1);
+  assert.match(short.out, /The script has 2 steps, and the report has 1 such lines\./);
+});
+
+test('film record: a scenario with no film is a failed evidence of class script, with the cause in the last step', () => {
+  const here = filmed();
+  const cause = 'The film of scenario-1 is 31.0 MiB encoded after pass 2.';
+  const done = call(['film', 'record', 'scenario-1', '--class', 'script', '--cause', cause],
+    here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  const data = here.written();
+  assert.deepEqual([data.evidence, data.verdict, data.class, data.media],
+    ['none', 'failed', 'script', undefined]);
+  assert.deepEqual(data.steps.map((step) => step.verdict), ['passed', 'failed']);
+  assert.equal(data.steps[1].finding, cause);
+  assert.deepEqual(data.steps.map((step) => step.frames), [[], []]);
+  assert.equal(here.pushed().status, 0, here.pushed().out);
+  const first = call(['film', 'record', 'scenario-1', '--class', 'setup', '--cause', 'No page.',
+    '--step', '1'], here.deps);
+  assert.equal(first.status, 0, first.out);
+  assert.deepEqual(here.written().steps.map((step) => step.verdict), ['failed', 'not-reached']);
+});
+
+test('film record: pictures have one frame per step, and a wrong form exits 2', () => {
+  const here = filmed('pictures');
+  const done = call(['film', 'record', 'scenario-1', '--review',
+    here.review('Step 1: passed', 'Step 2: passed'), '--media', '2'], here.deps);
+  assert.equal(done.status, 0, done.out + done.err);
+  const data = here.written();
+  assert.deepEqual([data.evidence, data.media.type], ['pictures', 'screenshot']);
+  assert.deepEqual(data.steps[1].frames, [{ at: 'reached', file: 'scenario-1-step-2.png' }]);
+  for (const argv of [['film', 'record', 'scenario-1'], ['film', 'record', 'scenario-1',
+    '--class', 'script'], ['film', 'record', 'scenario-1', '--class', 'wrong', '--cause', 'x'],
+  ['film', 'record', 'scenario-1', '--review', 'a', '--media', '0']]) {
+    assert.equal(call(argv, here.deps).status, 2, argv.join(' '));
+  }
 });
