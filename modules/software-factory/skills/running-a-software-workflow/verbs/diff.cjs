@@ -30,7 +30,7 @@ module.exports = (lib) => {
       if (!(error instanceof Missing)) throw error;
     }
     if (work.excluded) {
-      io.print([git.EXCLUDED], 'Wrote no diff.');
+      io.print([work.excluded], 'Wrote no diff.');
       return 1;
     }
     if (changed.length) {

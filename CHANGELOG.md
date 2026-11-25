@@ -2073,6 +2073,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The line `/.qory` in `.git/info/exclude`, which qory writes there, and a line that starts
+  with `/.qory/` are no finding of `scope`, `freeze`, `run`, `diff` and `probe`. Such a line
+  stopped each of these verbs, although qory leaves `.qory/` out of every commit. Any other
+  pattern is red, such as `.qory`, `!/.qory` or `/.qory` after a space, because no white
+  space is trimmed. Only an empty line or a line of spaces is blank. A line of a tab, a form
+  feed or U+00A0 is a pattern to git, and passed the check before this change. The finding
+  is "Remove this line from .git/info/exclude, then run the verb again.", in place of "Empty
+  .git/info/exclude, then run the verb again: its patterns hide files from git status." The
+  second line of the finding is the first such pattern in quotes, cut to 80 characters, with
+  control and format characters, the characters of the Unicode class
+  Default_Ignorable_Code_Point and U+FFFC escaped, or "a path with a key in its name" when
+  the pattern has a key.
 - A `qory.start_artifacts` of `""`, which qory writes for a run that pulled no build plans
   at the start, no longer stops `run`, `probe`, `step begin`, `preflight` and `prove` with
   exit 3. The build plan then comes from the artifact folder of the session, as without
