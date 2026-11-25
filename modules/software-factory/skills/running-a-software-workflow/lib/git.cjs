@@ -118,9 +118,9 @@ const OWNER = ['Run the check as the user that owns the checkout.', 'git exits w
   'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
 
 // ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has the
-// first line of git's error output that is no hint, unless that line has a key or a secret value
-// of the environment: the error lines of git contain file names. A checkout of another user gets
-// OWNER.
+// first line of git's error output that is neither blank nor a hint, unless that line has a key
+// or a secret value of the environment: the error lines of git contain file names. A checkout of
+// another user gets OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {

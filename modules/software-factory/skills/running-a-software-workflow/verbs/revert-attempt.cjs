@@ -144,8 +144,8 @@ module.exports = (lib) => {
       { env: io.env }).trim();
     const now = git.ok(Missing, work.top, ['rev-parse', `${work.commit}^{tree}`], fix,
       { env: io.env }).trim();
-    // After the checks of the checkout, so that a change in it is never taken for a done revert: a
-    // rerun after a crash finds a clean checkout with the tree of the base, and goes on.
+    // After the checks of the checkout, so that a change in it is never taken for a done revert:
+    // a rerun after a crash finds a clean checkout with the tree of the base, and goes on.
     if (tree === now) {
       io.print([], `Nothing to revert: HEAD has the tree of ${commit.slice(0, 12)} already.`);
       return 0;

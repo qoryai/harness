@@ -46,17 +46,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in the folder, or has another track leaves the build plan as the source. The track is the
   one in `## Track` of the approved proposal: it is still "Fast track" after a switch to
   the standard track, until the track comes from `inputs.json`.
-- The verb `revert-attempt --base <commit>` of `running-a-software-workflow`. It makes one commit,
-  with HEAD as its parent, whose tree is the tree of the base, and moves HEAD, the index and the
-  files to it, so that nothing is left uncommitted and no push needs a force. When HEAD has the
-  tree of the base already, it makes no commit and exits 0 with "Nothing to revert", so a rerun
-  after a crash goes on. It exits 3 with the fix first when the checkout has a change that is not
-  committed, when the branch has no commit, when the checkout already has a path that the base
-  adds (an untracked or ignored file, link or folder with such an entry, or a nested repository,
-  found by the file system, whatever its case or normalisation rules), when a path that differs is
-  a submodule on either side (a revert across a submodule stops), when a tracked file under
-  `.qory` has a change in the checkout, when a rebase is in progress, and when the base is no
-  commit of the checkout. Nothing calls it yet.
+- The verb `revert-attempt --base <commit>` of `running-a-software-workflow`. It makes one
+  commit, with HEAD as its parent, whose tree is the tree of the base, and moves HEAD, the index
+  and the files to it, so that nothing is left uncommitted and no push needs a force. When HEAD
+  has the tree of the base already, it makes no commit and exits 0 with "Nothing to revert", so a
+  rerun after a crash goes on. It exits 3 with the fix first when the checkout has a change that
+  is not committed, when the branch has no commit, when the checkout already has a path that the
+  base adds (an untracked or ignored file, link or folder with such an entry, or a nested
+  repository, found by the file system, whatever its case or normalisation rules), when a path
+  that differs is a submodule on either side (a revert across a submodule stops), when a tracked
+  file under `.qory` has a change in the checkout, when a rebase is in progress, and when the
+  base is no commit of the checkout. Nothing calls it yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
