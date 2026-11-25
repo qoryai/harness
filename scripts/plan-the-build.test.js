@@ -992,15 +992,15 @@ test('the scope check of build-plan runs the checks of freeze on the commits sin
   // A key in a file of the plan.
   const inFile = committed((w) => commitFile(w, 'replies/delayed-order.md', `Token ${token}\n`));
   assert.equal(inFile.status, 1, inFile.out);
-  assert.match(inFile.out, new RegExp('^Rewrite commit [0-9a-f]{12} without a GitHub token in ' +
-    '"replies/delayed-order\\.md", line 1\\.$', 'm'));
+  assert.match(inFile.out, new RegExp('^Rewrite commit [0-9a-f]{12} without the GitHub ' +
+    'personal access token in "replies/delaye\\.\\.\\.", line 1\\.$', 'm'));
   assert.match(inFile.out, /^Scanned 1 commit since [0-9a-f]{12} for keys: 1 finding\.$/m);
   // A key in the message of a commit whose files are in the plan.
   const inMessage = committed((w) => commitFile(w, 'replies/delayed-order.md', 'The hours.\n',
     `Change ${token}`));
   assert.equal(inMessage.status, 1, inMessage.out);
-  assert.match(inMessage.out,
-    /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/m);
+  assert.match(inMessage.out, new RegExp('^Rewrite the message and headers of commit ' +
+    '[0-9a-f]{12} without the GitHub personal access token\\.$', 'm'));
   assert.ok(!inFile.out.includes(token) && !inMessage.out.includes(token));
   // A repository committed under a folder of the plan.
   const nested = committed((w) => {

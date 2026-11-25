@@ -914,7 +914,7 @@ test('freeze: a planted secret stops it, its value is never printed, and nothing
   assert.deepEqual(got.lines, [
     'Remove the value of a secret variable from "lib/env.js", line 1, then freeze again.',
     'Remove a private key from "lib/pem.js", line 1, then freeze again.',
-    'Remove a GitHub token from "src/a.js", line 2, then freeze again.',
+    'Remove the GitHub personal access token from "src/a.js", line 2, then freeze again.',
     'Froze nothing: the scan for keys has 3 findings.',
   ]);
   assert.ok(!got.out.includes(TOKEN) && !got.out.includes('value-of-a-run-secret-42') && !got.err.includes(TOKEN));
@@ -940,14 +940,14 @@ test('freeze: a change outside the scope, no change, and a key in a commit since
   assert.equal(sh(dir, 'rev-parse', 'HEAD~1'), head);
   const based = call(dir, ['freeze', 'deliverable:d-1', '--base', head]);
   assert.equal(based.status, 1);
-  assert.match(based.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k\.js", line 1\.$/);
+  assert.match(based.lines[0], /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "lib\/k\.js", line 1\.$/);
   // qory pushes every commit that no remote branch has, so freeze scans it without --base.
   fs.rmSync(path.join(dir, 'lib/k.js'));
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-am', 'undo');
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
   const undone = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(undone.status, 1, undone.out);
-  assert.match(undone.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token/);
+  assert.match(undone.lines[0], /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token/);
   assert.ok(!undone.out.includes(TOKEN));
   // A commit that a remote branch has is pushed already, and no scan of it helps.
   sh(dir, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
@@ -959,7 +959,7 @@ test('freeze: a key in a file name or in the plan\'s change, and a line of a sec
   write(dir, `lib/${TOKEN}.js`, 'exports.x = 1;\n');
   const name = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(name.status, 1);
-  assert.equal(name.lines[0], 'Remove a GitHub token from the name of a file, then freeze again.');
+  assert.equal(name.lines[0], 'Remove the GitHub personal access token from the name of a file, then freeze again.');
   assert.ok(!name.out.includes(TOKEN));
   fs.rmSync(path.join(dir, `lib/${TOKEN}.js`));
   const value = '{\n  "type": "service",\n  "private": "q8Zr4Lm2Wx9Kp3Tn"\n}';
@@ -992,7 +992,7 @@ test('freeze: a key in the message or a header of a commit stops it', () => {
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
   const header = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(header.status, 1, header.out);
-  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
+  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without the GitHub personal access token\.$/);
   sh(dir, 'reset', '-q', '--soft', 'HEAD~1');
   sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '--allow-empty', '-m', `agent ${TOKEN}`);
   const body = call(dir, ['freeze', 'deliverable:d-1']);
@@ -1023,7 +1023,7 @@ test('freeze: a key in a commit\'s file whose name is not UTF-8 stops it', () =>
   const got = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(got.status, 1, got.out);
   assert.ok(got.lines.some((line) => /^Rename "lib\/k�\.js" in commit [0-9a-f]{12} to UTF-8, then freeze again: the name is not UTF-8\.$/.test(line)), got.out);
-  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k�\.js", line 1/.test(line)), got.out);
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "lib\/k�\.js", line 1/.test(line)), got.out);
   assert.ok(!got.out.includes(TOKEN));
 });
 
@@ -2705,7 +2705,7 @@ test('start_commits: the base of scope and freeze, which a fake remote branch do
     ['scope', '--plan', '--inputs', inputs]]) {
     const got = call(dir, argv);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "lib\/k\.js", line 1\.$/);
+    assert.match(got.lines[0], /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "lib\/k\.js", line 1\.$/);
     assert.ok(!got.out.includes(TOKEN));
   }
   const scoped = call(dir, ['scope', 'deliverable:d-1', '--inputs', inputs]);
@@ -2795,7 +2795,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   assert.deepEqual(scoped.lines.slice(1, 4), CONTEXT);
   assert.match(scoped.lines[4], /^  The scope is the files of the build plan, /);
   assert.equal(scoped.lines[5], '  src/a.js, lib/, qory.yaml, hooks/.');
-  assert.match(scoped.lines[6], /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/k\.md", line 1\.$/);
+  assert.match(scoped.lines[6], /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "docs\/k\.md", line 1\.$/);
   assert.match(scoped.lines.at(-2), /^Scanned 2 commits since [0-9a-f]{12} for keys: 1 finding\.$/);
   assert.match(scoped.lines.at(-1), /: 1 outside\.$/);
   for (const argv of [['freeze', '--plan'], ['freeze', 'fix:f1']]) {
@@ -2810,7 +2810,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
     const got = call(inside, [...argv, '--base', start, '--artifacts', artifacts]);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /without a GitHub token in "lib\/k\.js", line 1\.$/);
+    assert.match(got.lines[0], /without the GitHub personal access token in "lib\/k\.js", line 1\.$/);
   }
   sh(dir, 'reset', '-q', '--hard', 'HEAD~1');
   commitFiles(dir, `step 2 ${TOKEN}`, { 'lib/x.js': 'exports.x = 1;\n' });
@@ -2818,7 +2818,7 @@ test('the push step: scope --plan and freeze on a clean copy refuse a key and a 
   for (const argv of [['scope', '--plan'], ['freeze', '--plan']]) {
     const got = call(message, [...argv, '--base', start, '--artifacts', artifacts]);
     assert.equal(got.status, 1, `${argv.join(' ')}: ${got.out}`);
-    assert.match(got.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
+    assert.match(got.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without the GitHub personal access token\.$/);
     assert.ok(!got.out.includes(TOKEN));
   }
 });
@@ -3182,7 +3182,7 @@ test('freeze: a file over 16 MiB is a finding, and a key in two headers of a com
   const header = call(dir, ['freeze', 'deliverable:d-1']);
   assert.equal(header.status, 1, header.out);
   assert.equal(header.lines.length, 2, header.out);
-  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without a GitHub token\.$/);
+  assert.match(header.lines[0], /^Rewrite the message and headers of commit [0-9a-f]{12} without the GitHub personal access token\.$/);
 });
 
 // A long-running clean filter, by git's filter protocol: it passes each file through, and when
@@ -3627,7 +3627,7 @@ test('scope --plan: a ref under refs/replace changes no commit, path or key that
     assert.ok(got.lines.some((line) => /^Undo the change to "evil": it is outside the scope\.$/.test(line)), got.out);
     // freeze stops at the path before it scans; scope scans too.
     if (verb === 'scope') {
-      assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "evil", line 1/.test(line)), got.out);
+      assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "evil", line 1/.test(line)), got.out);
     }
     assert.ok(!got.out.includes(TOKEN));
   }
@@ -3776,7 +3776,7 @@ test('scope prints no line over 100 characters, for the longest names and words'
     for (const line of got.lines) assert.ok(line.length <= 100, `${argv.join(' ')}: ${line.length}: ${line}`);
   }
   const got = call(dir, ['scope', 'deliverable:d-2', '--inputs', inputs]);
-  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without a GitHub token in "docs\/n+\.\.\."/.test(line)), got.out);
+  assert.ok(got.lines.some((line) => /^Rewrite commit [0-9a-f]{12} without the GitHub personal access token in "docs\/n+\.\.\."/.test(line)), got.out);
   assert.ok(got.lines.some((line) => /^Take "docs\/n+\.\.\." out of the commits since the base: it is outside the files of d-1 and d-2\.$/.test(line)), got.out);
   assert.equal(got.lines.at(-1), 'Checked 4 changed paths against the files of d-2 (commits: d-1 and d-2): 3 outside.');
 });
@@ -4062,7 +4062,7 @@ test('report-build: a bad or missing text writes no file and removes the output'
   refused(TEXT.replace('## Disclosed', '## Notes'),
     /^Write the text of submission\.md in four parts, in their order\./);
   refused(TEXT.replace('Nothing is left out.', `Key ghp_${'A1b2C3d4E5'.repeat(4)}.`),
-    /^Remove the secret from the text of submission\.md: it has the form of an access token\.$/);
+    /^Remove the secret from the text of submission\.md\.$/);
   refused(TEXT.replace('# Add', 'Add'), /^Start submission\.md with the line # <title>\./);
   refused(`${TEXT}<!-- qory:start -->\n`,
     /^Write the text of submission\.md in another form\.$/);
