@@ -75,9 +75,11 @@ module.exports = (lib) => {
   // changed returns the path of each file of the checkout that differs from its head, an
   // untracked file that git does not ignore included. The paths of porcelain v1 start at the
   // top of the checkout, also from a subfolder, and a rename has its source in the next part.
-  // qory keeps .qory out of every commit, so its files count as none.
+  // qory keeps .qory out of every commit, so its files count as none. A changed submodule
+  // counts whatever its ignore setting, as in scope.
   function changed(io) {
-    const ran = git(io, ['status', '--porcelain=v1', '-z', '--untracked-files=all']);
+    const ran = git(io, ['status', '--porcelain=v1', '-z', '--untracked-files=all',
+      '--ignore-submodules=none']);
     if (ran.status !== 0) {
       throw new Missing('Run checks.cjs step in the checkout of the work.\ngit status failed in ' +
         'the working folder.');

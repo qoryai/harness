@@ -593,6 +593,30 @@ test('ledger: a change made before step begin and outside a step is refused', ()
     '  2 files changed outside a step, such as "new.txt".']);
 });
 
+test('ledger: a changed submodule is a change whatever its ignore setting', () => {
+  const w = work();
+  const sub = { repo: fresh('sub'), env: w.env };
+  git(sub, 'init', '-q');
+  commit(sub, 'a.txt', 'a\n');
+  git(w, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub.repo, 'lib/sub');
+  git(w, 'config', '-f', '.gitmodules', 'submodule.lib/sub.ignore', 'dirty');
+  git(w, 'add', '.gitmodules');
+  git(w, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add lib/sub');
+  const call = resumed(w);
+  const file = path.join(w.repo, 'lib/sub/a.txt');
+  fs.writeFileSync(file, 'b\n');
+  const refused = begin(call, w, 'deliverable:d-1');
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[1], '  1 file changed outside a step, such as "lib/sub".');
+  fs.writeFileSync(file, 'a\n');
+  assert.equal(begin(call, w, 'deliverable:d-1').status, 0);
+  fs.writeFileSync(file, 'b\n');
+  const ended = call('step', 'end', 'deliverable:d-1', 'done');
+  assert.equal(ended.status, 1, ended.out);
+  assert.equal(ended.lines[0], 'Commit each change in the step, or undo it.');
+  assert.match(ended.lines[1], /^ {2}1 file of the checkout differs from .*such as "lib\/sub"\.$/);
+});
+
 test('ledger: a commit between resume and the first row is refused', () => {
   const w = work();
   const start = headOf(w);
