@@ -638,7 +638,7 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
     'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
-    'build-ledger': null, 'acceptance-lock': 'acceptance-criteria',
+    'build-ledger': null, 'acceptance-lock': 'acceptance-criteria, questions',
     'demo-script': 'demo-scenarios, build-ledger', 'demo-evidence': 'demo-script',
     'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
     walkthrough: 'verification, acceptance-criteria',
@@ -1678,19 +1678,19 @@ test('build-ledger: each row of the newest version stays, but a running row may 
 
 const lockFile = (doc) => ['acceptance-lock.json', doc];
 
-// UPLOAD is the first line of the finding of a lock when only a member's upload of a newer
+// REQUEST is the first line of the finding of a lock when only a member's decision on a newer
 // criteria version opens a new lock, as of askMounted.
-const UPLOAD = 'Ask a member to upload the acceptance criteria they accept as a new version.';
+const REQUEST = 'Ask a member to write the change in a request for changes.';
 
 // ASK starts the finding of a lock when the newest lock already locks the version, or when no
-// person stored a criteria version after it: UPLOAD, then a line with the step and the reason.
-const ASK = `${UPLOAD}\nThen lock that version`;
+// person stored a criteria version after it: REQUEST, then a line with the step and the reason.
+const ASK = `${REQUEST}\nThen lock that version`;
 
 // askMounted is the finding of a push whose store has version newest in place of target, the
 // approved version or, with approved false, a person's version. With byRun false, newest has
 // a writer of a kind other than run, or none.
 const askMounted = (target, newest, approved = true, byRun = true) =>
-  `${UPLOAD}\nThen lock that version: ` +
+  `${REQUEST}\nThen lock that version: ` +
   `${byRun ? `the run stored version ${newest} after ` +
     `${approved ? `the approved version ${target}` : `version ${target}, a member's upload`}`
     : `no member uploaded the newer criteria version ${newest}`}.`;
@@ -1753,7 +1753,7 @@ test('withdrawn criteria: the lock and the build plan say they are withdrawn', (
 test('acceptance-lock: the criteria version is approved, and no newer than the approval', () => {
   both(unapproved, LOCK_DOC, (result) => exactly(result, UNAPPROVED));
   // A run's version 2 above the approval: the push gets only version 2, so a check and a
-  // push get the line that starts with UPLOAD.
+  // push get the line that starts with REQUEST.
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   const run = () => criteriaVersion(fixture(), 2, { at: LATER });
@@ -1994,7 +1994,7 @@ function twoLocks() {
 
 // follow runs the lock doc in mode on a new folder of make, then the lock with the criteria
 // version in the fix of the finding, until the lock passes or gets a line that starts with
-// UPLOAD or is UNAPPROVED. It returns each finding in order and the end: pass, ask or
+// REQUEST or is UNAPPROVED. It returns each finding in order and the end: pass, ask or
 // unapproved.
 function follow(make, mode, doc) {
   const seen = [];
@@ -2007,7 +2007,7 @@ function follow(make, mode, doc) {
     assert.equal(result.findings.length, 2, result.out);
     const line = result.findings[0];
     seen.push(line);
-    if (line.startsWith(UPLOAD)) return { seen, end: 'ask' };
+    if (line.startsWith(REQUEST)) return { seen, end: 'ask' };
     if (line === UNAPPROVED) return { seen, end: 'unapproved' };
     const to = /^(?:Set \/criteria\/version of acceptance-lock\.json to |Lock version )([0-9]+)[ ,.]/
       .exec(line);
@@ -2053,7 +2053,7 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
 
   // The loop of the last round: a lock of each version on the first store. The push gets
   // only the run's version 3, so a check and a push of any lock get one line, which starts
-  // with UPLOAD. Lock 2 pushed again, also pretty-printed, gets the same line.
+  // with REQUEST. Lock 2 pushed again, also pretty-printed, gets the same line.
   const runAfter = stores['two locks, then a run'];
   const counts = askMounted(2, 3, false);
   for (const doc of [LOCK_2, LOCK_DOC, lockOf(LOCK_DOC, 3), lockOf(WEAK, 2),
@@ -2273,7 +2273,7 @@ test('acceptance-lock: each finding has at most 196 characters at three-digit ve
     '  Version 998 is the newest criteria version that a person stored.',
     '  acceptance-lock.json has the older version 997.',
     'Ask a member to approve the acceptance criteria, ',
-    UPLOAD, '  Then lock that version: the run stored version ',
+    REQUEST, '  Then lock that version: the run stored version ',
     '  Then lock that version: acceptance-lock version 999 already locks ',
     '  Then lock that version: no member uploaded criteria after ', 'Pull version 998 ']) {
     assert.ok([...lines].some((line) => line.startsWith(start)), start);
@@ -2307,7 +2307,7 @@ test('acceptance-lock: with no lock, only a lock of the target passes', () => {
   }
   both(person, lockOf(LOCK_DOC, 998), (result) => passes(result, 'acceptance-lock'));
   // A run's version 999 after the approval: the push gets only version 999, so a check and a
-  // push of every lock get the line that starts with UPLOAD.
+  // push of every lock get the line that starts with REQUEST.
   const run = () => big({ approved: 997, persons: { 995: EARLIER }, folders: [995, 996, 997, 999] });
   for (const number of [995, 996, 997, 999]) {
     both(run, lockOf(LOCK_DOC, number), (result) => exactly(result, askMounted(997, 999)));

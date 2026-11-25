@@ -4,6 +4,7 @@
 // file.
 'use strict';
 
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -291,6 +292,17 @@ module.exports = (lib) => {
   // with `at`, the time it was stored, and `writer`, of kind person for a person's upload.
   const byPerson = (version) => isObject(version.writer) && version.writer.kind === 'person';
 
+  // timeOf returns the milliseconds of an `at` or a `decision_at` of index.json, or NaN for a
+  // value that is no string or does not parse as a time.
+  const timeOf = (at) => (typeof at === 'string' ? Date.parse(at) : NaN);
+
+  // linked reports whether a version of index.json is linked to a person's decision: its
+  // `decision`, the id of the note, is a non-empty string, and its `decision_at`, the time of
+  // that note, parses as a time. Qory Apiary writes both with `qory artifact push
+  // --decision` (docs/contract/run-api.md of Qory Apiary, "GET artifacts").
+  const linked = (version) => typeof version.decision === 'string' && version.decision !== '' &&
+    !Number.isNaN(timeOf(version.decision_at));
+
   // versionsOf returns the versions in index of the artifact main of type, or none.
   function versionsOf(index, type) {
     const artifact = index && index.artifacts.find((one) => one.type === type &&
@@ -311,12 +323,20 @@ module.exports = (lib) => {
 
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
   // build-plan, verification and walkthrough read: the approved version, or the newest version
-  // that a person stored after it. It returns null with no index.json or no approved version.
-  // A run's version never counts, nor a version that a cancelled run wrote, as in countedOf.
-  // A `decision` of a version counts neither, because index.json has no time of a decision
-  // to compare with the newest lock. An approval of a version that a cancelled run wrote is
-  // no approval. Two criteria versions of one number in index.json exit 3 with the line of
-  // pullAgain for words, because a number then matches two versions.
+  // that a person stored after it, or the newest version that is linked to a decision that
+  // counts. It returns null with no index.json or no approved version. A run's version never
+  // counts, nor a version that a cancelled run wrote, as in countedOf, nor a lock of a
+  // cancelled run or a withdrawal.
+  // A linked version counts when its `decision_at` is later than the newest lock that is
+  // older than the version, so a lock that a version gets later does not take the version
+  // back, and index.json is the only source. With no lock older than the version, it counts.
+  // A time that does not parse, in the version or the lock, counts for nothing. The lock check
+  // decides on the kind of the decision and on the answer that it needs; this function trusts
+  // a linked version, so a plan or a verification may read an older note than the one that the
+  // run was fed, and a check that asks a member then fails closed. An approval of a version
+  // that a cancelled run wrote is no approval. Two criteria versions of one number in
+  // index.json exit 3 with the line of pullAgain for words, because a number then matches two
+  // versions.
   function criteriaTarget(context, words) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {
@@ -324,9 +344,18 @@ module.exports = (lib) => {
     }
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
-    const persons = countedOf(context, 'acceptance-criteria').filter(byPerson)
-      .map((one) => one.number);
-    return Math.max(approvedVersion, ...persons);
+    const locks = countedOf(context, 'acceptance-lock');
+    const newer = (version) => {
+      const at = timeOf(version.at);
+      if (Number.isNaN(at)) return false;
+      const before = locks.filter((one) => !(timeOf(one.at) >= at));
+      if (!before.length) return true;
+      const last = before.reduce((a, b) => (b.number > a.number ? b : a));
+      return timeOf(version.decision_at) > timeOf(last.at);
+    };
+    const counted = countedOf(context, 'acceptance-criteria')
+      .filter((one) => byPerson(one) || (linked(one) && newer(one))).map((one) => one.number);
+    return Math.max(approvedVersion, ...counted);
   }
 
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
@@ -364,7 +393,7 @@ module.exports = (lib) => {
     const byRun = Boolean(entry) && isObject(entry.writer) && entry.writer.kind === 'run';
     const reason = byRun ? `the run stored version ${num(newest)} after ${why}`
       : `no member uploaded the newer criteria version ${num(newest)}`;
-    return 'Ask a member to upload the acceptance criteria they accept as a new version.\n' +
+    return 'Ask a member to write the change in a request for changes.\n' +
       `Then ${step}: ${reason}.`;
   }
 
@@ -531,6 +560,14 @@ module.exports = (lib) => {
     };
   }
 
+  // criterionHash returns the SHA-256 of a criterion, as 64 lower-case hexadecimal digits: of
+  // the JSON text [<text>, <check>] with the `text` and the `check` of the criterion in
+  // acceptance-criteria.json. The lock lists it as `criterion_sha256` for each check, so a
+  // push, which has no older criteria version, knows which checks a change of the criteria
+  // touches.
+  const criterionHash = (criterion) => crypto.createHash('sha256')
+    .update(JSON.stringify([criterion.text, criterion.check])).digest('hex');
+
   // liveCriteria returns the live criteria of the version that criteriaText reads, or null
   // after its finding.
   function liveCriteria(run, what) {
@@ -542,7 +579,7 @@ module.exports = (lib) => {
     COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, shown, full, commandsTable, jsonFile,
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
+    versionsOf, countedOf, timeOf, linked, criterionHash, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
     noCriteria,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,

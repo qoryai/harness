@@ -633,6 +633,9 @@ artifact_types:
               "sha256": {
                 "$ref": "#/$defs/sha256"
               },
+              "criterion_sha256": {
+                "$ref": "#/$defs/sha256"
+              },
               "command": {
                 "type": "string",
                 "minLength": 1,

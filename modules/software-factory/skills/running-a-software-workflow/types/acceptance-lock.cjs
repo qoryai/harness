@@ -10,9 +10,9 @@ const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
   const {
-    Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, isObject, jsonFile,
-    liveIn, countedOf, newestCriteria, noCriteria, num, parseJson, pullCriteria, readFile,
-    versionsOf,
+    Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
+    isObject, jsonFile, liveIn, linked, countedOf, newestCriteria, noCriteria, num, parseJson,
+    pullCriteria, readFile, short, timeOf, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -33,21 +33,31 @@ module.exports = (lib) => {
   const WITHDRAWN = 'Ask a member to upload the acceptance criteria again, then lock the ' +
     'checks: they are withdrawn.';
 
-  // The action when no lock that a run can write passes: only a person's upload of a newer
-  // criteria version opens a new lock. The line after it starts with the next step.
-  const ASK = 'Ask a member to upload the acceptance criteria they accept as a new version.\n' +
+  // The action when no lock that a run can write passes: only a person's decision opens a new
+  // lock, such as a change that a member writes in a request for changes. The line after it
+  // starts with the next step.
+  const ASK = 'Ask a member to write the change in a request for changes.\n' +
     'Then lock that version';
 
   // The index is the run API's (docs/contract/run-api.md of Qory Apiary, "GET artifacts"): each
   // version has `at`, the time it was stored, and `writer`, of kind person for a person's
-  // upload. Only a person's upload of a criteria version opens a lock above the approval or a
-  // second lock. A `decision`, of a version or of the lock, opens nothing: index.json has no
-  // time of a decision to compare with the newest lock. criteriaTarget computes the lock's
-  // target. A version's `note` never counts, because the run that stores a version writes
-  // the note.
+  // upload. A version is linked when it has a `decision`, the id of a person's note, and
+  // `decision_at`, the time of that note. A criteria version opens a lock above the approval or
+  // a second lock when a person stored it after the newest lock, or when it is linked to a note
+  // that is newer than the newest lock and whose id has a kind that the lock knows:
+  //   gd_, es_ and rc_ are free text, which the check cannot bind to a criterion;
+  //   an_ is the answer to a question, which the question rule binds to each criterion that
+  //   the version changes or removes;
+  //   any other kind refuses.
+  // criteriaTarget computes the lock's target. A version's `note` never counts, because the
+  // run that stores a version writes the note.
 
   // time returns the milliseconds of an `at` of index.json, or NaN for none.
-  const time = (at) => (typeof at === 'string' ? Date.parse(at) : NaN);
+  const time = timeOf;
+
+  // The ids of a `decision` that are free text, and the id of an answer to a question.
+  const FREE = /^(?:gd|es|rc)_/;
+  const ANSWER = /^an_/;
 
   // newestOf returns the lock of the highest number in locks, or null for none.
   const newestOf = (locks) => (locks.length
@@ -121,7 +131,8 @@ module.exports = (lib) => {
     }
     let same = false;
     const all = live.map((one) => {
-      const lock = { number: one.number, time: time(one.at), criteria: NaN };
+      const lock = { number: one.number, at: one.at, time: time(one.at), criteria: NaN,
+        doc: null };
       // A push reads the newest lock that counts, which its store must have when no newer
       // lock of a cancelled run exists, and the store of an older qory may lack it when one does.
       if (context.mode === 'push' && (one.number !== newest ||
@@ -137,38 +148,127 @@ module.exports = (lib) => {
       if (isObject(doc.criteria) && Number.isInteger(doc.criteria.version)) {
         lock.criteria = doc.criteria.version;
       }
+      lock.doc = doc;
       return lock;
     });
     return { all, same, locks: all.filter((one) => !(same && one.number === newest)) };
   }
 
+  // answered returns the ids of the criteria with an answered question in the newest version
+  // of the questions, whose answer is later than time, a time in milliseconds. A question
+  // counts when its `about.item` is the id, its `state` is answered and its `answer.at`
+  // parses as a time later than that time. It reads the stored version, never a draft at the
+  // top of the artifact folder, which an agent can write.
+  function answered(context, since) {
+    const found = context.newest('questions', 'questions.json');
+    let list = [];
+    try {
+      const data = JSON.parse(found ? found.text : '{}');
+      list = Array.isArray(data.questions) ? data.questions.filter(isObject) : [];
+    } catch {
+      list = [];
+    }
+    return new Set(list.filter((one) => one.state === 'answered' && isObject(one.answer) &&
+      isObject(one.about) && time(one.answer.at) > since).map((one) => one.about.item));
+  }
+
+  // changedIds returns the ids of the criteria that the checks of lock cover and that the
+  // live criteria of text, a criteria version, changed or removed: a check whose
+  // `criterion_sha256` is not the hash of its criterion now, or whose criterion is no longer
+  // live. A push has no older criteria version, so it reads the hashes that the lock lists; a
+  // lock with no hash counts every check as changed. A criterion that the version adds has no
+  // check in the lock, so it binds nothing.
+  function changedIds(lock, text) {
+    const live = new Map(liveIn(text).map((criterion) => [criterion.id, criterion]));
+    const checks = Array.isArray(lock.checks) ? lock.checks.filter(isObject) : [];
+    const kept = new Set(checks.filter((check) => live.has(check.criterion) &&
+      check.criterion_sha256 === criterionHash(live.get(check.criterion)))
+      .map((check) => check.criterion));
+    return [...new Set(checks.map((check) => check.criterion))].filter((id) => !kept.has(id));
+  }
+
   // facts returns what every finding of the lock uses, for an approved criteria version.
   // `target` is the criteria version of criteriaTarget, the one that counts: the approved
-  // version, or the newest version that a person stored after it. A new lock passes only at
-  // the target, so the fix of a finding is a lock of the target, and only when a lock of the
-  // target can pass (`reachable`). `top` is the newest criteria version in index.json, the
-  // one version that the push gets.
-  function facts(context, all, locks, approved, target) {
+  // version, or the newest version that a person stored after it, or that a decision links
+  // after the newest lock. A new lock passes only at the target, so the fix of a finding is a
+  // lock of the target, and only when a lock of the target can pass (`reachable`). `top` is
+  // the newest criteria version in index.json, the one version that the push gets. `same` is
+  // true when the lock is the newest lock pushed again.
+  function facts(context, all, locks, approved, target, same) {
     const criteria = countedOf(context, 'acceptance-criteria');
     const entry = (number) => criteria.find((one) => one.number === number);
 
-    // fresh reports whether a person stored criteria version number after every lock of
-    // list. An upload with no `at` that parses as a time is newer than no lock, and a lock
-    // time that does not parse is later than any other.
-    const fresh = (number, list) => {
-      const version = entry(number);
-      if (!version || !byPerson(version)) return false;
-      if (!list.length) return true;
+    // latest returns the time of the newest lock of list: a lock time that does not parse is
+    // later than any other.
+    const latest = (list) => {
       const times = list.map((one) => one.time);
-      const latest = times.some(Number.isNaN) ? Infinity : Math.max(...times);
-      return time(version.at) > latest;
+      return times.some(Number.isNaN) ? Infinity : Math.max(...times);
     };
+
+    // bound returns the reason that the question rule refuses the answer that links version,
+    // or null when the rule passes. Each criterion that the version changes or removes since
+    // the newest lock of list needs an answered question about it, with an answer later than
+    // that lock. The rule does not apply when a counted version above the locked one is
+    // linked to a free-text note that is newer than the lock: such a note can carry any change.
+    // shortcut: a free-text note binds to no criterion, so one such note frees the rule for
+    // every later answer; replace it when Qory Apiary lists the criteria that a note changes.
+    // With no lock there is nothing to change, and the rule has nothing to bind.
+    function bound(version, list) {
+      const last = newestOf(list);
+      if (last === null) return null;
+      const free = criteria.some((one) => one.number > last.criteria && linked(one) &&
+        FREE.test(one.decision) && time(one.decision_at) > last.time);
+      if (free) return null;
+      const lockWords = `acceptance-lock version ${num(last.number)}`;
+      if (last.doc === null) {
+        return `Version ${num(version.number)} is linked to an answer, and ${lockWords} is not ` +
+          'in the store, so the check cannot bind it to a criterion.';
+      }
+      const file = criteriaFile(context, version.number);
+      if (file === null) return null;
+      const ids = changedIds(last.doc, readFile(file, `acceptance-criteria version ${
+        version.number}`).replace(/\r\n?/g, '\n'));
+      const answers = answered(context, last.time);
+      const open = ids.filter((id) => !answers.has(id));
+      if (!open.length) return null;
+      return `Version ${num(version.number)} changes ${open.slice(0, 3).join(', ')}` +
+        `${open.length > 3 ? ' and more' : ''}, and no question about ${open[0]} has an ` +
+        `answer after ${lockWords}.`;
+    }
+
+    // linkedWhy returns null when version, linked to a note, opens a lock beside the locks of
+    // list, else the reason that it does not.
+    function linkedWhy(version, list) {
+      const id = version.decision;
+      if (!FREE.test(id) && !ANSWER.test(id)) {
+        return `Version ${num(version.number)} is linked to ${short(id, 40)}, and no lock ` +
+          'opens for a note of that kind.';
+      }
+      if (list.length && !(time(version.decision_at) > latest(list))) {
+        const last = newestOf(list);
+        return `Version ${num(version.number)} is linked to a note from ${version.decision_at}, ` +
+          `and acceptance-lock version ${num(last.number)} is from ${last.at}.`;
+      }
+      return ANSWER.test(id) ? bound(version, list) : null;
+    }
+
+    // why returns null when a person stored criteria version number after every lock of
+    // list, or a note links it and opens a lock; else the reason that a note does not open
+    // it, or '' when no note links the version. An upload with no `at` that parses as a time
+    // is newer than no lock, and a lock time that does not parse is later than any other.
+    function why(number, list) {
+      const version = entry(number);
+      if (!version) return '';
+      if (byPerson(version) && (!list.length || time(version.at) > latest(list))) return null;
+      return linked(version) ? linkedWhy(version, list) : '';
+    }
+    const fresh = (number, list) => why(number, list) === null;
 
     // opens reports whether a new lock of criteria version number, the target, passes the
     // approval beside the locks of list: never below a lock of list, and either at or below
-    // the approval and locked by no lock of list, or stored by a person after every lock of
-    // list. When the check does not read the newest lock of list, any version may be locked,
-    // so only a person's upload opens a lock.
+    // the approval and locked by no lock of list, or stored by a person, or linked to a note,
+    // after every lock of list. When the check does not read the newest lock of list, any
+    // version may be locked, so only a person's upload or a free-text note opens a lock.
     const opens = (number, list) => {
       if (!entry(number)) return false;
       const highest = highestOf(list);
@@ -186,13 +286,15 @@ module.exports = (lib) => {
 
     const top = newestCriteria(context);
 
-    return { locks, approved, criteria, target, entry, opens, newest, reachable, top };
+    return { locks, approved, criteria, target, entry, opens, newest, reachable, top, same,
+      why: () => why(target, all) };
   }
 
-  // ask returns the line for a lock when no lock of the target passes: a member stores a
-  // newer version. When the newest lock locks version already, the line has that lock.
-  // acceptanceLock calls it only when a lock counts: with none, a lock of the target opens,
-  // because the target is the approved version, or a person's upload that is fresh beside no
+  // ask returns the line for a lock when no lock of the target passes: a member writes a
+  // change in a request for changes. When the newest lock locks version already, the line has
+  // that lock. When a note links the target, the line has the reason that the note opens no
+  // lock. acceptanceLock calls it only when a lock counts: with none, a lock of the target
+  // opens, because the target is the approved version, or a version that is fresh beside no
   // lock, so a lock at the target passes and any other lock is reachable.
   function ask(state, version) {
     const { newest, locks } = state;
@@ -200,16 +302,20 @@ module.exports = (lib) => {
       return `${ASK}: acceptance-lock version ${num(newest.number)} already locks criteria ` +
         `version ${num(version)}.`;
     }
-    return `${ASK}: no member uploaded criteria after acceptance-lock version ` +
-      `${num(newest.number)}, the lock that counts.`;
+    return `${ASK}: ${state.why() || `no member uploaded criteria after acceptance-lock ` +
+      `version ${num(newest.number)}, the lock that counts.`}`;
   }
 
-  // targetWords returns the sentence on the target, with approved or with a person's upload
-  // as its reason.
+  // targetWords returns the sentence on the target, with approved, with a person's upload or
+  // with a linked note as its reason.
   function targetWords(state) {
-    const { target, approved } = state;
-    return target === approved
-      ? `Version ${num(target)} is the approved version of the acceptance criteria.`
+    const { target, approved, entry } = state;
+    const version = entry(target);
+    if (target === approved) {
+      return `Version ${num(target)} is the approved version of the acceptance criteria.`;
+    }
+    return version && !byPerson(version) && linked(version)
+      ? `Version ${num(target)} is the newest criteria version that a note links.`
       : `Version ${num(target)} is the newest criteria version that a person stored.`;
   }
 
@@ -237,7 +343,7 @@ module.exports = (lib) => {
     }
     const data = jsonFile(run, 'acceptance-lock', FILE, files.get(FILE));
     if (!data) return;
-    const state = facts(context, all, locks, approved, target);
+    const state = facts(context, all, locks, approved, target, same);
     const { entry, opens, reachable } = state;
     const { version } = data.criteria;
     if (same || (version === target && opens(target, locks))) {

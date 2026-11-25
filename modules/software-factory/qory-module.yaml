@@ -92,7 +92,7 @@ push_checks:
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, build-ledger]
   - type: acceptance-lock
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, acceptance-lock]
-    reads: [acceptance-criteria]
+    reads: [acceptance-criteria, questions]
   - type: demo-script
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, demo-script]
     reads: [demo-scenarios, build-ledger]

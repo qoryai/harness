@@ -559,10 +559,10 @@ workflow lists. On Claude Code, the allow rule matches these forms:
   text for the member from that line and the indented lines after it, in plain words:
   first the action, addressed to the member, then the reason, after a colon or on a later
   line. Leave out the step after "then" or "Then": the run takes it. Call a version of the
-  lock "the lock", and keep each other version number. "Ask a member to upload the X they
-  accept as a new version." with the line "Then lock that version: <type> version 1
-  already locks X version 1." becomes "Upload the X you accept as a new version: the lock
-  already locks X version 1."
+  lock "the lock", and keep each other version number. "Ask a member to write the change in a
+  request for changes." with the line "Then lock that version: <type> version 1 already
+  locks X version 1." becomes "Write the change in a request for changes: the lock already
+  locks X version 1."
 - Run `lock --verify` from the working folder. It exits with 0 when every locked
   file has its locked bytes, or when no lock counts. It exits with 1 when a locked file
   changed, with one line per file. Then follow the skill of your workflow for that case,
