@@ -32,10 +32,10 @@ description: >-
   and their lock; the skills writing-acceptance-checks and
   checking-acceptance-checks; the agents acceptance-check-writer and check-reviewer; the
   workflow-review-changes skill, the review session of one ticket's Build run, which starts
-  the reviewers as its agents, decides the round from their reports and the result of the
-  full suite, and records passed or changes-requested; the skills checking-code,
-  checking-tests, checking-acceptance and writing-submissions; the agents code-reviewer,
-  test-reviewer and acceptance-reviewer, the reviewers of a change; the agent
+  the reviewers as its agents and prints the findings that are open after the round, while
+  qory posts their reports and sends the verdict, passed or changes-requested; the skills
+  checking-code, checking-tests, checking-acceptance and writing-submissions; the agents
+  code-reviewer, test-reviewer and acceptance-reviewer, the reviewers of a change; the agent
   submission-writer, which writes the title and the text of the draft pull request;
   the skills checking-security, checking-data-changes and checking-failure-handling; the
   agents security-reviewer, data-reviewer and failure-reviewer, which start only for a
