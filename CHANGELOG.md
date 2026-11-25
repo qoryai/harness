@@ -24,6 +24,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   wait. It prints as `waiting` the questions of a source that wait for an answer and the open
   questions about a point of the group, and a ripple point for each criterion checked by
   `Demo` that a linked criteria version changed, until a later linked scenario version.
+  `feedback open` also lists each open question about a point of a group as "Waiting for an
+  answer:", so the run ends with an `answer` point on it.
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,

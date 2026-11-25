@@ -1,7 +1,8 @@
 // feedback open: prints each note of the work item that no version of feedback lists, as its
 // source in JSON, with the words of it that a text of the run may quote, then each point whose
-// question is not in the newest questions and each whose question waits for an answer. Exit 1
-// when a note is open or a question is missing.
+// question is not in the newest questions and each whose question waits for an answer, and each
+// open question that a group of criterion changes waits for, with the point it is about and the
+// words of that point. Exit 1 when a note is open or a question is missing.
 //
 // feedback points: prints each point that has not ended, for the steps that build it:
 // "Fix first: <id>: <change>" for a fix with no done row fix:<id> in the newest build ledger,
@@ -35,6 +36,24 @@ module.exports = (lib) => {
     return work ? 1 : 0;
   }
 
+  // groupQuestions returns { point, question } for each open question that a group of
+  // criterion changes waits for and no `question` point has, such as one that a writer of the
+  // group raised: point is the point of the group that the question is about.
+  function groupQuestions(context, data, questions, asked) {
+    const known = new Set(asked.map(({ point }) => point.question));
+    const out = new Map();
+    for (const group of criterionGroups(context, data)) {
+      for (const id of group.waiting || []) {
+        const found = questions.find((one) => one.id === id);
+        if (known.has(id) || out.has(id) || !found || !isObject(found.about)) continue;
+        const point = group.points.find((one) => typeof one.quote === 'string' &&
+          (found.about.type === group.output ? one.item : one.id) === found.about.item);
+        if (point) out.set(id, { point, question: id });
+      }
+    }
+    return [...out.values()];
+  }
+
   // shortcut: a question is found by its id alone, so a question that another workflow asks
   // under the id of a question that a crash left out counts as it; compare the about when a
   // run shows this.
@@ -47,7 +66,8 @@ module.exports = (lib) => {
     const asked = data.points.filter((point) => point.sort === 'question')
       .map((point) => ({ point, found: questions.find((one) => one.id === point.question) }));
     const missing = asked.filter(({ found }) => !found);
-    const waiting = asked.filter(({ found }) => found && found.state === 'open');
+    const waiting = [...asked.filter(({ found }) => found && found.state === 'open'),
+      ...groupQuestions(context, data, questions, asked)];
     const highest = [...questions.map((one) => one.id), ...asked.map(({ point }) =>
       point.question)].reduce((most, id) =>
       Math.max(most, Number((/^q([0-9]+)$/.exec(id) || [])[1]) || 0), 0);
@@ -55,7 +75,10 @@ module.exports = (lib) => {
       ...sources.flatMap((source) => [JSON.stringify(source),
         `Words of ${source.id}: ${wordsOf(source.text)}`]),
       ...missing.map(({ point }) => `Not asked: ${point.id}, ${point.question}`),
-      ...waiting.map(({ point }) => `Waiting for an answer: ${point.id}, ${point.question}`),
+      ...waiting.flatMap(({ point, question }) => (question === undefined
+        ? [`Waiting for an answer: ${point.id}, ${point.question}`]
+        : [`Waiting for an answer: ${point.id}, ${question}`,
+          `Words of ${point.id}: ${wordsOf(point.quote)}`])),
     ], `Open feedback: ${plural(sources.length, 'source')}; ` +
       `${plural(missing.length, 'question')} not asked; ${plural(waiting.length, 'question')} ` +
       `with no answer. The next ids are p${data.points.length + 1} and q${highest + 1}.`,

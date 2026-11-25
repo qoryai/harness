@@ -825,6 +825,29 @@ test('a group waits for an open question about one of its points, such as one of
   }
 });
 
+test('feedback open lists a question of a writer that a group waits for, so the run does not pass', () => {
+  const about = { type: 'acceptance-criteria', name: 'main', item: 'ac-2' };
+  const linesOf = (state) => open(store({ feedback: [{ data: CASE }],
+    questions: [{ data: { questions: [{ id: 'q1', state, about }] } }] }), [GD1]).lines;
+  // Step 10 writes an answer point for each line "Waiting for an answer:", and with one the
+  // run ends with escalate, not passed.
+  assert.deepEqual(linesOf('open'), ['Waiting for an answer: p2, q1',
+    `Words of p2: ${wordsOf(P2.quote)}`, 'Open feedback: 0 sources; 0 questions not asked; ' +
+    '1 question with no answer. The next ids are p3 and q2.']);
+  assert.deepEqual(linesOf('answered'), ['Open feedback: 0 sources; 0 questions not asked; ' +
+    '0 questions with no answer. The next ids are p3 and q2.']);
+  // The question of a question point is listed once, in the form of that point.
+  const data = changed((d) => {
+    d.points.push({ ...ASK, id: 'p3', source: 'gd_1', output: 'acceptance-criteria',
+      item: 'ac-2', question: 'q1' });
+  });
+  const once = open(store({ feedback: [{ data }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about }] } }] }), [GD1]).lines;
+  assert.deepEqual(once.filter((line) => line.startsWith('Waiting')),
+    ['Waiting for an answer: p3, q1']);
+  assert.ok(!once.some((line) => line.startsWith('Words of p')), once.join('\n'));
+});
+
 // The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a
 // draft of the writer, amended, the check of the type, and the push as a linked version.
 test('a stub of the triage step: one change makes one linked criteria version, other lines kept', () => {

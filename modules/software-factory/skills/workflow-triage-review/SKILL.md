@@ -112,7 +112,8 @@ ${qory:agents/spec-writer} and ${qory:agents/spec-reviewer} for `acceptance-crit
 ${qory:agents/scenario-writer} and ${qory:agents/scenario-reviewer} for `demo-scenarios`.
 `<file>` is `acceptance-criteria.json` or `demo-scenarios.md`.
 
-1. Skip a group with `waiting`: its questions end the run in step 10.
+1. Skip a group with `waiting`: `feedback open` in step 10 prints a line "Waiting for an
+   answer:" for each of its questions, so they end the run.
 2. Start `<writer>` with the input file's path, the artifact folder, the run's number, the
    line "A change from a person's feedback:" and the group's JSON line after it, unchanged,
    and no other source or note. It changes the copy of the newest version, as its skill
@@ -165,13 +166,17 @@ another start of the writer and the reviewer can write the change.
 
 ## Questions with no answer
 
-Write `points.json` with one `answer` point per line "Waiting for an answer:", as "Points" of
-`running-a-workflow` lists, then end as that section lists. The `question` of the point is
-the id of the question on that line. Read the question in `<folder>/questions.json`, else in
-the newest version, with the file tool of your runtime. `<words>` is what the context has in
-its first double quotes, unchanged, and `<criterion text>` what it has in its second double
-quotes. The text of the point is one of these, by the words that
-follow in the context:
+Write `points.json` with one `answer` point per question on a line "Waiting for an answer:",
+as "Points" of `running-a-workflow` lists, then end as that section lists. The `question` of
+the point is the id of the question on that line. An `answer` point that "Criterion changes"
+kept on the same question is that point. A line followed by "Words of <point>: <words>" is a
+question that a group of criterion changes waits for: the text of its point is "The feedback
+"<words>" changes the approved criteria, so a member decides it.", with `<words>` the text
+after "Words of <point>: ". For any other line, read the question in
+`<folder>/questions.json`, else in the newest version, with the file tool of your runtime.
+`<words>` is what the context has in its first double quotes, unchanged, and `<criterion
+text>` what it has in its second double quotes. The text of the point is one of these, by
+the words that follow in the context:
 
 - "can mean": "The feedback "<words>" can be read 2 ways, and a user sees a different result
   for each." With 3 or 4 readings, write that number.
