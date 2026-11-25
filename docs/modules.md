@@ -1199,9 +1199,9 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `round`, a missing `findings` list, an `id` that is not `f<number>`, a `source` with
   another kind or no name, another severity or state, a text member that is not text, an
   empty point, a `line` below 1, a `disputed` that is neither `true` nor `false`, or
-  `replies` that is not a list of a kind, a reason and a `round` of 1 or more. A regular
-  file over 256 KB is read up to 256 KB, never whole: when its JSON ends inside that part,
-  the verb exits with 3 and the first line is the fix: open the file with Read. It reads the
+  `replies` that is not a list of a kind, a reason and a `round` of 1 or more. A file over
+  64 MiB exits 3 with "Shorten the findings file to at most 64 MiB: a larger file is not
+  read.": 500 findings at full field length with no reply come to about 44 MB. It reads the
   file and writes nothing. It prints each path whole, without the 80-character cut of other
   messages, and the first line of a fault is plain text. A report that a reviewer writes is
   a JSON file that qory's report schema checks; only `findings round` reads it, and
@@ -1215,8 +1215,8 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   leaves the flag out. A given file that is missing, unreadable, failed or all skipped is
   still one blocking finding. The file of `--previous` has the shape of
   `open-findings.json`, with the findings of the reviewers of one stage: the open ones and
-  those that a run closed. A file that is not a regular file of at most 256 KB, is not JSON,
-  is in another form, or has findings of two stages or more exits 3. A report that is
+  those that a run closed. A file that is not a regular file, has more than 64 MiB, is not
+  JSON, is in another form, or has findings of two stages or more exits 3. A report that is
   missing, a link, no regular file, over 1 MiB, no UTF-8 or with a byte order mark, no JSON
   object, with a member twice in one object or an unpaired surrogate escape, with U+0000 in
   a text, outside the review report format or of another reviewer is one blocking finding

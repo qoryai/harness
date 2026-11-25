@@ -64,6 +64,8 @@ const LIBRARY = Object.freeze({
   outboxLinked: require('./outbox.cjs').linked,
   schema: require('./schema.cjs'),
   POINT_TEXT: require('./findings.cjs').POINT_TEXT,
+  FINDINGS_BYTES: require('./findings.cjs').FINDINGS_BYTES,
+  FINDINGS_FIX: require('./findings.cjs').FINDINGS_FIX,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
 });
 

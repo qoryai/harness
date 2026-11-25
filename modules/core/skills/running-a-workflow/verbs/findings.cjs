@@ -24,7 +24,9 @@ const {
   MAX_BYTES, MAX_FINDING_LINES, Missing, NAME, fullQuote, isObject, parseJson, plain,
   plainLine, plural, short,
 } = require('../lib/base.cjs');
-const { readOpen, reportProblem, sourceText } = require('../lib/findings.cjs');
+const {
+  FINDINGS_BYTES, FINDINGS_FIX, readOpen, reportProblem, sourceText,
+} = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
 const FIX_FIRST = 'Fix first: ';
@@ -58,8 +60,7 @@ function readLimited(full, name, size, most = MAX_BYTES, raw = false) {
 // finding, blocking ones first and then in the order of the file, at most MAX_FINDING_LINES of
 // them with one line that counts the rest, and one line on what it checked. A file that does
 // not exist has no finding, and absent is its path. A link or a folder exits 3: qory writes a
-// regular file. A regular file over MAX_BYTES is read up to MAX_BYTES, and exits 3 when its
-// JSON ends inside the part that was read.
+// regular file, and so does a file over FINDINGS_BYTES.
 function open(io, file) {
   const full = path.resolve(io.cwd, file);
   const name = short(plain(path.basename(full)), 40);
@@ -78,18 +79,10 @@ function open(io, file) {
     throw new Printed(['Give findings open the open-findings.json that qory wrote.',
       `${fullQuote(full)} is not a regular file.`]);
   }
-  const text = readLimited(full, name, stat.size);
-  let data;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    if (stat.size > MAX_BYTES) {
-      throw new Printed([`Open ${name} with Read and fix each finding in it.`,
-        `${fullQuote(full)} has ${stat.size} bytes, and findings open reads at most ` +
-        `${MAX_BYTES / 1024} KB, which ends inside its JSON.`]);
-    }
-    data = parseJson(text, name);
+  if (stat.size > FINDINGS_BYTES) {
+    throw new Printed([FINDINGS_FIX, `${fullQuote(full)} has ${stat.size} bytes.`]);
   }
+  const data = parseJson(readLimited(full, name, stat.size, FINDINGS_BYTES), name);
   const read = readOpen(data, name);
   const { round } = read;
   const findings = read.findings.filter((one) => one.state === 'open');
@@ -163,13 +156,15 @@ function previousFindings(io, file) {
   } catch {
     stat = null;
   }
-  if (!stat || !stat.isFile() || stat.size > MAX_BYTES) {
-    throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is not a regular file of at ` +
-      `most ${MAX_BYTES / 1024} KB.`);
+  if (!stat || !stat.isFile()) {
+    throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is not a regular file.`);
+  }
+  if (stat.size > FINDINGS_BYTES) {
+    throw new Missing(`${FINDINGS_FIX}\n${short(plain(full), 80)} has ${stat.size} bytes.`);
   }
   let data;
   try {
-    data = JSON.parse(readLimited(full, name, stat.size));
+    data = JSON.parse(readLimited(full, name, stat.size, FINDINGS_BYTES));
   } catch (error) {
     if (error instanceof Missing) throw error;
     throw new Missing(`${PREVIOUS_FIX}\n${name} is not JSON.`);

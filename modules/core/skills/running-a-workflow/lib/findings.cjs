@@ -19,6 +19,12 @@ const FINDING_ID = /^f[1-9][0-9]{0,8}$/;
 // The most characters of the point that open prints on a line.
 const POINT_TEXT = 500;
 
+// The most bytes of a findings file of qory, previous_findings or open-findings.json: 500
+// findings at full field length with no reply come to about 44 MB, and 50 findings with 100
+// full replies each to about 64 MiB.
+const FINDINGS_BYTES = 64 * 1024 * 1024;
+const FINDINGS_FIX = 'Shorten the findings file to at most 64 MiB: a larger file is not read.';
+
 // The most findings and the most closes of one report, as the review report format allows.
 const MAX_ITEMS = 100;
 
@@ -232,5 +238,6 @@ function readOpen(data, name, fix = 'Give findings open the open-findings.json t
 }
 
 module.exports = {
-  SEVERITIES, FINDING_ID, MAX_ITEMS, POINT_TEXT, plain, readOpen, reportProblem, sourceText,
+  SEVERITIES, FINDING_ID, FINDINGS_BYTES, FINDINGS_FIX, MAX_ITEMS, POINT_TEXT, plain, readOpen,
+  reportProblem, sourceText,
 };

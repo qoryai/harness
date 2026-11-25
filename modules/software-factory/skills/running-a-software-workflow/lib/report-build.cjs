@@ -32,8 +32,8 @@ const REPLY_TEXT = 500;
 
 module.exports = (lib) => {
   const {
-    MAX_BYTES, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson, plainText, readFile,
-    readOpen, schema, sections, sourceText,
+    FINDINGS_BYTES, FINDINGS_FIX, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson,
+    plainText, readFile, readOpen, schema, sections, sourceText,
   } = lib;
   const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
@@ -91,9 +91,12 @@ module.exports = (lib) => {
     } catch {
       return null;
     }
-    if (!stat.isFile() || stat.size > MAX_BYTES) {
+    if (!stat.isFile()) {
       throw new Missing('Give report-build the open-findings.json that qory wrote.\n' +
-        'It is no regular file of at most 256 KB.');
+        'It is not a regular file.');
+    }
+    if (stat.size > FINDINGS_BYTES) {
+      throw new Missing(`${FINDINGS_FIX}\nopen-findings.json has ${stat.size} bytes.`);
     }
     const data = parseJson(readFile(file, 'open-findings.json'), 'open-findings.json');
     const { round, findings } = readOpen(data, 'open-findings.json');

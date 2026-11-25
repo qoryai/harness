@@ -29,6 +29,17 @@ fs.cpSync(path.join(__dirname, '../modules/software-factory/skills/running-a-sof
   path.join(tmp, 'plugin/skills/running-a-software-workflow'), { recursive: true });
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+// The most bytes of a findings file, and the fix when a file has more.
+const FINDINGS_BYTES = 64 * 1024 * 1024;
+const FINDINGS_FIX = 'Shorten the findings file to at most 64 MiB: a larger file is not read.';
+
+// sparse writes a file of FINDINGS_BYTES + 1 bytes, or at file, that takes no room on the disk.
+function sparse(file = path.join(tmp, `sparse-${++files}.json`)) {
+  fs.writeFileSync(file, '');
+  fs.truncateSync(file, FINDINGS_BYTES + 1);
+  return file;
+}
+
 const REVIEWING = fs.readFileSync(path.join(SKILLS, 'reviewing-changes', 'SKILL.md'), 'utf8');
 const JUDGING = fs.readFileSync(path.join(MODULES,
   'software-factory/skills/judging-findings/SKILL.md'), 'utf8');
@@ -442,11 +453,7 @@ test('findings open: each message prints the whole escaped path, of 81 to 400 ch
       return link;
     }, 3],
     'path through a file': [(real) => path.join(real, 'under.json'), 3],
-    'file that is too big': [(real) => {
-      const big = path.join(path.dirname(real), 'big.json');
-      fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
-      return big;
-    }, 3],
+    'file that is too big': [(real) => sparse(path.join(path.dirname(real), 'big.json')), 3],
     'more findings': [(real) => {
       const file = path.join(path.dirname(real), 'many.json');
       fs.writeFileSync(file, JSON.stringify(many(201)));
@@ -487,16 +494,20 @@ test('findings open: 40 findings of 5 KB each, in a file over 200 KB, print all 
   assert.equal(result.lines.length, 41);
 });
 
-test('findings open: a regular file over 256 KB is read up to 256 KB', () => {
-  // The JSON ends inside the part that is read: exit 3 with the limit and the fix on line 1.
-  const cut = put(many(40, () => ({ problem: 'x'.repeat(8000) })));
-  assert.ok(fs.statSync(cut).size > 256 * 1024);
-  const result = call(['findings', 'open', cut]);
+test('findings open: a file over 64 MiB exits 3, and one over 256 KB is read whole', () => {
+  const big = sparse();
+  const result = call(['findings', 'open', big]);
   assert.equal(result.status, 3);
   const text = result.out + result.err;
-  assert.match(text.split('\n')[0], /^Open open-\d+\.json with Read and fix each finding in it\.$/);
-  assert.match(text, /has \d+ bytes, and findings open reads at most 256 KB, which ends inside its JSON/);
-  // The JSON is whole inside the first 256 KB, and the rest of the file is blank.
+  assert.equal(text.split('\n')[0], FINDINGS_FIX);
+  assert.match(text, new RegExp(`has ${FINDINGS_BYTES + 1} bytes\\.`));
+  // 40 findings of 8 KB each, a file over 256 KB, print all 40.
+  const large = put(many(40, () => ({ problem: 'x'.repeat(8000) })));
+  assert.ok(fs.statSync(large).size > 256 * 1024);
+  const all = call(['findings', 'open', large]);
+  assert.equal(all.status, 1, all.out);
+  assert.equal(all.lines.length, 41);
+  // A file with blank space after the JSON is read whole too.
   const padded = put(`${JSON.stringify(ROUND)}${' '.repeat(300 * 1024)}`);
   const whole = call(['findings', 'open', padded]);
   assert.equal(whole.status, 1);
@@ -527,12 +538,12 @@ test('findings open: a file name with control, refused and hidden characters pri
   assert.ok(asFolder.out.includes(`  "${tmp}/x [31m ]0;t Y z-folder" is not a regular file.`),
     asFolder.out);
   // The fix line of a file over the limit has the base name, plain.
-  const big = path.join(tmp, `${HOSTILE}.json`);
-  fs.writeFileSync(big, JSON.stringify(many(40, () => ({ problem: 'x'.repeat(8000) }))));
+  const big = sparse(path.join(tmp, `${HOSTILE}.json`));
   const tooBig = call(['findings', 'open', big]);
   assert.equal(tooBig.status, 3);
-  assert.equal(tooBig.out.split('\n')[0],
-    'Open x [31m ]0;t Y z.json with Read and fix each finding in it.');
+  assert.equal(tooBig.out.split('\n')[0], FINDINGS_FIX);
+  assert.ok(tooBig.out.includes(`  "${tmp}/x [31m ]0;t Y z.json" has ${FINDINGS_BYTES + 1} ` +
+    'bytes.'), tooBig.out);
   // The line of a file that is no object, from the checks of the file.
   const list = path.join(tmp, `${HOSTILE}-list.json`);
   fs.writeFileSync(list, '[]');
@@ -1148,14 +1159,11 @@ test('findings round --previous: a file that is missing, broken or of two stages
     ['f2', 'code-reviewer', 'open', { stage: 'verify' }]]);
   const broken = path.join(tmp, `previous-${++files}.json`);
   fs.writeFileSync(broken, JSON.stringify({ round: 1, reviewers: [] }));
-  // A file over 256 KB, and a link to a file that can be read.
-  const large = path.join(tmp, `previous-${++files}.json`);
-  fs.writeFileSync(large, JSON.stringify({ round: 1, findings: [], pad: 'x'.repeat(262144) }));
+  // A link to a file that can be read is not a regular file.
   const link = path.join(tmp, `previous-${++files}.json`);
   fs.symlinkSync(previousFile([['f1', 'code-reviewer', 'open']]), link);
   for (const [file, cause] of [[path.join(tmp, 'absent-previous.json'), /is not a regular file/],
-    [large, /is not a regular file of at most 256 KB\./],
-    [link, /is not a regular file of at most 256 KB\./],
+    [link, /is not a regular file\./],
     [broken, /has no list findings/], [two, /has findings of 2 stages\./]]) {
     const got = withPrevious(dir, suite, ['code-reviewer'], file);
     assert.equal(got.status, 3, got.out);
@@ -1163,6 +1171,19 @@ test('findings round --previous: a file that is missing, broken or of two stages
     assert.match(text, /Give --previous the file of qory\.review_session\.previous_findings\./);
     assert.match(text, cause);
   }
+  // A file over 64 MiB exits 3, and a file over 256 KB below it is read.
+  const big = withPrevious(dir, suite, ['code-reviewer'], sparse());
+  assert.equal(big.status, 3, big.out);
+  assert.equal((big.out + big.err).split('\n')[0], FINDINGS_FIX);
+  const large = previousFile([['f1', 'code-reviewer', 'open', { problem: 'x'.repeat(4000) }]]);
+  const data = JSON.parse(fs.readFileSync(large, 'utf8'));
+  data.findings = Array.from({ length: 100 },
+    (_, at) => ({ ...data.findings[0], id: `f${at + 1}` }));
+  fs.writeFileSync(large, JSON.stringify(data));
+  assert.ok(fs.statSync(large).size > 256 * 1024);
+  const read = withPrevious(dir, suite, ['code-reviewer'], large);
+  assert.equal(read.status, 1, read.out);
+  assert.match(read.lines.at(-1), /: 100 blocking, 0 non-blocking open findings; 0 closed\.$/);
 });
 
 test('findings open: only open findings print, with their source and a dispute', () => {

@@ -4212,6 +4212,13 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   fs.rmSync(path.join(path.dirname(none), 'open-findings.json'));
   assert.equal(bcall(dir, ['report-build', '--inputs', none]).status, 0);
   assert.match(reportOf(dir), /### Round 2\n\nOld round 2\./);
+  // An open-findings.json one byte over 64 MiB, a sparse file, exits 3 with the fix first.
+  const big = putRound(ROUND(2));
+  fs.truncateSync(path.join(path.dirname(big), 'open-findings.json'), 64 * 1024 * 1024 + 1);
+  const over = bcall(dir, ['report-build', '--inputs', big]);
+  assert.equal(over.status, 3, over.out + over.err);
+  assert.equal((over.out + over.err).split('\n')[0], 'Shorten the findings file to at most ' +
+    '64 MiB: a larger file is not read.');
 });
 
 test('check build-report: renders the tables again and refuses a table with one edited cell', () => {
