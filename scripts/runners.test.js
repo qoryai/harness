@@ -4276,6 +4276,19 @@ test('check build-report: renders the tables again and refuses a table with one 
   assert.match(noLedger.err, /^The tables of the report were not checked: the artifact folder has no build-ledger\.json\.$/m);
 });
 
+test('check build-report: a criterion finding passes with software-factory', () => {
+  const { dir } = buildRepo();
+  assert.equal(call(dir, ['run', 'locked']).status, 0);
+  const inputs = putRound(LEDGER(1, [{ id: 'f1', severity: 'non-blocking', point: 'A point',
+    stage: 'verify', source: { kind: 'criterion', name: 'ac-1' } }]));
+  assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
+  assert.ok(reportOf(dir).includes('| f1: A point | criterion ac-1 | no | none |'), reportOf(dir));
+  const file = path.join(dir, '.qory/artifacts/build-report.md');
+  const checked = call(dir, ['check', 'build-report', '--inputs', inputs, file]);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  assert.match(checked.err, /tables from the records/);
+});
+
 test('report-build: a model that fails the check of the report is unknown in Steps', () => {
   const { dir, ledger } = buildRepo();
   ledger.steps[2].attempts = [{ agent: 'software-developer', role: 'developer',

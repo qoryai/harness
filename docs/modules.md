@@ -920,38 +920,39 @@ and `push` exit 3 for a file that is a link, and `report` for a report whose rea
 outside `.reports`. A draft file above 256 KB gets one finding, so that no check runs long.
 
 `checks.cjs` has the verbs of every kind of work. Each verb is a file under `verbs/`, the
-shared code is under `lib/`, and the types `questions`, `review-comments` and `points` are
-under `types/`. `lib/registry.cjs` adds what another module checks: it loads
+shared code is under `lib/`, and the types `questions`, `review-comments` and `points`
+are under `types/`. `lib/registry.cjs` adds what another module checks: it loads
 `workflow-checks.cjs` from each skill folder beside `running-a-workflow`, and, when that
 skill is in a module of the harness home, from the skills of each module beside it, as
 `<home>/modules/<name>/skills/`, in the order of the module names. Of two skills with one
 name, it loads the first. The file exports a function that takes the library of
 `checks.cjs`, the exports of its `lib/` files, `lockReader`, the reader of the lock of
-`verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`, the
-check of a point of `points.json`, and returns `types`, the patterns of "Blocked:" lines as
-`stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`, the readers
-of the ids of a type that the questions check reads for the `item` of an `about`,
-`questionRules`, the rules for the questions whose `about` is an output of a type, each
-`{type, check(question, who, {context, earlier})}` with `check` returning the findings as
-lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `end`, the check at
-the end of a session, and `finding_kinds`, the kinds of the source of a finding besides
-`reviewer`, `check` and `hook` of `core`, each with its label, the word that a line shows
-before the name of the source. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
-verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
-load it. A type or a finding kind that two skills add stops each verb that reads the
-registry with exit 3. A `workflow-checks.cjs` that throws, exports no function or returns no
-object is a fault of the harness: the verb stops with an error that names the file and exit
-3, and `end --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside
-the verbs of `checks.cjs` stops the same way when the registry fails, and prints no usage.
-In `software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
+`verbs/lock.cjs`, and `pointCheck`, `pointRules` and `MAX_POINTS` of `types/points.cjs`,
+the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
+lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
+the readers of the ids of a type that the questions check reads for the `item` of an
+`about`, `questionRules`, the rules for the questions whose `about` is an output of a
+type, each `{type, check(question, who, {context, earlier})}` with `check` returning the
+findings as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `end`,
+the check at the end of a session, and `finding_kinds`, the kinds of the source of a
+finding besides `reviewer`, `check` and `hook` of `core`, each with its label, the word
+that a line shows before the name of the source. Only `check`, `push`, `report`, `end`,
+`step`, `resume`, `findings`, `panel --previous`, a verb of the registry and the usage
+read the registry; `starts`, `begin` and `fixes` never load it. A type or a finding kind
+that two skills add stops each verb that reads the registry with exit 3. A
+`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
+the harness: the verb stops with an error that names the file and exit 3, and `end
+--offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs
+of `checks.cjs` stops the same way when the registry fails, and prints no usage. In
+`software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
-new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
-<the change>` of the writers of `implement-changes`, the rules of the build ledger that the
-verbs `step` and `resume` apply, the check at the end of a Build write session, and the
-finding kinds `criterion` and `scenario`, each with its name as its label. A stack without
-that module, such as `core`, checks `questions` and `review-comments`, and `report` accepts
-only `needs <type>`.
+types of Build and Verify, the lines that start with `needs a change to criterion`,
+`needs a new criterion` or `needs a change to the spec`, the line `needs a change to the
+build plan: <the change>` of the writers of `implement-changes`, the rules of the build
+ledger that the verbs `step` and `resume` apply, the check at the end of a Build write
+session, and the finding kinds `criterion` and `scenario`, each with its name as its
+label. A stack without that module, such as `core`, checks `questions` and
+`review-comments`, and `report` accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the

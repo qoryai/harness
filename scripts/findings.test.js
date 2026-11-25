@@ -1258,6 +1258,18 @@ test('findings open: with core alone, a finding of the kind criterion exits 3', 
   assert.equal(call(['findings', 'open', put(ROUND)], plugin).status, 1);
 });
 
+test('findings open: a kind over 40 characters is cut on line 1 of the fault', () => {
+  const kind = `${'a'.repeat(25)}${'b'.repeat(25)}`;
+  const file = put({ round: 1, findings: [{ ...OTHER, stage: 'build',
+    source: { kind, name: 'x' }, state: 'open', disputed: false, replies: [] }] });
+  const result = call(['findings', 'open', file]);
+  assert.equal(result.status, 3, result.out + result.err);
+  const first = (result.out + result.err).split('\n')[0];
+  const cut = `${'a'.repeat(19)}...${'b'.repeat(18)}`;
+  assert.equal(first, `Add the module that adds source kind ${cut} to the harness.`);
+  assert.ok(first.length <= 100, first);
+});
+
 test('findingKinds: the kinds of core, then those that skills add, each once', () => {
   const { findingKinds } = require(path.join(SKILLS, 'running-a-workflow', 'lib',
     'findings.cjs'));
