@@ -499,6 +499,34 @@ module.exports = (lib) => {
       .filter((criterion) => !criterion.removed);
   }
 
+  // criteriaDiff compares two acceptance-criteria.json texts, before and after, by the live
+  // criteria that liveIn returns, and returns the ids as lists: `removed` follows the order of
+  // before, the other three follow the order of after.
+  //   added: live in after, not live in before;
+  //   changed: live in both, with another `text` or `check`;
+  //   removed: live in before, removed in after or gone from it;
+  //   unchanged: live in both, with the same `text` and `check`.
+  // An id that is removed in both texts is in no list, and an entry with no id is in none.
+  // A text that is no valid criteria file gives no error and no criteria: an invalid before
+  // makes every id of after added, so a caller checks both texts first or fails closed.
+  function criteriaDiff(before, after) {
+    const idsOnly = (text) => liveIn(text).filter((criterion) => criterion.id !== '');
+    const old = new Map(idsOnly(before).map((criterion) => [criterion.id, criterion]));
+    const live = idsOnly(after);
+    const kept = new Set(live.map((criterion) => criterion.id));
+    const changed = (criterion) => {
+      const was = old.get(criterion.id);
+      return was.text !== criterion.text || was.check !== criterion.check;
+    };
+    const both = live.filter((criterion) => old.has(criterion.id));
+    return {
+      added: live.filter((criterion) => !old.has(criterion.id)).map((criterion) => criterion.id),
+      changed: both.filter(changed).map((criterion) => criterion.id),
+      removed: [...old.keys()].filter((id) => !kept.has(id)),
+      unchanged: both.filter((criterion) => !changed(criterion)).map((criterion) => criterion.id),
+    };
+  }
+
   // liveCriteria returns the live criteria of the version that criteriaText reads, or null
   // after its finding.
   function liveCriteria(run, what) {
@@ -512,6 +540,7 @@ module.exports = (lib) => {
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
     noCriteria,
-    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, liveCriteria,
+    pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
+    liveCriteria,
   };
 };
