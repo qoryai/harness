@@ -1209,6 +1209,52 @@ test('ledger: a script step ends done only with the SHA-256 of its file', () => 
   }
 });
 
+// The counts of check-reviewer that scripting-demos runs before each review of a demo script.
+test('ledger: a first script with a finding ends done after a review of the fixed file', () => {
+  const w = work();
+  const call = resumed(w);
+  const id = 'script:scenario-1';
+  const count = (name, limit) => call('starts', call.run, name, String(limit));
+  assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+  // The first review: the 1 start of the scenario and 1 of the 12 of the run.
+  assert.equal(count('implement-changes-check-reviewer-scenario-1', 1).status, 0);
+  assert.equal(count('implement-changes-first-scripts', 12).status, 0);
+  const first = '{"steps":1}\n';
+  reviewedFile(call, id, { text: first,
+    findings: [finding('blocking', 'failing input: "Export each order."')] });
+  const stopped = call('step', 'end', id, 'done', '--script-sha256', sha(first));
+  assert.equal(stopped.status, 1, stopped.out);
+  assert.equal(stopped.lines[0], 'Fix the blocking findings on .demo/scenario-1.json, then ' +
+    'start check-reviewer again.');
+  // The review of the fixed script has the 3 starts of the corrections, in the same step.
+  assert.equal(count('implement-changes-check-reviewer-scenario-1', 1).status, 1);
+  assert.equal(count('implement-changes-1-check-reviewer', 3).status, 0);
+  const fixed = '{"steps":2}\n';
+  reviewedFile(call, id, { text: fixed });
+  const old = call('step', 'end', id, 'done', '--script-sha256', sha(first));
+  assert.equal(old.status, 1, old.out);
+  assert.match(old.lines[0], /^Run demo run scenario-1 again/);
+  const ended = call('step', 'end', id, 'done', '--script-sha256', sha(fixed));
+  assert.equal(ended.status, 0, ended.out);
+  const row = stored(w).ledger.steps.at(-1);
+  assert.deepEqual([row.id, row.state, row.script_sha256], [id, 'done', sha(fixed)]);
+});
+
+test('ledger: the first scripts of a run have 12 starts of check-reviewer together', () => {
+  const call = resumed(work());
+  for (let at = 1; at <= 12; at += 1) {
+    assert.equal(call('starts', call.run, `implement-changes-check-reviewer-scenario-${at}`, '1')
+      .status, 0);
+    assert.equal(call('starts', call.run, 'implement-changes-first-scripts', '12').status, 0);
+  }
+  assert.equal(call('starts', call.run, 'implement-changes-check-reviewer-scenario-13', '1')
+    .status, 0);
+  const capped = call('starts', call.run, 'implement-changes-first-scripts', '12');
+  assert.equal(capped.status, 1, capped.out);
+  assert.equal(capped.lines[0], 'Start no more implement-changes-first-scripts: it has had 12 ' +
+    'starts, and the limit is 12.');
+});
+
 test('ledger: a failed step and a step of another kind end with no review', () => {
   const w = work();
   const call = resumed(w);

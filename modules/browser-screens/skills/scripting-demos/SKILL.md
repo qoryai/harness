@@ -104,15 +104,15 @@ version; do this only for a script that this session wrote and still has as a fi
      copy of the pushed file; for the first script there is no such line. Run
      `<skill folder>/checks.cjs step end <step> done` for the path of the report file, as
      "The build ledger" of `running-a-software-workflow` lists. Count the start, as "Count
-     the starts" of `running-a-workflow` lists. For a correction, run
-     `<skill folder>/checks.cjs starts <run> implement-changes-<n>-check-reviewer 3`. When
-     `<step>` is `script:<id>`, run
+     the starts" of `running-a-workflow` lists. For the first review of `script:<id>`, run
      `<skill folder>/checks.cjs starts <run> implement-changes-check-reviewer-<id> 1`, then
      `<skill folder>/checks.cjs starts <run> implement-changes-first-scripts 12`: the first
-     script of a scenario has 1 start, and the first scripts of a run have 12 together. Run
-     both also before a start that writes only the report of a first script, as "The build
-     ledger" of `running-a-software-workflow` lists. With 1, run `step end <step> failed`,
-     and end as "Failures" lists. Then start
+     script of a scenario has 1 start, and the first scripts of a run have 12 together. For
+     each later review of `script:<id>`, such as of a script that the author fixed after a
+     finding, and for a correction, run
+     `<skill folder>/checks.cjs starts <run> implement-changes-<n>-check-reviewer 3`: these
+     reviews have the 3 starts of the corrections. With 1, run `step end <step> failed`, and
+     end as "Failures" lists. Then start
      ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
      `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
      the notes, the path of `<scenarios>`, the path `<folder>/.demo/<id>.json` of the new

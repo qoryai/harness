@@ -4844,12 +4844,13 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
   runs `demo check <id>`, starts the agent again with the printed lines at most twice,
-  starts `check-reviewer` on the script, once for the first script of a scenario, at most
-  12 times for the first scripts of a run together and 3 times in a follow for the
-  corrections, runs `check demo-script`, runs `preflight` once for the session, runs `demo
-  run <id>`, reads the report of the script again with `step end`, pushes the script with
-  `qory artifact push demo-script --name <scenario> <folder>/.demo/<scenario>.json`, and
-  ends the step with `--script-sha256` of the script that passed.
+  starts `check-reviewer` on the script, once for the first review of the first script of a
+  scenario, at most 12 times for those reviews in a run together, and 3 times in a follow
+  for the later reviews of a first script and the corrections, runs `check demo-script`,
+  runs `preflight` once for the session, runs `demo run <id>`, reads the report of the
+  script again with `step end`, pushes the script with `qory artifact push demo-script
+  --name <scenario> <folder>/.demo/<scenario>.json`, and ends the step with
+  `--script-sha256` of the script that passed.
 
 The check and the freeze of a script:
 

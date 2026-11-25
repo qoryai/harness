@@ -1044,13 +1044,15 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'that the draft changes a script that passed, whether the author wrote it or it is a ' +
       'copy of the pushed file; for the first script there is no such line',
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
-    'Count the start, as "Count the starts" of `running-a-workflow` lists. For a correction, ' +
-      'run `<skill folder>/checks.cjs starts <run> implement-changes-<n>-check-reviewer 3`',
-    'When `<step>` is `script:<id>`, run `<skill folder>/checks.cjs starts <run> ' +
+    'Count the start, as "Count the starts" of `running-a-workflow` lists. For the first ' +
+      'review of `script:<id>`, run `<skill folder>/checks.cjs starts <run> ' +
       'implement-changes-check-reviewer-<id> 1`, then `<skill folder>/checks.cjs starts ' +
       '<run> implement-changes-first-scripts 12`: the first script of a scenario has 1 ' +
       'start, and the first scripts of a run have 12 together',
-    'Run both also before a start that writes only the report of a first script',
+    'For each later review of `script:<id>`, such as of a script that the author fixed after ' +
+      'a finding, and for a correction, run `<skill folder>/checks.cjs starts <run> ' +
+      'implement-changes-<n>-check-reviewer 3`: these reviews have the 3 starts of the ' +
+      'corrections',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed', 'With `changes-needed`, do "Start the author again"',
@@ -1085,6 +1087,8 @@ test('check-reviewer: a branch for the change to a demo script that passed', () 
 
 test('check-reviewer: a branch for the first demo script of a scenario', () => {
   inText(SCRIPTING, '`check-reviewer` reviews the first script and each correction before it runs');
+  // A start that writes only the report counts toward no limit, as for every reviewer.
+  assert.ok(!SCRIPTING.includes('writes only the report of a first script'));
   inText(REVIEWER, 'Also reviews the first demo script of a scenario', '## A demo script',
     'when your input has the line "Review the first demo script"',
     'the paths of the input file, the artifact folder, the demo scenarios and the new script, ' +
