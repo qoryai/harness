@@ -3406,20 +3406,16 @@ highest id of the review, so that `scope` and `freeze` take its id.
   the stop on the build plan ends the run as "Failures" of `running-a-workflow` lists.
 - **A step that fails.** After a third red attempt, the session runs `step end failed` with
   the 3 attempts, so the deliverable or the finding stays open in the build ledger and in
-  the build report. It then runs `git stash push --include-untracked -- ':/' ':!/.qory'`, so
-  that no commit contains the files of the failed step. While the last row of
-  `.reports/build-ledger.json` is `failed` and a change is left in the checkout, the end
-  check prints "Stash the failed step's files with git stash push --include-untracked --
-  ':/' ':!/.qory', then end." in place of the line to commit the changes, with the same
-  `Not committed:` line and point. When the session ran no `step end done`, the run has no
-  commit: the
+  the build report. When the session ran no `step end done`, the run has no commit: the
   session skips "The submission", writes `points.json` with one `run_again` point whose text
   is the line "The run stopped, because the checks still fail after 3 changes to <the
-  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it does
-  "The submission", writes no `points.json`, runs no verdict command, starts no later step,
-  and ends with that line. `review-changes` runs next and reports the open step as
-  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end`
-  takes at most 3 `--attempt`, so a step has no fourth attempt.
+  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it
+  commits the files that the failed step left, with the identity of a frozen commit, `qory`
+  and `qory@localhost`, and with nothing under `.qory`. It then does "The submission",
+  writes no `points.json`, runs no verdict command, starts no later step, and ends with that
+  line. `review-changes` runs next and reports the open step as `blocking`, and the limit of
+  3 rounds of Qory Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so
+  a step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
   the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
   `run-artifacts`, and commit nothing. Both load `making-small-changes` before they change

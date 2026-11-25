@@ -144,9 +144,11 @@ test('the session starts the developer twice and the debugger once per step, the
   contains(failed, 'When this session ran no `step end <id> done`, the run has no commit: skip ' +
     '"The submission", do no later step, and end as "Points" of `running-a-workflow` lists, ' +
     'with one `run_again` point whose text is the line after "End with" in this section.');
-  contains(failed, 'Otherwise do "The submission". When a case of "The submission" ends the ' +
-    'run, end as that case lists. Otherwise write no `points.json`, run no verdict command, ' +
-    'and do no later step. `review-changes` runs next and reports the open step as ' +
+  contains(failed, 'Otherwise, when the checkout has a change, commit it with the two commands ' +
+    'of "The end": the files of the failed step go into that commit. Then do "The ' +
+    'submission". When a case of "The submission" ends the run, end as that case lists. ' +
+    'Otherwise write no `points.json`, run no verdict command, and do no later step. ' +
+    '`review-changes` runs next and reports the open step as ' +
     '`blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.');
   assert.doesNotMatch(oneLine(failed), /next round of Build starts the step again/);
   // The order of the steps: the deliverables not built, then the findings, blocking first.
@@ -242,7 +244,8 @@ test('the session writes the text of the change after the last step, and not on 
   contains(section(WORKFLOW, 'The end'), 'When every step ended done or replayed, do "The ' +
     'submission", then "The end" of `running-a-workflow`.');
   inOrder(section(WORKFLOW, 'A step that fails'), 'Run `step end <id> failed',
-    'Otherwise do "The submission".', 'End with "The run stopped, because');
+    'commit it with the two commands of "The end"', 'Then do "The submission".',
+    'End with "The run stopped, because');
   const stop = section(WORKFLOW, 'A stop on the build plan');
   contains(stop, 'Skip "The submission"');
   assert.doesNotMatch(stop, /report-build|submission-writer/);
@@ -941,6 +944,35 @@ function endsWithPoint(w, call, step) {
   assert.equal(fs.existsSync(path.join(call.env.QORY_OUTBOX, 'pull-request')), false);
 }
 
+// The first line of the end check on changes that no commit contains.
+const COMMIT_FIX = 'Commit these changes, then end the session: the suite and the review read ' +
+  'only committed work.';
+
+// buildInputs writes inputs of w for a Build write session, with qory.outputs pull-request not
+// required, so that no other finding of the end check is about the outbox, and the members of
+// extra. It returns the path.
+function buildInputs(w, extra = {}) {
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
+    required: false, schema: {} }], ...extra } }));
+  return inputs;
+}
+
+// commitChanges runs the two commands of "The end" of the skill in the checkout of w, with
+// message, no git identity in the environment and the empty folder home as HOME. It returns
+// the result of the second, with the exit status of the first as added.
+function commitChanges(w, message) {
+  const block = /\n```\n(git add [^`]+)```\n/.exec(section(WORKFLOW, 'The end'));
+  assert.ok(block, '"The end" lists no command');
+  const [add, commit] = block[1].replace(/ \\\n +/g, ' ').trim().split('\n');
+  const home = fresh('home');
+  const run = (command) => childProcess.spawnSync('/bin/sh', ['-c', command], { cwd: w.repo,
+    env: { PATH: process.env.PATH, HOME: home, GIT_CONFIG_NOSYSTEM: '1' }, encoding: 'utf8' });
+  const added = run(add);
+  return { ...run(commit.replace('"<what changed>"', `"${message}"`)), added: added.status };
+}
+
 test('after one step done and one step failed, the session does "The submission"', () => {
   const w = work();
   const call = session(w);
@@ -951,38 +983,108 @@ test('after one step done and one step failed, the session does "The submission"
   failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
   // d-1 ended done in this session, so the run has its commit and does "The submission".
   assert.equal(submits(w), true);
+  // Until the session commits the files of the failed step, the end check stops the end.
+  const stopped = call('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(stopped.status, 1, stopped.out + stopped.err);
+  assert.deepEqual(stopped.out.split('\n').filter(Boolean), [COMMIT_FIX,
+    '  Not committed: tests/header.test.cjs (1 in all)']);
+  // The commit of "The end" takes them and leaves no change.
+  const kept = commitChanges(w, 'Keep the files of the failed step');
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all',
+    '--', ':!.qory'), '');
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD~1'), commit);
+  // Both commits have the identity that freeze sets.
+  assert.deepEqual(git(w.repo, w.env, 'log', '-2', '--format=%an %ae %cn %ce').split('\n'),
+    Array(2).fill('qory qory@localhost qory qory@localhost'));
+  assert.equal(git(w.repo, w.env, 'show', '--format=', '--name-only', 'HEAD'),
+    'tests/header.test.cjs');
   const { handoff, report: built } = submit(w, call);
   const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
   assert.deepEqual(sent.steps, [{ commit, step: 'deliverable:d-1' }]);
   const text = fs.readFileSync(built, 'utf8');
   assert.match(text, /\| deliverable:d-1 \| 1 \| deliverable \| done \|/);
   assert.match(text, /\| deliverable:d-2 \| 1 \| deliverable \| failed \|/);
-  // The session writes no point and runs no verdict command. While the files of the failed
-  // step are in the checkout, the end check stops the end with the line to stash them.
+  // The session writes no point and runs no verdict command, and the end check passes on the
+  // pull-request.json of report-build.
   assert.equal(fs.existsSync(path.join(w.artifacts, 'points.json')), false);
-  const inputs = withOutput(w);
-  const stopped = call('end', w.artifacts, '--inputs', inputs);
-  assert.equal(stopped.status, 1, stopped.out + stopped.err);
-  assert.deepEqual(stopped.out.split('\n').filter(Boolean), [STASH_FIX,
-    '  Not committed: tests/header.test.cjs (1 in all)']);
-  // The command of that line leaves the checkout at the commit of d-1, and the end passes on
-  // the pull-request.json of report-build.
-  const command = /with (git stash push .+), then end\.$/.exec(STASH_FIX)[1];
-  childProcess.execSync(command, { cwd: w.repo, env: w.env, stdio: 'ignore' });
-  assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all',
-    '--', ':!.qory'), '');
-  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), commit);
-  const ended = call('end', w.artifacts, '--inputs', inputs);
+  const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
-  // The skill lists the same command and line in "A step that fails".
-  contains(section(WORKFLOW, 'A step that fails'), `Then run \`${command}\` in the checkout.`);
-  contains(section(WORKFLOW, 'A step that fails'), STASH_FIX);
 });
 
-// The first line of the end check after a failed step that left files in the checkout.
-const STASH_FIX = "Stash the failed step's files with git stash push --include-untracked -- " +
-  "':/' ':!/.qory', then end.";
+test('the session commits its changes with no git identity set, and nothing of .qory', () => {
+  const outside = fresh('outside');
+  const link = (w) => fs.symlinkSync(outside, path.join(w.repo, '.qory'));
+  const track = (w, message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+    '-m', message);
+  // Each case sets up .qory of the checkout, with the exit status of git add.
+  const cases = [
+    ['a folder', 0, (w) => writeFile(w, '.qory/x.json', '{}\n')],
+    ['a link', 0, link],
+    ['a link that the index has', 0, (w) => {
+      link(w);
+      git(w.repo, w.env, 'add', '-f', '.qory');
+    }],
+    ['a file that the index has', 0, (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+    }],
+    ['a changed file that a commit has', 0, (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+      track(w, 'Add .qory');
+      writeFile(w, '.qory/x.json', '[]\n');
+    }],
+    ['a link in place of a folder that a commit has', 0, (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+      track(w, 'Add .qory');
+      fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
+      link(w);
+    }],
+    ['an ignored folder', 1, (w) => {
+      writeFile(w, '.gitignore', 'reports/\n.qory/\n');
+      git(w.repo, w.env, 'add', '.gitignore');
+      track(w, 'Ignore .qory');
+      writeFile(w, '.qory/x.json', '{}\n');
+    }],
+    ['an ignored link', 1, (w) => {
+      writeFile(w, '.gitignore', 'reports/\n.qory\n');
+      git(w.repo, w.env, 'add', '.gitignore');
+      track(w, 'Ignore .qory');
+      link(w);
+    }],
+  ];
+  for (const [what, added, setUp] of cases) {
+    const w = work();
+    fs.rmSync(path.join(w.repo, '.qory'), { recursive: true, force: true });
+    setUp(w);
+    // Git takes no identity from the machine, as in the agent's image.
+    git(w.repo, w.env, 'config', 'user.useConfigOnly', 'true');
+    writeFile(w, 'src/orders.cjs', LINES);
+    writeFile(w, 'notes/new.txt', 'new\n');
+    fs.rmSync(path.join(w.repo, 'README.md'));
+    const done = commitChanges(w, 'Write one line per order');
+    assert.equal(done.status, 0, `${what}: ${done.stderr}`);
+    assert.equal(done.added, added, what);
+    assert.deepEqual(git(w.repo, w.env, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+      ['D\tREADME.md', 'A\tnotes/new.txt', 'M\tsrc/orders.cjs'], what);
+    assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%an %ae %cn %ce %s'),
+      'qory qory@localhost qory qory@localhost Write one line per order', what);
+    const inputs = buildInputs(w);
+    assert.equal(session(w)('end', w.artifacts, '--inputs', inputs).status, 0, what);
+  }
+  // With no identity in the command, the same commit exits with 128.
+  const w = work();
+  git(w.repo, w.env, 'config', 'user.useConfigOnly', 'true');
+  writeFile(w, 'src/orders.cjs', LINES);
+  const bare = childProcess.spawnSync('git', ['commit', '-am', 'Write one line per order'],
+    { cwd: w.repo, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: fresh('home'),
+      GIT_CONFIG_NOSYSTEM: '1' } });
+  assert.equal(bare.status, 128, bare.stderr);
+  assert.match(bare.stderr, /Author identity unknown/);
+});
 
 test('a later run whose first new step fails ends with a point, though an earlier run built ' +
   'a step', () => {
@@ -1233,21 +1335,6 @@ for (const reviewers of [true, 'reviewers']) {
 // of a module.
 const CORE_PLUGIN = path.join(tmp, 'core-plugin');
 fs.cpSync(path.join(CORE, 'agents'), path.join(CORE_PLUGIN, 'agents'), { recursive: true });
-
-// The two lines of the end check on changes that no commit contains.
-const COMMIT_FIX = 'Commit these changes, then end the session: the suite and the review read ' +
-  'only committed work.';
-
-// buildInputs writes inputs of w for a Build write session, with qory.outputs pull-request not
-// required, so that no other finding of the end check is about the outbox, and the members of
-// extra. It returns the path.
-function buildInputs(w, extra = {}) {
-  const inputs = path.join(fresh('in'), 'inputs.json');
-  const qory = JSON.parse(read(w.inputs)).qory;
-  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
-    required: false, schema: {} }], ...extra } }));
-  return inputs;
-}
 
 // notCommitted returns the line after COMMIT_FIX in the output of an end check, or null.
 function notCommitted(ended) {

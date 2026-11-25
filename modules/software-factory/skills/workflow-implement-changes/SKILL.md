@@ -199,11 +199,6 @@ Run `step end <id> failed --report <file>`, with the newest report of the debugg
 three `--attempt` lines. The row of the step stays `failed`, so its deliverable or finding
 stays open in the build ledger and in the build report.
 
-Then run `git stash push --include-untracked -- ':/' ':!/.qory'` in the checkout. The files
-of the failed step go to a stash, so that no commit contains a change whose checks fail.
-While they stay in the checkout, the end check stops the end with `Stash the failed step's
-files with git stash push --include-untracked -- ':/' ':!/.qory', then end.`
-
 When this session ran no `step end <id> done`, the run has no commit: skip "The
 submission", do no later step, and end as "Points" of `running-a-workflow` lists, with one
 `run_again` point whose text is the line after "End with" in this section.
@@ -211,8 +206,10 @@ submission", do no later step, and end as "Points" of `running-a-workflow` lists
 it skips "The submission" although the run has commits; count from `qory.start_commits`
 once qory writes it. -->
 
-Otherwise do "The submission". When a case of "The submission" ends the run, end as that
-case lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
+Otherwise, when the checkout has a change, commit it with the two commands of "The end":
+the files of the failed step go into that commit. Then do "The submission". When a case of
+"The submission" ends the run, end as that case lists. Otherwise write no `points.json`,
+run no verdict command, and do no later step.
 `review-changes` runs next and reports the open step as `blocking`, and the limit of 3
 rounds of Qory Apiary passes it to a member.
 
@@ -322,14 +319,25 @@ its line of the pushed versions, end with "The change is ready for review: the r
 finding" for one. With no such step, end with "The change is ready for review: each planned
 change was built before this run, and no finding is open."
 
-Commit every change before you end. In this session, the end check stops the end while a
-checkout of `qory.start_commits` has a change that no commit contains, because the full
-suite and the review read only committed work. A change is a tracked, staged or untracked
-file that git does not ignore, or a submodule whose commit or files changed, outside
-`.qory/`. The
-check prints `Commit these changes, then end the session: the suite and the review read only
-committed work.`, then `Not committed:` with at most 20 of the paths and their count; after
-a failed step, as "A step that fails" lists, it prints the line to stash them. At its
+Commit every change before you end. In each checkout with a change, run these two commands,
+with what changed as the message:
+
+```
+git add -A -- ':/' ':!/.qory'
+git -c user.name=qory -c user.email=qory@localhost commit -m "<what changed>" \
+  -- ':/' ':!/.qory'
+```
+
+The commit needs the two `-c` options where git has no identity. Both commands leave out
+`.qory`, also when it is a link. When git ignores `.qory`, `git add` exits with 1 and prints
+its path, after it added the other files: go on with the commit.
+
+When this session ends without `points.json`, the end check stops the end while a checkout
+of `qory.start_commits` has a change that no commit contains, because the full suite and the
+review read only committed work. A change is a tracked, staged or untracked file that git
+does not ignore, or a submodule whose commit or files changed, outside `.qory/`. The check
+prints `Commit these changes, then end the session: the suite and the review read only
+committed work.`, then `Not committed:` with at most 20 of the paths and their count. At its
 third failed check, the run ends with the point "The Build session ended <n> times with
 changes it did not commit, so the suite and the review could not check them."
 

@@ -20,11 +20,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   review could not check them.", where `<n>` counts the checks that found a change. The
   check is the new registry member `end(io)`, which `running-a-software-workflow` adds;
   other stacks are unchanged.
-- After a step that fails, the Build session stashes the step's files with `git stash push
-  --include-untracked -- ':/' ':!/.qory'`, so that no commit contains a change whose checks
-  fail. While the last row of the build ledger is `failed` and files are left, the end check
-  prints `Stash the failed step's files with git stash push --include-untracked -- ':/'
-  ':!/.qory', then end.` in place of the line to commit them.
+- After a step that fails in a session with a step done, the Build session commits the files
+  that the failed step left, before it writes the text of the change. The skill
+  `workflow-implement-changes` lists the two commands for a commit: with the identity `qory`
+  and `qory@localhost`, as `freeze` sets it, because `git commit` exits with 128 where no
+  identity is set, and with no path under `.qory`.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
