@@ -119,13 +119,15 @@ module.exports = (lib) => {
     const newest = live.length ? Math.max(...live.map((one) => one.number)) : null;
     const pushed = text.replace(/\r\n?/g, '\n');
     // While the lock is withdrawn, qory mounts the lock before the withdrawal in a push
-    // store, and a pull with no --version fetches none: a lock that the store still lacks
-    // gets the line of lacksBefore, and a push never reads the newest lock as NaN. A check or
-    // end --offline that lacks a lock otherwise gets the pull of that lock by its number,
+    // store, and a pull with no --version fetches none: that lock, when the store still lacks
+    // it, gets the line of lacksBefore, and a push never reads the newest lock as NaN. A check or
+    // end --offline that lacks another lock gets the pull of that lock by its number,
     // because a plain pull fetches one version; a push has no pull to give.
     const withdrawn = context.withdrawn('acceptance-lock');
     const lacking = (number) => {
-      if (withdrawn) return context.lacksBefore('acceptance-lock', number);
+      // The line of lacksBefore says that the lock is the version before the withdrawal, which
+      // only the newest lock that counts is.
+      if (withdrawn && number === newest) return context.lacksBefore('acceptance-lock', number);
       if (context.mode === 'push') return new Missing(PULL);
       return new Missing(`Run \`qory artifact pull acceptance-lock --version ${number}\`, ` +
         `then ${context.offline ? 'end' : 'check the lock'} again.`);

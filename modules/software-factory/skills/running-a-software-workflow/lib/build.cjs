@@ -374,9 +374,9 @@ module.exports = (lib) => {
   // Every live criterion that the version changes or removes since the lock `last`, a Demo
   // criterion too, needs an answered question about it, with an answer later than that lock.
   // The lock records the hash of each live criterion of the version that it locks
-  // (`criteria.sha256`), so the rule needs no older criteria text,
-  // which a push store lacks: an id whose recorded hash differs from the hash in version, or
-  // that is no longer live, is changed. A criterion that version only adds is not. A lock with
+  // (`criteria.sha256`), so the rule needs no older criteria text, which a push store
+  // lacks: an id whose recorded hash differs from the hash in version, or that is no
+  // longer live, is changed. A criterion that version only adds is not. A lock with
   // no such record counts every criterion as changed, so a lock made before the record needs
   // an answer for each criterion. The rule does not apply when a counted version above the
   // locked one is linked to a free-text note that is newer than the lock: such a note can
@@ -555,28 +555,21 @@ module.exports = (lib) => {
     let because = detail;
     let pull = null;
     if (entry && !byPerson(entry) && linked(entry)) {
-      // A linked version that no lock opens for gets the reason of linkProblem.
+      // A linked version that no lock opens for gets the reason of linkProblem against the
+      // lock before the version, as criteriaTarget compares it, which is not the newest lock
+      // when a later lock exists. A store that lacks a lock or the questions gets the pull of
+      // that lock, or of the questions, as its first line.
       const locks = liveLocks(context);
-      const top = locks.length ? locks.reduce((a, b) => (b.number > a.number ? b : a)) : null;
-      const last = top === null ? null : { number: top.number, at: top.at, time: timeOf(top.at),
-        criteria: NaN, doc: lockDoc(context, top.number) };
-      if (last !== null && last.doc !== null && isObject(last.doc.criteria)) {
-        last.criteria = last.doc.criteria.version;
-      }
-      const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
-      because = because || linkProblem(context, entry, last, since) || '';
-      // A store that lacks a lock or the questions gets the pull as its first line. The rule
-      // of criteriaTarget compares the answer with the lock before the version, which is not
-      // the newest lock when a later lock exists, so the pull names that lock.
-      if (ANSWER.test(entry.decision) && !Number.isNaN(timeOf(entry.at))) {
-        const before = lockBefore(context, locks, entry);
-        const lacks = bound(context, entry, before.last);
-        if (lacks !== null && lacks.command !== null &&
-          linkProblem(context, entry, before.last, before.since) === lacks.reason) {
-          because = lacks.reason;
-          pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
-            `${context.offline ? 'end' : 'check'} again.`;
-        }
+      const before = Number.isNaN(timeOf(entry.at)) ? null : lockBefore(context, locks, entry);
+      const problem = before === null ? null
+        : linkProblem(context, entry, before.last, before.since);
+      because = because || problem || '';
+      const lacks = ANSWER.test(entry.decision) && before !== null
+        ? bound(context, entry, before.last) : null;
+      if (lacks !== null && lacks.command !== null && lacks.reason === problem) {
+        because = lacks.reason;
+        pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
+          `${context.offline ? 'end' : 'check'} again.`;
       }
     }
     const reason = because.replace(/\.$/, '') || (byRun

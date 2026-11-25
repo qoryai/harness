@@ -688,6 +688,35 @@ function endOffline(type, number) {
     'run_7c3k1']);
 }
 
+test('end --offline gives the pull of a lock that the store lacks, with then end again', () => {
+  // Locks 1 and 2 are listed, written by a person; the folder has lock 2 only. The draft of
+  // the run is a new lock of the artifact folder.
+  const store = next('store');
+  const versions = [1, 2].map((number) => ({ id: `av_lock${number}`, number, writer: PERSON,
+    cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: LOCKED, files: [],
+    approvals: [] }));
+  writeJson(path.join(store, 'index.json'), { artifacts: [{ type: 'acceptance-lock',
+    name: 'main', stage_id: 'st_6ns22c4pav', approved_version: null, newest_version: 2,
+    changed_after_approval: false, versions }] });
+  writeJson(path.join(store, 'acceptance-lock', 'main', 'v2', 'acceptance-lock.json'),
+    JSON.stringify(docFor(1), null, 2));
+  const work = next('copy');
+  const draft = docFor(1);
+  draft.checks[0].failed_with = 2;
+  writeJson(path.join(work, 'acceptance-lock.json'), JSON.stringify(draft, null, 2));
+  const out = next('out');
+  fs.mkdirSync(out);
+  const verdict = path.join(next('verdict'), 'verdict.json');
+  writeJson(verdict, { verdict: 'passed' });
+  const result = call({ cwd: work, env: { HOME: os.tmpdir() }, home: os.tmpdir() }, ['end',
+    '--offline', '--artifacts', work, '--store', store, '--verdict', verdict, '--out', out,
+    '--run', 'run_7c3k1']);
+  assert.equal(result.status, 1, result.out);
+  assert.ok(result.lines.includes('Run `qory artifact pull acceptance-lock --version 1`, then ' +
+    'end again.'), result.out);
+  assert.ok(!result.out.includes('before the withdrawal'), result.out);
+});
+
 test('past 50 lines, lock shows whole refusals and counts the refusals not shown', () => {
   // 26 refusals of 2 lines make 52 lines: 24 refusals fit with the line that counts the others.
   const work = working();
