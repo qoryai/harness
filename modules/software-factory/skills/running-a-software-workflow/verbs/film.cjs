@@ -53,7 +53,7 @@
 //
 // A call takes one scenario, and ends within CALL_MS of lib/budget.cjs, 585 s: the runner ends
 // within RUN_BUDGET_MS, 535 s, 15 s more at the latest, and the encode takes ENCODE_MS, 35 s.
-// film recode is a call of its own, with the same CALL_MS for ffmpeg alone; it exits 3 when
+// film recode is a separate call, with the same CALL_MS for ffmpeg alone; it exits 3 when
 // fewer than 20 s of it are left. The size is that of qory's rule for one version: the MP4 and
 // the WebVTT file, each as base64, and an envelope of 16 KiB, at most 32 MiB.
 // The verb stores nothing in Qory Apiary, writes no demo evidence and no ledger row: the
