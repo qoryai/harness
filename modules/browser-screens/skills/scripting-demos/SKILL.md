@@ -159,7 +159,8 @@ version; do this only for a script that this session wrote and still has as a fi
     one `--attempt browser-demo-author,demo-author,balanced` for each start of the demo
     author, as "The build ledger" of `running-a-software-workflow` lists. This row is the
     freeze of the script. With a line that starts with "Run demo run", the sha256 is not
-    that of `.demo/<id>.json`: do steps 8 to 10 again, once.
+    that of `.demo/<id>.json`: do steps 8 to 10 again, once. With that line again, run
+    `step end <step> failed`, and end as "Failures" lists.
 
 ## Start the author again
 

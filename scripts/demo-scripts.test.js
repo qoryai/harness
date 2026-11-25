@@ -978,7 +978,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '9. Run `<skill folder>/checks.cjs step end <step> done` once more.',
     'go back to the review of step 5. Otherwise push the script',
     'With a line that starts with "Run demo run", the sha256 is not that of `.demo/<id>.json`: ' +
-      'do steps 8 to 10 again, once.');
+      'do steps 8 to 10 again, once. With that line again, run `step end <step> failed`');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',
     'With no such plan, it compares nothing');
