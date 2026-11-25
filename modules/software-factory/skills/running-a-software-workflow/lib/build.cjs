@@ -435,15 +435,19 @@ module.exports = (lib) => {
   }
 
   // criteriaDiff compares two acceptance-criteria.json texts, before and after, by the live
-  // criteria that liveIn returns, and returns the ids as lists in the order of their file:
+  // criteria that liveIn returns, and returns the ids as lists: `removed` follows the order of
+  // before, the other three follow the order of after.
   //   added: live in after, not live in before;
   //   changed: live in both, with another `text` or `check`;
   //   removed: live in before, removed in after or gone from it;
   //   unchanged: live in both, with the same `text` and `check`.
-  // An id that is removed in both texts is in no list.
+  // An id that is removed in both texts is in no list, and an entry with no id is in none.
+  // A text that is no valid criteria file gives no error and no criteria: an invalid before
+  // makes every id of after added, so a caller checks both texts first or fails closed.
   function criteriaDiff(before, after) {
-    const old = new Map(liveIn(before).map((criterion) => [criterion.id, criterion]));
-    const live = liveIn(after);
+    const idsOnly = (text) => liveIn(text).filter((criterion) => criterion.id !== '');
+    const old = new Map(idsOnly(before).map((criterion) => [criterion.id, criterion]));
+    const live = idsOnly(after);
     const kept = new Set(live.map((criterion) => criterion.id));
     const changed = (criterion) => {
       const was = old.get(criterion.id);

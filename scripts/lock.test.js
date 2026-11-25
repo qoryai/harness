@@ -1652,3 +1652,41 @@ test('criteriaDiff counts the criteria of an empty file as added, or as removed'
   assert.deepEqual(LIB.criteriaDiff(text, empty),
     { added: [], changed: [], removed: ['ac-1', 'ac-2'], unchanged: [] });
 });
+
+test('criteriaDiff counts an id removed before and live after as added', () => {
+  const before = criteriaText([['ac-1', 'One.', 'Tests', true], ['ac-2', 'Two.', 'Tests']]);
+  const after = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff(before, after),
+    { added: ['ac-1'], changed: [], removed: [], unchanged: ['ac-2'] });
+});
+
+test('criteriaDiff of a text that is no JSON has no criteria', () => {
+  const text = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff('{', text),
+    { added: ['ac-1', 'ac-2'], changed: [], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(text, '{'),
+    { added: [], changed: [], removed: ['ac-1', 'ac-2'], unchanged: [] });
+});
+
+test('criteriaDiff leaves a criterion live when removed is not an object', () => {
+  const entry = (removed) => JSON.stringify({ criteria: [{ id: 'ac-1', text: 'One.',
+    check: 'Tests', removed }] });
+  assert.deepEqual(LIB.criteriaDiff(entry(true), entry(true)),
+    { added: [], changed: [], removed: [], unchanged: ['ac-1'] });
+  assert.deepEqual(LIB.criteriaDiff(entry(true), entry({ reason: 'Gone.' })),
+    { added: [], changed: [], removed: ['ac-1'], unchanged: [] });
+});
+
+test('criteriaDiff lists a duplicate id once and skips an entry with no id', () => {
+  const doubled = JSON.stringify({ criteria: [
+    { id: 'ac-1', text: 'One.', check: 'Tests' }, { text: 'No id.', check: 'Tests' },
+    { id: 'ac-1', text: 'One, again.', check: 'Tests' }, { id: 7, text: 'Bad id.', check: 'Tests' },
+  ] });
+  const text = criteriaText([['ac-1', 'One.', 'Tests']]);
+  assert.deepEqual(LIB.criteriaDiff(text, doubled),
+    { added: [], changed: ['ac-1'], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(doubled, doubled),
+    { added: [], changed: [], removed: [], unchanged: ['ac-1'] });
+  assert.deepEqual(LIB.criteriaDiff(criteriaText([]), doubled),
+    { added: ['ac-1'], changed: [], removed: [], unchanged: [] });
+});
