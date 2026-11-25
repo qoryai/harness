@@ -151,7 +151,8 @@ agents and the settings for a run of those workflows:
   and the target's files in the working folder when there is a target. The session pushes
   three artifacts with `qory artifact push`, and ends with no result document:
   - `proposal`: Markdown for a person who reads no code, in five sections (six on the fast
-    track), of at most 450 words. `## Summary` states the outcome in 1 or 2 sentences of at most 40 words.
+    track), of at most 450 words. `## Summary` states the outcome in 1 or 2 sentences of at
+    most 40 words.
     `## Background` opens with one paragraph of at most 40 words on why the work exists,
     and Qory Apiary folds the rest behind "Read more": today's facts, in at most 100
     words, in plain sentences with no file name or code. `## Proposed solution` opens

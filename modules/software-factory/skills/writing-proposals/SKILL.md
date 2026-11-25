@@ -330,8 +330,8 @@ to a file with no extension takes the standard track. Write nothing else under
 
 When a finding on the track stays open, write "Standard track.". `check proposal` refuses
 the fast track unless the newest review read exactly that `## Track` and found nothing wrong
-with it, as `checking-proposals` lists. When it refuses, write "Standard track.". The
-standard track has no `## Commands`: remove that section when you write it.
+with it, as `checking-proposals` lists. When it refuses, write "Standard track.". On
+the standard track, write no `## Commands`.
 
 ## The commands
 

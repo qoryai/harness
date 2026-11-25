@@ -400,13 +400,14 @@ module.exports = (lib) => {
     const parts = sections(list, 2).slice(1);
     const part = (title) => parts.find((one) => one.title === title);
     // ## Sources counts toward no limit: its heading and its lines, as sourceLines reads them.
-    // ## Commands counts toward none either: each line under its heading.
+    // ## Commands counts toward none either: its heading and each line under it.
     const skipped = new Set(sourceLines(list).flat().map((line) => line.number));
     const commandLines = part('Commands');
     for (const line of commandLines ? commandLines.lines : []) skipped.add(line.number);
     for (const line of list) {
       if (!line.fenced && headingLevel(line.text) === 2 &&
-        line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
+        ['sources', 'commands'].includes(
+          line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase())) {
         skipped.add(line.number);
       }
     }

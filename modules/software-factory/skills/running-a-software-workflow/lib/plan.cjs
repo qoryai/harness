@@ -90,7 +90,8 @@ module.exports = (lib) => {
   // The fix and the subject of the cause of a Commands table that sectionRows does not find.
   const BUILD_PLAN_LACK = { fix: 'Push a build plan that passes its check.',
     has: 'The newest version has' };
-  const PROPOSAL_LACK = { fix: 'Pull the artifacts again.', has: 'The approved proposal has' };
+  const PROPOSAL_LACK = { fix: 'Push a new version of the proposal with the table.',
+    has: 'The approved proposal has' };
 
   // sectionRows returns the rows of the first table of the ## section title of text, each an
   // object by the header's names, or throws when the table has another header, with the fix
@@ -175,7 +176,6 @@ module.exports = (lib) => {
     if (!io.pinned) return null;
     const context = new Context(root, 'check', io.home);
     const number = lib.approvedNumber(context, 'proposal');
-    if (number === null) return null;
     const file = path.join(root, 'proposal', 'main', `v${number}`, 'proposal.md');
     if (!fs.existsSync(file)) return null;
     const text = readFile(file, `proposal version ${number}`).replace(/\r\n?/g, '\n');

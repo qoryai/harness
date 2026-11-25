@@ -286,6 +286,15 @@ test('proposal: ## Commands has a row for lint, build and full, each with a Sour
     /^Put a table with the columns Kind, Command, Result file, Source in ## Commands of proposal\.md\.$/);
 });
 
+test('proposal: a standard proposal with ## Commands has the section finding and no other', () => {
+  // The section has no table: a check of the table would add a finding.
+  const standard = fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\nStandard track.\n\n## Commands\n\nNone.\n`]);
+  const got = push(standard, 'proposal');
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.findings.length, 2, got.out);
+});
+
 test('proposal: ## Commands counts toward no word limit, as ## Sources does', () => {
   // A Source of 20 words breaks the limit of 12 words per cell, and one of 500 words the 450 of
   // the proposal, in any other section.
@@ -2630,6 +2639,16 @@ test('words: the 450 words fail and pass at the limit', () => {
   const fill = (size) => fixture(beforeSources(parts(2) + parts(1, size).replace('Part 1', 'Part 3')));
   passes(push(fill(450 - own - 204 - 2), 'proposal'));
   fails(push(fill(451 - own - 204 - 2), 'proposal'), /^Cut proposal.md to 450 words: it has 451\./);
+});
+
+test('words: the heading and the table of ## Commands count no word', () => {
+  // The same fast-track proposal over the limit, with and without ## Commands: the finding
+  // states the same number of words.
+  const fill = (...more) => fastSource(fixture(
+    beforeSources(parts(1) + parts(1, 500).replace('Part 1', 'Part 2')),
+    trackLines(FAST_LINE, FAST_REASON), FAST_SOURCE, ...more));
+  const without = fill(['proposal.md', `\n## Commands\n\n${COMMANDS}\n`, '']);
+  assert.equal(total(push(fill(), 'proposal')), total(push(without, 'proposal')));
 });
 
 // itemized returns a proposal fixture whose ## Sources lists count pages, each an item of 20
