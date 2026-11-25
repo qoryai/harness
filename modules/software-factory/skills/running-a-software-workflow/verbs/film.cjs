@@ -11,7 +11,26 @@
 //                         step starts at the start of that step. With the evidence pictures,
 //                         it runs with video off and writes <scenario>-step-<N>.png, the page
 //                         after step N. It exits 0, and prints a line that names the files. A
-//                         failed step stores nothing, and exits 1 with the fix first.
+//                         failed step stores nothing, and exits 1 with the fix first. The
+//                         first encode (pass 1) caps the bitrate so that the film fits one
+//                         version of qory. When the film is still over the limit, the call
+//                         keeps .film/<scenario>/ with the frames and exits 4 with the line
+//                         "Run film recode <scenario>.".
+//   film recode <scenario>
+//                         encodes the kept frames again (pass 2), at 960 x 540 px, with a
+//                         lower quality and half the cap. A film that fits replaces the first
+//                         one and the frames go. A film that is still over the limit exits 1
+//                         with the fix first, and removes .film/<scenario>/.
+//   film frames <scenario>
+//                         takes two pictures of each step from <scenario>.mp4 of
+//                         <folder>/.film/<scenario>/, for demo-reviewer: the page at the start
+//                         of the step and the page when the step ended, as
+//                         frames/step-<N>-start.png and frames/step-<N>-reached.png.
+//   film todo             prints the scenarios to film, those of the approved demo scenarios
+//                         with a demo script and no demo evidence for the commit of the working
+//                         folder and the version of that script, and the pushed artifacts to
+//                         withdraw, those of a scenario that the approved demo scenarios
+//                         removed.
 //   film pages <path>... [--inputs <path>] [--artifacts <folder>]
 //                         takes pictures of the pages that the paths open, for the two screen
 //                         reviewers: pages-<N>-<width>.png in <folder>/.film/pages/ for the
@@ -20,9 +39,13 @@
 //
 // A call takes one scenario, and ends within CALL_MS of lib/budget.cjs, 585 s: the runner ends
 // within RUN_BUDGET_MS, 535 s, 15 s more at the latest, and the encode takes ENCODE_MS, 35 s.
+// film recode is a call of its own, with the same CALL_MS for ffmpeg alone; it exits 3 when
+// fewer than 20 s of it are left. The size is that of qory's rule for one version: the MP4 and
+// the WebVTT file, each as base64, and an envelope of 16 KiB, at most 32 MiB.
 // The verb stores nothing in Qory Apiary, writes no demo evidence and no ledger row: the
 // session pushes the files. Exit 3 means that an input is missing, that ffmpeg or the browser
-// is missing, or that the app, the browser or ffmpeg did not run.
+// is missing, or that the app, the browser or ffmpeg did not run. Exit 4 means that pass 1 left
+// a film over the limit and kept its frames.
 'use strict';
 
 const childProcess = require('node:child_process');
@@ -30,6 +53,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const { findBrowser } = require('../lib/browser.cjs');
+const git = require('../lib/git.cjs');
 const { CALL_MS, RUN_BUDGET_MS, START_MS } = require('../lib/budget.cjs');
 const { FILM_HEIGHT } = require('../lib/capture.cjs');
 const { takeInputs, takeValue } = require('../lib/limits.cjs');
@@ -40,7 +64,8 @@ const FOLDER = '.film';
 const WIDTHS = [360, 768, 1280];
 const ID = /^scenario-[1-9][0-9]?$/;
 const FRAME = /^f[0-9]{6}\.jpg$/;
-const USAGE = 'Give film with a scenario id, or film pages with one path or more.';
+const USAGE = 'Give film, film recode or film frames with a scenario id, film todo, or film pages ' +
+  'with one path or more.';
 // The path of ffmpeg in the image of qory, which apt installs, and the name for the PATH.
 const FFMPEG = ['/usr/bin/ffmpeg', 'ffmpeg'];
 // The most time of ffmpeg, and the least: ffmpegLimitMs gives it what is left of CALL_MS.
@@ -48,12 +73,54 @@ const FFMPEG_MS = 90000;
 const FFMPEG_LEAST_MS = 5000;
 const FRAMES_PER_SECOND = 25;
 
+// The size that qory accepts for one version: the files, each as base64 (ceil(n / 3) * 4
+// bytes), plus an envelope of JSON, at most 32 MiB (runapi.MaxBody of qory). The film and its
+// captions are the files of the version.
+const VERSION_LIMIT = 32 * 1024 * 1024;
+const ENVELOPE = 16 * 1024;
+// The bytes of files that fit: (VERSION_LIMIT - ENVELOPE) / 4 * 3.
+const FILES_BYTES = (VERSION_LIMIT - ENVELOPE) / 4 * 3;
+// Pass 1 caps the bitrate so that the film takes at most this share of FILES_BYTES, and at
+// most MOST_KBIT kbit/s, the rate that a film has when its frames stay still.
+const SHARE = 0.8;
+const MOST_KBIT = 1500;
+// A call of film recode ends with exit 3 when fewer ms than this of CALL_MS are left for ffmpeg.
+const RECODE_LEAST_MS = 20000;
+// The file that keeps the frames of a film between film and film recode.
+const CAPTURE_FILE = 'capture.json';
+
+// rateCap returns the cap of pass 1 in kbit/s for a film of seconds: the rate at which the
+// film takes SHARE of FILES_BYTES, at most MOST_KBIT.
+function rateCap(seconds) {
+  if (!(seconds > 0)) return MOST_KBIT;
+  return Math.max(Math.min(MOST_KBIT, Math.floor(SHARE * FILES_BYTES * 8 / 1000 / seconds)), 1);
+}
+
+// passesOf returns the settings of the two passes for a film of seconds: pass 1 at 1280 x
+// FILM_HEIGHT px with the CRF 28 and the cap, pass 2 at 960 x 540 px with the CRF 32 and half
+// the cap.
+const passesOf = (seconds) => [
+  { crf: 28, kbit: rateCap(seconds), scale: `1280:${FILM_HEIGHT}` },
+  { crf: 32, kbit: Math.max(Math.floor(rateCap(seconds) / 2), 1), scale: '960:540' }];
+
 // ffmpegArguments returns the arguments of ffmpeg that make <id>.mp4.tmp from frames.txt, the
-// list of frames, with the last frame held for hold seconds.
-const ffmpegArguments = (id, hold) => ['-y', '-hide_banner', '-loglevel', 'error', '-f',
-  'concat', '-i', 'frames.txt', '-vf', `fps=${FRAMES_PER_SECOND},tpad=stop_mode=clone:` +
-  `stop_duration=${hold},scale=1280:${FILM_HEIGHT},format=yuv420p`, '-c:v', 'libx264',
-  '-preset', 'veryfast', '-movflags', '+faststart', '-an', '-f', 'mp4', `${id}.mp4.tmp`];
+// list of frames, with the last frame held for hold seconds, in the setting { crf, kbit,
+// scale } of a pass. With no setting it is pass 1 at the highest cap.
+const ffmpegArguments = (id, hold,
+  { crf, kbit, scale } = { crf: 28, kbit: MOST_KBIT, scale: `1280:${FILM_HEIGHT}` }) => [
+  '-y', '-hide_banner', '-loglevel', 'error', '-f', 'concat', '-i', 'frames.txt', '-vf',
+  `fps=${FRAMES_PER_SECOND},tpad=stop_mode=clone:stop_duration=${hold},scale=${scale},` +
+  'format=yuv420p', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', String(crf), '-maxrate',
+  `${kbit}k`, '-bufsize', `${2 * kbit}k`, '-movflags', '+faststart', '-an', '-f', 'mp4',
+  `${id}.mp4.tmp`];
+
+// encodedSize returns the bytes that qory counts for files of the sizes: each file as base64,
+// and the envelope.
+const encodedSize = (sizes) => ENVELOPE + sizes
+  .reduce((sum, size) => sum + Math.ceil(size / 3) * 4, 0);
+
+// mib returns bytes as MiB with one decimal.
+const mib = (bytes) => (bytes / 1048576).toFixed(1);
 
 // ffmpegLimitMs returns the time for ffmpeg when the call has run for spent ms: what is left
 // of CALL_MS, at most FFMPEG_MS and at least FFMPEG_LEAST_MS.
@@ -79,8 +146,24 @@ function captions(script, capture) {
   return `WEBVTT\n\n${cues.join('\n\n')}\n`;
 }
 
+// cuesOf returns { start, end } in ms of each cue of the WebVTT file text that captions wrote.
+function cuesOf(text) {
+  const ms = (clock) => {
+    const [h, m, rest] = clock.split(':');
+    return ((Number(h) * 60 + Number(m)) * 60 + Number(rest)) * 1000;
+  };
+  return [...text.matchAll(/^(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})$/gm)]
+    .map((one) => ({ start: Math.round(ms(one[1])), end: Math.round(ms(one[2])) }));
+}
+
+// pictureTimes returns the times in ms of the two pictures of each step of cues: the start of
+// the cue, and one frame before its end, at the start when the cue is shorter than a frame.
+const pictureTimes = (cues) => cues.map((cue) => ({ start: cue.start,
+  reached: Math.max(cue.end - 1000 / FRAMES_PER_SECOND, cue.start) }));
+
 module.exports = (lib) => {
-  const { Missing, artifactFolder, cut, plural, short, within } = lib;
+  const { Context, Missing, approved, artifactFolder, cut, isObject, newestNamed, parseJson,
+    plural, scenarios, short, within } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
   // options returns { inputs, artifacts, rest } of the arguments, each undefined when it is not
@@ -185,8 +268,53 @@ module.exports = (lib) => {
     return `${lines.join('\n')}\n`;
   }
 
-  // encode makes <scenario>.mp4 and <scenario>.vtt in dir from the frames of capture, and
-  // removes the frames.
+  // listFrames writes the list of frames of capture to dir, runs ffmpeg once on it in the
+  // setting pass, and places <id>.mp4. A failed ffmpeg throws a Missing and leaves no list and
+  // no temporary film.
+  function listFrames(io, dir, id, capture, ffmpeg, limitMs, pass) {
+    const list = path.join(dir, 'frames.txt');
+    const film = path.join(dir, `${id}.mp4`);
+    try {
+      fs.writeFileSync(list, concat(dir, capture), { flag: 'wx' });
+      // The last frame lasts one frame by itself, and then stays until the end of the film.
+      const hold = Math.max((capture.end - capture.frames[capture.frames.length - 1].at) / 1000 -
+        1 / FRAMES_PER_SECOND, 0).toFixed(3);
+      const made = childProcess.spawnSync(ffmpeg, ffmpegArguments(id, hold, pass), { cwd: dir,
+        env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8', timeout: limitMs,
+        killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
+      if (made.status !== 0) {
+        const why = String(made.stderr || '').trim().split('\n')[0] || (made.error
+          ? made.error.code || made.error.message : `exit ${made.status}`);
+        throw new Missing(`End the run: ffmpeg did not make the film of ${id}.\n` +
+          `${short(why, 160)}`);
+      }
+      place(`${film}.tmp`, film);
+    } catch (error) {
+      fs.rmSync(`${film}.tmp`, { force: true });
+      throw error;
+    } finally {
+      fs.rmSync(list, { force: true });
+    }
+  }
+
+  // sizeOf returns the bytes that qory counts for <id>.mp4 and <id>.vtt of dir.
+  const sizeOf = (dir, id) => encodedSize([`${id}.mp4`, `${id}.vtt`]
+    .map((name) => fs.statSync(path.join(dir, name)).size));
+
+  // limitOf returns the most bytes of one version: VERSION_LIMIT, or io.preflight.filmLimit,
+  // which only a test sets.
+  const limitOf = (io) => (io.preflight || {}).filmLimit || VERSION_LIMIT;
+
+  // dropFrames removes the frames of capture and the file that keeps them from dir.
+  function dropFrames(dir, capture) {
+    for (const one of [path.join(dir, CAPTURE_FILE),
+      ...capture.frames.map((frame) => path.join(dir, frame.file))]) {
+      fs.rmSync(one, { force: true });
+    }
+  }
+
+  // encode makes <scenario>.vtt and, in pass 1, <scenario>.mp4 in dir from the frames of
+  // capture. It keeps the frames, and returns the bytes that qory counts for the version.
   function encode(io, dir, script, capture, ffmpeg, limitMs) {
     const id = script.scenario;
     if (!capture || capture.kind !== 'film' || !Array.isArray(capture.frames) ||
@@ -195,27 +323,69 @@ module.exports = (lib) => {
       throw new Missing(`End the run: the runner stored no film of ${id}.\nIts result has no ` +
         'frames or no start of each step.');
     }
-    const list = path.join(dir, 'frames.txt');
-    fs.writeFileSync(list, concat(dir, capture), { flag: 'wx' });
-    const film = path.join(dir, `${id}.mp4`);
-    // The last frame lasts one frame by itself, and then stays until the end of the film.
-    const hold = Math.max((capture.end - capture.frames[capture.frames.length - 1].at) / 1000 -
-      1 / FRAMES_PER_SECOND, 0).toFixed(3);
-    const made = childProcess.spawnSync(ffmpeg, ffmpegArguments(id, hold), { cwd: dir,
-      env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8', timeout: limitMs,
-      killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
-    if (made.status !== 0) {
-      const why = String(made.stderr || '').trim().split('\n')[0] || (made.error
-        ? made.error.code || made.error.message : `exit ${made.status}`);
-      throw new Missing(`End the run: ffmpeg did not make the film of ${id}.\n${short(why, 160)}`);
-    }
-    place(`${film}.tmp`, film);
+    listFrames(io, dir, id, capture, ffmpeg, limitMs, passesOf(capture.end / 1000)[0]);
     const text = path.join(dir, `${id}.vtt`);
     fs.writeFileSync(`${text}.tmp`, captions(script, capture), { flag: 'wx' });
     place(`${text}.tmp`, text);
-    for (const one of [list, ...capture.frames.map((frame) => path.join(dir, frame.file))]) {
-      fs.rmSync(one, { force: true });
+    return sizeOf(dir, id);
+  }
+
+  // over keeps the frames of capture in dir, without the film that is over the limit, and prints
+  // the line that asks for pass 2. It returns 4.
+  function over(io, dir, capture, id, size) {
+    fs.writeFileSync(path.join(dir, CAPTURE_FILE), JSON.stringify({ end: capture.end,
+      frames: capture.frames.map(({ file, at }) => ({ file, at })) }));
+    fs.rmSync(path.join(dir, `${id}.mp4`), { force: true });
+    io.print([`Run film recode ${id}.\nThe film of ${id} is ${mib(size)} MiB encoded, and the ` +
+      `limit of one version is ${mib(limitOf(io))} MiB.`],
+    `Kept the frames of ${id}: its film is over the size limit.`);
+    return 4;
+  }
+
+  // recodeOf makes the film of scenario id again, from the frames that film kept: pass 2.
+  function recodeOf(io, id) {
+    const began = Date.now();
+    const root = artifactFolder(io);
+    const dir = path.join(root, FOLDER, id);
+    const kept = path.join(dir, CAPTURE_FILE);
+    let capture = null;
+    try {
+      if (!fs.lstatSync(path.join(root, FOLDER)).isDirectory() ||
+        !fs.lstatSync(dir).isDirectory() || !regular(kept)) throw new Error('not kept');
+      capture = JSON.parse(fs.readFileSync(kept, 'utf8'));
+    } catch {
+      capture = null;
     }
+    if (!capture || !Array.isArray(capture.frames) || !capture.frames.length ||
+      !capture.frames.every((frame) => frame !== null && typeof frame === 'object') ||
+      !Number.isFinite(capture.end) || !regular(path.join(dir, `${id}.vtt`))) {
+      throw new Missing(`Run film ${id}, then run film recode ${id} again.\n${path.join(FOLDER,
+        id)} has no frames that film kept.`);
+    }
+    const ffmpeg = findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG);
+    if (!ffmpeg) {
+      throw new Missing('Add ffmpeg to the dev container, then run film recode again.\nNo ' +
+        `ffmpeg exists on this machine, and ${id} has the evidence film.`);
+    }
+    const left = CALL_MS - (Date.now() - began);
+    if (left < RECODE_LEAST_MS) {
+      throw new Missing(`Run film recode ${id} again.\nOnly ${Math.max(Math.floor(left / 1000), 0)} ` +
+        `s of the ${CALL_MS / 1000} s of the call are left for ffmpeg.`);
+    }
+    const [, pass] = passesOf(capture.end / 1000);
+    listFrames(io, dir, id, capture, ffmpeg, left, pass);
+    const size = sizeOf(dir, id);
+    if (size > limitOf(io)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+      io.print([`Shorten the waits of ${id} or split it in Shape.\nThe film of ${id} is ` +
+        `${mib(size)} MiB encoded after pass 2, and the limit of one version is ` +
+        `${mib(limitOf(io))} MiB.`], 'Stored no film: it is over the size limit.');
+      return 1;
+    }
+    dropFrames(dir, capture);
+    io.print([], `Filmed ${id} again at 960 x 540 px, ${mib(size)} MiB encoded, in ` +
+      `${path.join(FOLDER, id, `${id}.mp4`)}, with the captions ${id}.vtt.`);
+    return 0;
   }
 
   // filmOf runs the script of scenario `id` and stores its film or its pictures.
@@ -260,7 +430,10 @@ module.exports = (lib) => {
         return failure(io, run, script.evidence === 'film' ? 'film' : 'pictures', `film ${id}`);
       }
       if (script.evidence === 'film') {
-        encode(io, dir, script, run.capture, ffmpeg, ffmpegLimitMs(Date.now() - began));
+        const size = encode(io, dir, script, run.capture, ffmpeg,
+          ffmpegLimitMs(Date.now() - began));
+        if (size > limitOf(io)) return over(io, dir, run.capture, id, size);
+        dropFrames(dir, run.capture);
         io.print([], `Filmed ${id}: ${plural(script.steps.length, 'step')} in ` +
           `${path.join(FOLDER, id, `${id}.mp4`)}, with the captions ${id}.vtt.`);
       } else {
@@ -269,6 +442,94 @@ module.exports = (lib) => {
       }
       return 0;
     });
+  }
+
+  // framesOf takes the two pictures of each step of the film of scenario id.
+  function framesOf(io, id) {
+    const root = artifactFolder(io);
+    const dir = path.join(root, FOLDER, id);
+    const film = path.join(dir, `${id}.mp4`);
+    const vtt = path.join(dir, `${id}.vtt`);
+    if (!regular(film) || !regular(vtt)) {
+      throw new Missing(`Run film ${id}, then run film frames ${id} again.\n${path.join(FOLDER, id)} ` +
+        `has no ${id}.mp4 and ${id}.vtt.`);
+    }
+    const ffmpeg = findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG);
+    if (!ffmpeg) {
+      throw new Missing('Add ffmpeg to the dev container, then run film frames again.\nNo ' +
+        `ffmpeg exists on this machine, and ${id} has a film.`);
+    }
+    const times = pictureTimes(cuesOf(fs.readFileSync(vtt, 'utf8')));
+    const folder = path.join(dir, 'frames');
+    fs.rmSync(folder, { recursive: true, force: true });
+    fs.mkdirSync(folder);
+    const lines = [];
+    times.forEach((time, at) => {
+      const names = [['start', time.start], ['reached', time.reached]].map(([which, ms]) => {
+        const name = `step-${at + 1}-${which}.png`;
+        const made = childProcess.spawnSync(ffmpeg, ['-y', '-hide_banner', '-loglevel', 'error',
+          '-ss', (ms / 1000).toFixed(3), '-i', film, '-frames:v', '1', path.join(folder, name)],
+        { env: { PATH: io.env.PATH || '/usr/bin:/bin' }, encoding: 'utf8',
+          timeout: FFMPEG_LEAST_MS * 6, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 });
+        if (made.status !== 0 || !regular(path.join(folder, name))) {
+          throw new Missing(`End the run: ffmpeg did not take ${name} of ${id}.\n` +
+            `${short(String(made.stderr || '').trim().split('\n')[0] || 'no picture', 160)}`);
+        }
+        return `${name} at ${Math.round(ms)} ms`;
+      });
+      lines.push(`Step ${at + 1}: ${names.join(', ')}.`);
+    });
+    io.print(lines, `Took ${plural(times.length * 2, 'picture')} of ${id} in ` +
+      `${path.join(FOLDER, id, 'frames')}/, two for each step.`);
+    return 0;
+  }
+
+  // liveScenarios returns the ids of the scenarios of the approved demo scenarios that are not
+  // removed, or [] with no version.
+  function liveScenarios(context) {
+    const version = approved(context, 'demo-scenarios', 'demo-scenarios.md');
+    return version ? scenarios(version.text).filter((one) => one.id && !one.removed)
+      .map((one) => one.id) : [];
+  }
+
+  // evidenceOf returns the data of the newest demo evidence of scenario id, or null for none, a
+  // withdrawn one and one that is no JSON object.
+  function evidenceOf(context, id) {
+    const newest = newestNamed(context, 'demo-evidence', id, `${id}.json`);
+    if (!newest) return null;
+    try {
+      const data = parseJson(newest.text, `demo-evidence ${id} version ${newest.number}`);
+      return isObject(data) ? data : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // todoOf prints the scenarios to film and the artifacts to withdraw.
+  function todoOf(io) {
+    const root = artifactFolder(io);
+    const head = git.head(io.cwd, io.env);
+    if (!head) {
+      throw new Missing('Run the verb in the checkout of the work.\ngit has no HEAD there.');
+    }
+    const context = new Context(root, 'check', io.home);
+    const live = liveScenarios(context);
+    const film = live.filter((id) => {
+      const version = context.counted('demo-script', id);
+      if (version === null || context.withdrawn('demo-script', id)) return false;
+      const evidence = evidenceOf(context, id);
+      return !evidence || evidence.commit !== head || !isObject(evidence.script) ||
+        evidence.script.version !== version;
+    });
+    const withdraw = ['demo-evidence', 'demo-video', 'screenshot'].flatMap((type) =>
+      (context.index ? context.index.artifacts : [])
+        .filter((one) => isObject(one) && one.type === type && ID.test(one.name) &&
+          !live.includes(one.name) && !context.withdrawn(type, one.name) &&
+          context.counted(type, one.name) !== null)
+        .map((one) => `${type} ${one.name}`));
+    io.print([`To film: ${film.length ? film.join(', ') : 'none'}.`],
+      `To withdraw: ${withdraw.length ? withdraw.join(', ') : 'none'}.`);
+    return 0;
   }
 
   // pagesOf takes the pictures of the pages that paths open.
@@ -308,6 +569,7 @@ module.exports = (lib) => {
   return {
     film: {
       usage: ['film <scenario> [--inputs <path>] [--artifacts <folder>]',
+        'film recode <scenario>', 'film frames <scenario>', 'film todo',
         'film pages <path>... [--inputs <path>] [--artifacts <folder>]'],
       args: (io, what, rest) => {
         const given = options([what, ...rest].filter((one) => one !== undefined));
@@ -316,11 +578,18 @@ module.exports = (lib) => {
         if (first === 'pages' ? paths.length > 0 : given.rest.length === 1 && ID.test(first)) {
           return null;
         }
+        if (['recode', 'frames'].includes(first) && paths.length === 1 && ID.test(paths[0])) {
+          return null;
+        }
+        if (first === 'todo' && !paths.length && given.rest.length === 1) return null;
         return USAGE;
       },
       run: (io, what, rest) => {
         const given = options([what, ...rest].filter((one) => one !== undefined));
         const [first, ...paths] = given.rest;
+        if (first === 'recode') return recodeOf(io, paths[0]);
+        if (first === 'frames') return framesOf(io, paths[0]);
+        if (first === 'todo') return todoOf(io);
         return first === 'pages' ? pagesOf(io, paths, given) : filmOf(io, first, given);
       },
     },
@@ -331,4 +600,9 @@ module.exports.ffmpegLimitMs = ffmpegLimitMs;
 module.exports.FRAMES_PER_SECOND = FRAMES_PER_SECOND;
 module.exports.ffmpegArguments = ffmpegArguments;
 module.exports.captions = captions;
+module.exports.rateCap = rateCap;
+module.exports.cuesOf = cuesOf;
+module.exports.pictureTimes = pictureTimes;
+module.exports.passesOf = passesOf;
+module.exports.encodedSize = encodedSize;
 module.exports.stamp = stamp;
