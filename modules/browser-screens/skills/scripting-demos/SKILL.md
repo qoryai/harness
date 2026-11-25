@@ -1,6 +1,6 @@
 ---
 name: scripting-demos
-description: Write, run and freeze the demo script of each approved demo scenario: start the demo author once per scenario, build the script from its actions and the approved scenario, run it once with video off, and push it. A script that passed is frozen, and a later change to it is a correction that check-reviewer reads, at most 2 per scenario. Use in a Build run of implement-changes, after the last deliverable, when the check of demo scripts lists a scenario to script or refuses a script.
+description: Write, run and freeze the demo script of each approved demo scenario: start the demo author once per scenario, build the script from its actions and the approved scenario, have check-reviewer review it, run it once with video off, and push it. A script that passed is frozen, and a later change to it is a correction that check-reviewer reviews, at most 2 per scenario. Use in a Build run of implement-changes, after the last deliverable, when the check of demo scripts lists a scenario to script or refuses a script.
 ---
 
 # Scripting demos
@@ -31,8 +31,9 @@ correction step.
 A script is frozen at its first pass: the run of `demo run` that passes. The step
 `script:<id>` of the build ledger records the sha256 of that script. A later change to the
 script is a correction. The ledger has at most 2 corrections for a scenario, the steps
-`script:<id>#2` and `script:<id>#3`, and `demo check` exits with 1 for a third. Each
-correction is read by `check-reviewer` before it runs, as step 5 lists.
+`script:<id>#2` and `script:<id>#3`, and `demo check` exits with 1 for a third.
+`check-reviewer` reviews the first script and each correction before it runs, as step 5
+lists.
 
 ## For each scenario
 
@@ -96,15 +97,17 @@ version; do this only for a script that this session wrote and still has as a fi
      App address only when the build plan is readable and has the line `App address:`. With
      no such plan, it compares nothing, and the run in step 8 loads only pages of the origin
      of the app.
-   - With 0 and a line that starts with "Start check-reviewer", the draft changes a script
-     that passed, whether the author wrote it or it is a copy of the pushed file. Run
+   - With 0, have the script reviewed. A line that starts with "Start check-reviewer" means
+     that the draft changes a script that passed, whether the author wrote it or it is a
+     copy of the pushed file; for the first script there is no such line. Run
      `<skill folder>/checks.cjs step end <step> done` for the path of the report file, as
      "The build ledger" of `running-a-software-workflow` lists. Then start
      ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
      `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
-     the notes, the path of `<scenarios>`, the path of the script that passed, the path
-     `<folder>/.demo/<id>.json` of the new script, the path of the report file, and the
-     line "Review the change to a demo script". Write its report to
+     the notes, the path of `<scenarios>`, the path `<folder>/.demo/<id>.json` of the new
+     script, and the path of the report file. When `<step>` is `script:<id>`, add the line
+     "Review the first demo script" and `<id>`. For a correction, add the line "Review the
+     change to a demo script" and the path of the script that passed. Write its report to
      `<folder>/.reports/check-reviewer-<n>.md`, and check it, as "Check each report" lists.
      With `changes-needed`, do "Start the author again", with each finding quoted. With
      `blocked`, run `step end <step> failed`, and end as "Failures" lists. Step 10 needs

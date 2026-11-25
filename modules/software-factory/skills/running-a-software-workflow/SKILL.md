@@ -86,7 +86,7 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      a change or a commit: run that command, then the same `step begin` again. Both
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
-3. The steps `plan`, `checks` and a correction of a demo script, such as
+3. The steps `plan`, `checks` and each step of a demo script, `script:scenario-1` and
    `script:scenario-1#2`, end `done` only with a valid report of their reviewer for the
    file as it is, with no blocking finding. Before a start of that reviewer, when the file
    changed since its last review or had none, run `checks.cjs step end <id> done` with no

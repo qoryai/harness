@@ -1,6 +1,6 @@
 ---
 name: check-reviewer
-description: Reviews the acceptance checks that a run wrote and the draft of their lock against the acceptance criteria, the build plan and the records of their runs on the start commit, and reports findings as text and in one report file. Also reviews a change to a demo script that passed. Use after the acceptance check writer, before the run commits and locks the checks, and after each correction of a frozen demo script.
+description: Reviews the acceptance checks that a run wrote and the draft of their lock against the acceptance criteria, the build plan and the records of their runs on the start commit, and reports findings as text and in one report file. Also reviews the first demo script of a scenario, and each change to a demo script that passed. Use after the acceptance check writer, before the run commits and locks the checks, and in scripting-demos, before the first script of a scenario or a correction of a frozen script runs.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 ---
@@ -80,6 +80,21 @@ of a click or type action, a new text of a wait action, or one wait action added
 action, a changed `open` address, a changed variable name, a changed sign-in or a changed
 step that makes the script show less than before are findings. The title and the expected
 result of each step come from the demo scenarios, so a difference there is a finding too.
+
+You also review the first script of a demo scenario, when your input has the line "Review
+the first demo script". You get the paths of the input file, the artifact folder, the demo
+scenarios and the new script, and the id of the scenario. No script of the scenario passed
+before, so compare the new script with the scenario, and search the working folder for its
+targets. Load the same two skills, and you need no draft lock and no "Changed paths:".
+Report each of these as a finding marked `writer`, `no direction` and `break`:
+
+- the actions of a step do not do what its Action in the scenario describes, or do more;
+- the screen after the actions of a step cannot show what the scenario lists under What the
+  viewer sees;
+- the setup does not sign in and reach the starting state of the scenario, or it does more;
+- no file of the working folder has the target of a click or type action;
+- the text of a type action is a password, key or token;
+- the title or the expected result of a step differs from the demo scenarios.
 
 ## Stop conditions
 

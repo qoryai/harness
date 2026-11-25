@@ -950,7 +950,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '"Push the frozen script"',
     'Otherwise run',
     'a script has 2',
-    'With 0 and a line that starts with "Start check-reviewer"');
+    'With 0, have the script reviewed. A line that starts with "Start check-reviewer"');
   inText(SCRIPTING, 'starts with "Start check-reviewer", `.demo/<id>.json` exists and differs',
     'skip steps 2 to 4, do step 1, and go on from step 5',
     'starts with "Push the frozen script", the pushed script differs from the newest done ' +
@@ -959,10 +959,13 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     'Run this step once for each `<step>`');
   inText(SCRIPTING, '5. Run `<skill folder>/checks.cjs demo check <id>',
     'Open only pages under <App address> in the sign-in steps of <script>.',
-    'With 0 and a line that starts with "Start check-reviewer", the draft changes a script ' +
-      'that passed, whether the author wrote it or it is a copy of the pushed file',
+    'With 0, have the script reviewed. A line that starts with "Start check-reviewer" means ' +
+      'that the draft changes a script that passed, whether the author wrote it or it is a ' +
+      'copy of the pushed file; for the first script there is no such line',
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
-    'Review the change to a demo script', 'With `changes-needed`, do "Start the author again"',
+    'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
+    'For a correction, add the line "Review the change to a demo script" and the path of the ' +
+      'script that passed', 'With `changes-needed`, do "Start the author again"',
     'review a script that changes after its review again');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',
@@ -981,4 +984,17 @@ test('check-reviewer: a branch for the change to a demo script that passed', () 
     'A removed action, a changed `open` address, a changed variable name, a changed sign-in',
     'so a difference there is a finding too', '## Stop conditions',
     'In the review of a demo script, you get none.');
+});
+
+test('check-reviewer: a branch for the first demo script of a scenario', () => {
+  inText(SCRIPTING, '`check-reviewer` reviews the first script and each correction before it runs');
+  inText(REVIEWER, 'Also reviews the first demo script of a scenario', '## A demo script',
+    'when your input has the line "Review the first demo script"',
+    'the paths of the input file, the artifact folder, the demo scenarios and the new script, ' +
+      'and the id of the scenario', 'you need no draft lock and no "Changed paths:"',
+    'Report each of these as a finding marked `writer`, `no direction` and `break`',
+    'the actions of a step do not do what its Action in the scenario describes',
+    'What the viewer sees', 'the starting state of the scenario',
+    'no file of the working folder has the target of a click or type action',
+    'a password, key or token', 'differs from the demo scenarios', '## Stop conditions');
 });

@@ -118,8 +118,8 @@ gate and no later stage reads it.
 
 Do this section after the last deliverable step and before the first finding step, so that
 the screens of the demo scenarios exist. A demo script contains the browser actions of one
-approved demo scenario. The skill `scripting-demos` of the module browser-screens writes it,
-and a stack without that module has no such skill.
+approved demo scenario. The skill `scripting-demos` of the module browser-screens writes it
+and has it reviewed, and a stack without that module has no such skill.
 
 1. Run `<skill folder>/checks.cjs demo check --inputs <inputs>`.
    - With 0 and a last line that starts with "No demo script to write", skip the rest of
