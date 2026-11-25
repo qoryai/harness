@@ -348,13 +348,13 @@ module.exports = (lib) => {
   // files have no `repository`. It returns null when data has no such lists, so that lock
   // reports the finding of the schema.
   //
-  // Only lock and lock --verify call it. The push check of the type (checks.cjs push) does not
-  // test `repository`: qory runs it outside the session, with no QORY_RUN_REPOSITORIES, and
-  // its inputs.json has no list of the run's repositories. Verify's `lock --verify --version
-  // <N>` is the test that binds. So in a run, when QORY_RUN_ID is set, a list that is not set,
-  // is empty or has an empty first entry exits 3, and only outside a run is the test left
-  // out. Only qory sets the list, so the line sends the session to a member. verb is `lock`
-  // or `lock --verify`.
+  // Only lock, lock --verify and step end call it. The push check of the type (checks.cjs
+  // push) does not test `repository`: qory runs it outside the session, with no
+  // QORY_RUN_REPOSITORIES, and its inputs.json has no list of the run's repositories. Verify's
+  // `lock --verify --version <N>` is the test that binds. So in a run, when QORY_RUN_ID is
+  // set, a list that is not set, is empty or has an empty first entry exits 3, and only
+  // outside a run is the test left out. Only qory sets the list, so the line sends the session
+  // to a member. verb is `lock`, `lock --verify` or `step end`.
   function lockedFiles(data, env = {}, verb = 'lock') {
     if (!isObject(data) || !Array.isArray(data.checks)) return null;
     if (data.support !== undefined && !Array.isArray(data.support)) return null;
@@ -403,8 +403,8 @@ module.exports = (lib) => {
   // (docs/modules.md, `checks.cjs lock`).
   // The variables GIT_* of env, which move the repository, are left out of the call, and git
   // reads no global or system config, as in lib/git.cjs, and runs with LC_ALL=C, so that its
-  // lines are in English in any locale. verb is `lock`, `lock --verify` or `run locked`, the
-  // command that the lines name.
+  // lines are in English in any locale. verb is `lock`, `lock --verify`, `step end` or `run
+  // locked`, the command that the lines name.
   function lockFolder(dir, env = {}, verb = 'lock') {
     const clean = Object.fromEntries(Object.entries(env)
       .filter(([key]) => !key.startsWith('GIT_') && key !== 'LANGUAGE'));

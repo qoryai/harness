@@ -186,12 +186,11 @@ function previousFindings(io, file) {
 const mineOf = (previous, name) => previous.filter((one) => one.source.kind === 'reviewer' &&
   one.source.name === name);
 
-// reviewerFindings returns { found, closed } for the report of name in the folder dir: found
-// is the open findings after the round, and closed counts the closes of a valid report. mine
-// is the reviewer's findings in --previous: those open stay open unless the report closes or
-// repeats them, and an invalid report adds one blocking finding and closes none.
-function reviewerFindings(dir, name, mine = []) {
-  const file = path.join(dir, `${name}.json`);
+// reviewerFindings returns { found, closed } for the report of the reviewer name at file:
+// found is the open findings after the report, and closed counts the closes of a valid report.
+// mine is the reviewer's findings in --previous: those open stay open unless the report closes
+// or repeats them. A missing or invalid report adds one blocking finding with no proof.
+function reviewerFindings(file, name, mine = []) {
   const left = (ids) => mine.filter((one) => one.state === 'open' && !ids.includes(one.id))
     .map((one) => ({ reviewer: name, id: one.id, severity: one.severity, point: one.point,
       proof: one.proof, file: one.file, line: one.line, left: true }));
@@ -293,7 +292,8 @@ function round(io, { reports, names, suite, previous }) {
   const dir = path.resolve(io.cwd, reports);
   reportFolder(dir);
   const earlier = previous === null ? [] : previousFindings(io, previous);
-  const each = names.map((name) => reviewerFindings(dir, name, mineOf(earlier, name)));
+  const each = names.map((name) => reviewerFindings(path.join(dir, `${name}.json`), name,
+    mineOf(earlier, name)));
   const found = [...(suite === null ? []
     : suiteFindings(path.resolve(io.cwd, suite), io.registry().suite)),
     ...each.flatMap((one) => one.found)];
@@ -320,6 +320,7 @@ function round(io, { reports, names, suite, previous }) {
 module.exports = {
   mineOf,
   previousFindings,
+  reviewerFindings,
   verbs: {
     findings: {
       usage: ['findings open <file>',
