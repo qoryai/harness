@@ -4975,7 +4975,7 @@ test('in a review session only checks.cjs matrix writes verification.json and it
     }
     // Each write that a skill or an agent prescribes in the artifact folder is open to a
     // write tool: the drafts, the points and the lists of files in .notes/.
-    for (const file of ['questions.json', 'points.json', 'review-comments.json',
+    for (const file of ['questions.json', 'points.json', 'review-comments.json', 'feedback.json',
       '.notes/changed-files.txt', '.notes/code-reviewer-files.txt',
       '.notes/acceptance-check-writer-files.txt']) {
       assert.equal(call(writeAs(path.join(runFolder, file), type)), null, file);

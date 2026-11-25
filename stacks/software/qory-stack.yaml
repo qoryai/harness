@@ -12,6 +12,7 @@ workflows:
   make-mockups: {tier: balanced, access: read}
   write-demo-scenarios: {tier: balanced, access: read}
   shape-a-ticket: {tier: thinking, access: read}
+  triage-review: {tier: thinking, access: write, plan: build-plan}
   plan-the-build: {tier: thinking, access: write, plan: build-plan}
   write-acceptance-checks: {tier: balanced, access: write, plan: build-plan}
   implement-changes: {tier: balanced, access: write, plan: build-plan, judges: false}
