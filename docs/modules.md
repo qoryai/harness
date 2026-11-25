@@ -2808,13 +2808,12 @@ the commits of its checkout may be a person's.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the
-row's `base`. An untracked file that git does not ignore is such an edit, and so is a
-submodule whose commit or files changed, whatever its `ignore` setting, as in `scope`; a
-file under `.qory/`, at the top of the checkout, is none, also from a subfolder.
-`step end failed`
+row's `base`. An untracked file that git does not ignore is such an edit; a file under
+`.qory/`, at the top of the checkout, is none, also from a subfolder. `step end failed`
 records the failure with no such check: the session then goes on from the commit before
 the failed step, and the next `step begin` or `step end done` refuses the failed step's
-edits.
+edits. `step begin` and `step end done` do not list changed files in a submodule with
+`ignore = dirty`, and `scope` does.
 
 The verbs exit 0 as each one lists, 1 as each one lists, 2 for wrong arguments, 3 when an
 input is missing or unreadable, such as a ledger that breaks its schema, a missing or
@@ -3415,15 +3414,18 @@ highest id of the review, so that `scope` and `freeze` take its id.
   step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it
   commits the files that the failed step left, with the identity of a frozen commit, `qory`
   and `qory@localhost`, with no hook and no signature, and with nothing under `.qory`.
-  Before that commit, `git reset -q <base>`, with the `base` of the step's row, keeps each
-  file and takes the step's commits off the branch, and the session takes out of the
-  checkout what makes `scope --plan` exit 1: a key, a path outside
-  the plan, a new repository folder and a changed submodule. After it, the session runs
-  `scope --plan`, and with a finding does the same again, at most twice, so that qory pushes
-  the commits of the done steps. It then does "The submission", writes no `points.json`,
-  runs no verdict command, starts no later step, and ends with that line. `review-changes`
-  runs next and reports the open step as `blocking`, and the limit of 3 rounds of Qory
-  Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so
+  Before that commit, `git reset -q <base>`, with the `base` of the last row of the build
+  ledger, keeps each file and takes the step's commits off the branch, and the session takes
+  out of the checkout what makes `scope --plan` exit 1: a key, a path outside the plan, a
+  new repository folder, a changed submodule and a file that `freeze` cannot scan. A new
+  repository folder inside the Files loses only its `.git`, so that its files are in the
+  commit. After the commit, the session runs `scope --plan`, and with a finding does the
+  same again, at most twice. With no finding left, qory pushes the commits of the done
+  steps. When a finding stays after the second repeat, the scope check of qory's push stops
+  the push, qory pushes no commit, and the run ends `push_scope_refused`. The session then
+  does "The submission", writes no `points.json`, runs no verdict command, starts no later
+  step, and ends with that line. `review-changes` runs next and reports the open step as
+  `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end` takes at most 3 `--attempt`, so
   a step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
   the build plan lists for the deliverable, run only `checks.cjs run` and the read forms of
