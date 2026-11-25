@@ -168,8 +168,10 @@ function resolve(cwd, env, commit) {
 // HEAD, or in an untracked one, which counts.
 function changes(Missing, cwd, env) {
   const fix = 'Run the verb in the checkout of the work';
+  // --ignore-submodules=none, unlike diff.ignoreSubmodules of SAFE, is read in place of the
+  // ignore setting of a submodule in .gitmodules and .git/config.
   const out = ok(Missing, cwd, ['status', '--porcelain=v1', '-z', '--no-renames',
-    '--untracked-files=all', '--ignored=matching'], fix, { env });
+    '--untracked-files=all', '--ignored=matching', '--ignore-submodules=none'], fix, { env });
   const paths = [];
   const untracked = new Set();
   const ignores = new Set();

@@ -214,8 +214,25 @@ submission", do no later step, and end as "Points" of `running-a-workflow` lists
 it skips "The submission" although the run has commits; count from `qory.start_commits`
 once qory writes it. -->
 
-Otherwise do "The submission". When a case of "The submission" ends the run, end as that
-case lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
+Otherwise commit the files of the failed step with steps 1 and 2. `<base>` is the `base` of
+the last row of `steps` in `<folder>/.reports/build-ledger.json`, the commit on which the
+failed step started.
+
+1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost. The commits of
+   the done steps stay, and a commit that the failed step made leaves the branch.
+2. When the checkout has a change, commit it with the two commands of "The end".
+
+When the commit has a file with a key, a path outside the Files of every deliverable, a new
+repository folder or a changed submodule, the scope check of qory's push stops the push, and
+qory pushes no commit of the run, those of the done steps included. When `git add -A` exits
+with 128, as for a new repository folder with no commit or a file that git cannot read, the
+commit has only the changes to files that git tracks, and no new file; when git cannot read
+a tracked file, `git commit` exits with 128 too and makes no commit. When a submodule or a
+new repository folder has changed files, those files stay out of the commit. In both cases
+the end check stops each end, and its third stop ends the run with the end check's point.
+
+Then do "The submission". When a case of "The submission" ends the run, end as that case
+lists. Otherwise write no `points.json`, run no verdict command, and do no later step.
 `review-changes` runs next and reports the open step as `blocking`, and the limit of 3
 rounds of Qory Apiary passes it to a member.
 
@@ -325,6 +342,36 @@ its line of the pushed versions, end with "The change is ready for review: the r
 `<m>` the steps `fix:` that this session ended done. Write "1 planned change" and "1
 finding" for one. With no such step, end with "The change is ready for review: each planned
 change was built before this run, and no finding is open."
+
+Commit every change before you end. In each checkout with a change, run these two commands,
+with what changed as the message:
+
+```
+git add -A -- ':/' ':!/[.]qory' ':!/[.]qory/*'
+git -c user.name=qory -c user.email=qory@localhost -c core.hooksPath=/dev/null \
+  -c commit.gpgSign=false commit -m "<what changed>" -- ':/' ':!/[.]qory' ':!/[.]qory/*'
+```
+
+The commit needs the first two `-c` options where git has no identity. With the other two,
+which `freeze` sets too, no hook and no signing key of the checkout stops the commit. Both
+commands leave out `.qory` at the top of the checkout, also when it is a link.
+
+When a merge or a cherry-pick is in progress, run `git reset -q` first: a commit of paths
+exits with 128 until the merge ends, `git reset -q` ends it and keeps each file, and
+`--abort` drops your changes to the merged files.
+
+A commit with a new repository folder, or with a new commit or changed files of a submodule,
+fails the scope check of qory's push: the check does not scan the files of a repository
+folder or a submodule for keys, so it exits with 1, and qory pushes no commit of the run.
+
+When this session ends without `points.json`, the end check stops the end while a checkout
+of `qory.start_commits` has a change that no commit contains, because the full suite and the
+review read only committed work. A change is a tracked, staged or untracked file that git
+does not ignore, or a submodule whose commit or files changed, outside `.qory/`. The check
+prints `Commit these changes, then end the session: the suite and the review read only
+committed work.`, then `Not committed:` with at most 20 of the paths and their count. At its
+third failed check, the run ends with the point "The Build session ended <n> times with
+changes it did not commit, so the suite and the review could not check them."
 
 ## Failures
 
