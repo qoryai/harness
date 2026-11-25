@@ -117,10 +117,10 @@ module.exports = (lib) => {
     });
   }
 
-  // failedText returns the sentence for a demo that failed: the scenario, the step, the class
-  // and the finding of that step, which Build reads in the row of the matrix, such as "The demo
-  // of scenario-1 failed in step 2 (setup): The app did not start." The finding is one plain
-  // line, so that the text keeps the bound of the schema.
+  // failedText returns the sentence for a demo that failed, such as "The demo of scenario-1
+  // failed in step 2 (setup): The app did not start." Build reads it in the row of the matrix.
+  // It has the scenario, the step, the class and the finding of that step, as one plain line,
+  // so that the text keeps the bound of the schema.
   function failedText({ scenario, data }) {
     const step = (Array.isArray(data.steps) ? data.steps : [])
       .find((one) => isObject(one) && one.verdict === 'failed');

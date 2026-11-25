@@ -276,8 +276,9 @@ const signIns = (spec) => inBrowser(spec, spec.setups, (page, setup, env) =>
 // runs replays each script of spec.runs, { setup, steps, names, capture }: its setup as a
 // sign-in, then the actions of each step in order, and resolves to { ok, step, why, outside,
 // capture, variable } for each. step is the number of the step that failed, 0 for the setup, or
-// null. variable is the name of a variable with no value that failed the run, and capture of a
-// run that failed in a step holds what the steps before it and the failed one stored.
+// null. variable is the name of a variable with no value that failed the run. capture of a run
+// that failed in a step is what the steps before it and the failed one stored, and lost, with
+// the reason, replaces it when the capture could not finish.
 // With capture, { kind, dir, name, widths } of lib/capture.cjs, the page has the window of a
 // film, the setup is no part of what is stored, and capture of the result is what finish of
 // lib/capture.cjs returns.
@@ -303,9 +304,9 @@ const runs = (spec) => inBrowser(spec, spec.runs, async (page, one, env) => {
         if (taken) {
           try {
             failed.capture = await taken.finish();
-          } catch {
-            // shortcut: a capture that cannot finish stores nothing for the failed run; replace
-            // it with the frames written so far when a run image makes finish fail.
+          } catch (error) {
+            // film reports it as a cause outside the repository, with the reason in lost.
+            failed.lost = String((error && error.message) || error).split('\n')[0];
           }
         }
         return failed;

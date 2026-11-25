@@ -343,7 +343,7 @@ test('film: a run that fails in a step keeps its film up to that step for demo-r
     'Start demo-reviewer on step 1 of scenario-1, then record it.',
     '  action 1 (click text=Order 1042) failed: no element.',
     'Filmed scenario-1 up to step 1: it failed in step 1.']);
-  // The film and its captions of the begun step stay, with the file that names the step.
+  // The film and its captions of the begun step stay, with failed.json, which has the step.
   assert.deepEqual(fs.readdirSync(here.film).sort(),
     ['failed.json', 'scenario-1.mp4', 'scenario-1.vtt']);
   const cues = filmVerb.cuesOf(fs.readFileSync(path.join(here.film, 'scenario-1.vtt'), 'utf8'));
@@ -420,8 +420,9 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
     const out = call(['film', 'scenario-1', '--artifacts', missing.plan], missing.deps);
     assert.equal(out.status, 1, out.out + out.err);
     const lines = out.out.trim().split('\n');
-    assert.equal(lines[0], 'Ask an owner or admin of your organisation to add SHOP_PASSWORD in ' +
-      'Workspace settings > Secrets and variables, then run film scenario-1 again.');
+    assert.equal(lines[0], 'Add "SHOP_PASSWORD" in Workspace settings > Secrets and variables.');
+    assert.equal(lines[1], '  Then run film scenario-1 again.');
+    assert.ok(lines[0].length <= 100);
     assert.equal(lines.at(-2), '  Kind: outside');
     assert.equal(fs.existsSync(missing.film), false);
   }
@@ -471,6 +472,179 @@ test('film: each cause that the session sorts ends with a Kind line, and a failu
   // A missing demo script is no cause of either kind: the session ends as Failures lists.
   const missing = call(['film', 'scenario-2', '--artifacts', absent.plan], absent.deps);
   assert.deepEqual([missing.status, kind(missing)], [3, undefined]);
+});
+
+test('film: an ffmpeg that runs out of time on a failed run keeps the frames, and is a cause outside', () => {
+  const here = failing(two('scenario-1'), STEP_FAILED, { film: { frames: 2, starts: [0],
+    end: 1040 } });
+  const slow = { ...here.deps, preflight: { ...here.deps.preflight, ffmpegs: [sleepy()],
+    ffmpegMs: 300 } };
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], slow);
+  assert.equal(done.status, 3, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Give the dev container more CPU, then run film scenario-1 again.');
+  assert.match(lines[1], /^ {2}ffmpeg did not finish the film of scenario-1 up to step 1 within/);
+  assert.equal(lines.at(-2), '  Kind: outside');
+  // The frames, the captions and failed.json stay, so that the film can run again.
+  assert.deepEqual(fs.readdirSync(here.film).sort(),
+    ['capture.json', 'f000001.jpg', 'f000002.jpg', 'failed.json', 'scenario-1.vtt']);
+});
+
+test('film: a capture that the runner could not finish is a cause outside, with no frame kept', () => {
+  const here = failing(two('scenario-1'), { ...STEP_FAILED, step: 2, lost: 'no space left' });
+  const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  const lines = done.out.trim().split('\n');
+  assert.equal(lines[0], 'Give the dev container more CPU or disk space, then run film ' +
+    'scenario-1 again.');
+  assert.match(lines[1], /before step 2: no space left\.$/);
+  assert.equal(lines.at(-2), '  Kind: outside');
+  assert.equal(fs.existsSync(here.film), false);
+});
+
+test('film frames: a film with no ffmpeg on the machine is a cause outside', () => {
+  const here = filmed();
+  const done = call(['film', 'frames', 'scenario-1'], { ...here.deps, preflight: {
+    ...here.deps.preflight, ffmpegs: [path.join(tmp, 'none')] } });
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out.split('\n')[0],
+    'Add ffmpeg to the dev container, then run film frames again.');
+  assert.match(done.out, /^ {2}Kind: outside$/m);
+});
+
+// ---- the kind of a failed sign-in, in preflight and film -------------------------------------
+
+// signInScript returns a demo script of id whose setup types the variable name.
+const signInScript = (id, name) => ({ ...script(id), setup: [{ do: 'open', url: '/sign-in' },
+  { do: 'type', target: '#password', variable: name }] });
+
+// signInRunner returns a runner for preflight that starts no browser: the sign-ins of the
+// setups return the results, in the order of the setups.
+function signInRunner(results, app = { started: true, ran: true, why: null }) {
+  const file = `${next('runner')}.cjs`;
+  fs.writeFileSync(file, `const fs = require('fs');
+const spec = JSON.parse(fs.readFileSync(0, 'utf8'));
+const result = { app: ${JSON.stringify(app)}, signIns: ${JSON.stringify(results)}, runs: [],
+  unfinished: null };
+fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' });
+`);
+  return file;
+}
+
+test('preflight: a sign-in that fails with every variable set is setup, and one with a missing variable is outside', () => {
+  const lacking = { ok: false, why: 'action 2 (type into #password) failed: the variable ' +
+    'SHOP_PASSWORD has no value', variable: 'SHOP_PASSWORD' };
+  const wrong = { ok: false, why: 'the page still showed a field that a variable was typed ' +
+    'into 3 s after the last action' };
+  const kinds = (results) => {
+    const here = checkout([signInScript('scenario-1', 'SHOP_PASSWORD'),
+      signInScript('scenario-2', 'OTHER_PASSWORD')]);
+    here.deps.env = { ...process.env, SHOP_PASSWORD: 'a', OTHER_PASSWORD: 'b' };
+    here.deps.preflight = { ...here.deps.preflight, runner: signInRunner(results) };
+    const done = call(['preflight', '--artifacts', here.plan], here.deps);
+    assert.equal(done.status, 1, done.out + done.err);
+    return done.out.split('\n').filter((line) => /^ {2}Kind: /.test(line))
+      .map((line) => line.trim());
+  };
+  assert.deepEqual(kinds([wrong, wrong]), ['Kind: setup']);
+  assert.deepEqual(kinds([lacking, lacking]), ['Kind: outside']);
+  // Both kinds in one call give one finding of each, and the session keeps the outside one.
+  assert.deepEqual(kinds([lacking, wrong]).sort(), ['Kind: outside', 'Kind: setup']);
+});
+
+test('preflight: the points of two failed calls are all removed by a call that passes', () => {
+  const here = checkout([script('scenario-1')]);
+  const { plan } = here;
+  const file = path.join(here.root, 'points.json');
+  const noBrowser = { ...here.deps, preflight: { browsers: [path.join(tmp, 'none')] } };
+  const noApp = { ...here.deps, preflight: { ...here.deps.preflight, runner: signInRunner([],
+    { started: false, ran: true, why: 'the command exited with 1' }) } };
+  assert.equal(call(['preflight', '--artifacts', plan], noBrowser).status, 1);
+  const first = JSON.parse(fs.readFileSync(file, 'utf8')).map((one) => one.text);
+  const second = call(['preflight', '--artifacts', plan], noApp);
+  assert.equal(second.status, 1, second.out + second.err);
+  const both = JSON.parse(fs.readFileSync(file, 'utf8')).map((one) => one.text);
+  assert.equal(both.length, 2);
+  assert.ok(first.every((text) => both.includes(text)));
+  const passing = { ...here.deps, preflight: { ...here.deps.preflight, runner: PREFLIGHT_RUNNER } };
+  assert.equal(call(['preflight', '--artifacts', plan], passing).status, 0);
+  assert.equal(fs.existsSync(file), false);
+});
+
+// ---- the build plan of a run -----------------------------------------------------------------
+
+test('film, preflight and demo run in a run read the build plan of qory.start_artifacts only', () => {
+  const ffmpeg = sized(100);
+  const here = checkout([script('scenario-1')]);
+  here.deps.env = { ...process.env, QORY_RUN_ID: 'run-1' };
+  here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file],
+    filmLimit: MIB };
+  fs.mkdirSync(path.join(here.root, '.demo'));
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'),
+    JSON.stringify(script('scenario-1')));
+  const verbs = [['film', 'scenario-1'], ['preflight'], ['demo', 'run', 'scenario-1']];
+  // With no --inputs, even with --artifacts, no verb reads a plan.
+  for (const verb of verbs) {
+    const done = call([...verb, '--artifacts', here.plan], here.deps);
+    assert.equal(done.status, 3, `${verb[0]}: ${done.out}${done.err}`);
+    assert.equal(done.out.split('\n')[0], 'Give --inputs, the input file of the run, to read ' +
+      'the build plan that the run started with.', verb[0]);
+  }
+  // An empty qory.start_artifacts is no plan: the artifact folder of the session counts for none.
+  fs.cpSync(path.join(here.plan, 'build-plan'), path.join(here.root, 'build-plan'),
+    { recursive: true });
+  const empty = inputsOf(here, '');
+  for (const verb of verbs) {
+    const done = call([...verb, '--inputs', empty], here.deps);
+    assert.equal(done.status, 3, `${verb[0]}: ${done.out}${done.err}`);
+    assert.match(done.out, /^ {2}Cause: the build plan is missing\.$/m, verb[0]);
+  }
+  // A --artifacts other than the start folder is refused.
+  const inputs = inputsOf(here, here.plan);
+  const other = next('plan');
+  fs.mkdirSync(other);
+  for (const verb of verbs) {
+    const done = call([...verb, '--inputs', inputs, '--artifacts', other], here.deps);
+    assert.equal(done.status, 3, `${verb[0]}: ${done.out}${done.err}`);
+    assert.equal(done.out.split('\n')[0], 'Leave out --artifacts, or give it the folder of ' +
+      'qory.start_artifacts in inputs.json.', verb[0]);
+  }
+  // The start folder, alone or as --artifacts, is read.
+  assert.equal(call(['film', 'scenario-1', '--inputs', inputs, '--artifacts', here.plan],
+    here.deps).status, 0);
+  assert.equal(call(['film', 'scenario-1', '--inputs', inputs], here.deps).status, 0);
+});
+
+// ---- failed setup evidence for each scenario that has none -----------------------------------
+
+test('film todo and film record: a failed setup records each scenario of To film, and a rerun films them again', () => {
+  const here = checkout([]);
+  const head = committed(here.dir);
+  const entries = [
+    stored(here.root, 'demo-scenarios', 'main', { 'demo-scenarios.md': SCENARIO_TEXT }, true),
+    ...['scenario-1', 'scenario-2'].map((id) => stored(here.root, 'demo-script', id,
+      { [`${id}.json`]: JSON.stringify(script(id)) })),
+  ];
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify({ artifacts: entries }));
+  const listed = () => call(['film', 'todo'], here.deps).out.split('\n')[0];
+  assert.equal(listed(), 'To film: scenario-1, scenario-2.');
+  // A failed preflight records the class setup for each scenario of the list, as the session
+  // does with film record and the check of the push.
+  for (const id of ['scenario-1', 'scenario-2']) {
+    const done = call(['film', 'record', id, '--class', 'setup', '--cause',
+      'The app did not start.', '--step', '1'], here.deps);
+    assert.equal(done.status, 0, done.out + done.err);
+    const file = path.join(here.root, `${id}.json`);
+    assert.equal(call(['check', 'demo-evidence', file], here.deps).status, 0);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual([data.commit, data.verdict, data.class, data.steps[0].finding],
+      [head, 'failed', 'setup', 'The app did not start.']);
+    // The push puts it in the store as a new version of the evidence.
+    entries.push(stored(here.root, 'demo-evidence', id, { [`${id}.json`]: JSON.stringify(data) }));
+  }
+  fs.writeFileSync(path.join(here.root, 'index.json'), JSON.stringify({ artifacts: entries }));
+  // The evidence is of the commit, and the class setup lists each scenario again.
+  assert.equal(listed(), 'To film: scenario-1, scenario-2.');
 });
 
 test('film: with neither --inputs nor --artifacts it reads no build plan and exits 3', () => {
@@ -1216,7 +1390,7 @@ test('demo-evidence check: a version that index.json counts and the store lacks 
   assert.match(got.out, /demo-script version 2/);
 });
 
-test('film with an empty qory.start_artifacts reads the build plan of the session folder', () => {
+test('film outside a run with an empty qory.start_artifacts reads the build plan of the session folder', () => {
   const ffmpeg = sized(100);
   const here = checkout([script('scenario-1')]);
   here.deps.preflight = { ...here.deps.preflight, runner: FAKE_RUNNER, ffmpegs: [ffmpeg.file],

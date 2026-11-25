@@ -261,12 +261,13 @@ module.exports = (lib) => {
     }
   }
 
-  // cleaned returns work(), and removes dir, the new folder of the call, when work throws.
+  // cleaned returns work(), and removes dir, the new folder of the call, when work throws, except
+  // for an error with keep set, which leaves the frames of a run for another call.
   function cleaned(dir, work) {
     try {
       return work();
     } catch (error) {
-      fs.rmSync(dir, { recursive: true, force: true });
+      if (!error.keep) fs.rmSync(dir, { recursive: true, force: true });
       throw error;
     }
   }
@@ -276,7 +277,7 @@ module.exports = (lib) => {
   // run whose START_MS ran out before the browser started, that Missing is thrown for it.
   function ended(ran, serve, again, late) {
     if (!ran.app.started) {
-      throw caused('setup', `Make ${short(serve.command, 40)} start the app in the dev ` +
+      throw caused('setup', `Make ${short(serve.command, 20)} start the app in the dev ` +
         `container, then run ${again} again.`, `The app did not start: ${ran.app.why}.`);
     }
     if (late && ran.run && ran.run.late) {
@@ -302,9 +303,8 @@ module.exports = (lib) => {
     const where = run.step === 0 ? 'the sign-in' : `step ${run.step}`;
     const last = `Stored no ${what}: it failed in ${where}.`;
     if (run.variable) {
-      io.print([`Ask an owner or admin of your organisation to add ${run.variable} in ` +
-        `Workspace settings > Secrets and variables, then run ${again} again.\n${run.why}.\n` +
-        'Kind: outside'], last);
+      io.print([`Add ${short(run.variable, 40)} in Workspace settings > Secrets and variables.\n` +
+        `Then run ${again} again.\n${run.why}.\nKind: outside`], last);
       return 1;
     }
     io.print([`Check ${where} against the app, then run ${again} again.\n${run.why}.` +
@@ -497,13 +497,15 @@ module.exports = (lib) => {
 
   // failed ends a run that failed. A run that failed in a step after step 1 began keeps what it
   // recorded up to that step, for demo-reviewer: the film of the steps up to it, with no size
-  // limit because the session pushes none, or the pictures of the steps before it, and the file
-  // that names the step. It prints the finding and returns 5. A run with nothing recorded, a
-  // sign-in that failed and a variable with no value store nothing: they print the finding of
-  // failure and return 1.
-  // shortcut: a film of a failed run that ffmpeg cannot encode stores nothing, so the session
-  // records the step with the class script, with no frame; replace it with the frames
-  // themselves when demo-reviewer can read them.
+  // limit because the session pushes none, or the pictures of the steps before it, and the
+  // file failed.json with the step and the reason. It prints the finding and returns 5. A run
+  // with nothing recorded, a sign-in that failed and a variable with no value store nothing:
+  // they print the finding of failure and return 1. A capture that the runner could not finish
+  // and an encode that ran out of time are causes outside the repository: they throw a Missing
+  // with "Kind: outside", and the encode keeps its frames.
+  // shortcut: a film of a failed run that ffmpeg cannot encode for another reason than time
+  // stores nothing, so the session records the step with the class script, with no frame;
+  // replace it with the frames themselves when demo-reviewer can read them.
   function failed(io, { dir, id, kind, script, run, ffmpeg, began }) {
     const what = kind === 'film' ? 'film' : 'pictures';
     const recorded = run.capture ? (kind === 'film' ? run.capture.frames : run.capture.files) : [];
@@ -511,17 +513,25 @@ module.exports = (lib) => {
       fs.rmSync(dir, { recursive: true, force: true });
       return failure(io, run, what, `film ${id}`);
     };
-    if (run.step === 0 || run.variable || !Array.isArray(recorded) || !recorded.length) {
-      return none();
+    if (run.step === 0 || run.variable) return none();
+    if (run.lost) {
+      throw caused('outside', 'Give the dev container more CPU or disk space, then run film ' +
+        `${id} again.`, `The runner could not finish the ${what} of ${id} that it took before ` +
+        `step ${run.step}: ${cut(String(run.lost), 160)}.`);
     }
+    if (!Array.isArray(recorded) || !recorded.length) return none();
     fs.writeFileSync(path.join(dir, FAILED_FILE), JSON.stringify({ step: run.step, why: run.why }));
     if (kind === 'film') {
+      const limitMs = ffmpegMs(io, ffmpegLimitMs(Date.now() - began));
       try {
-        encode(io, dir, script, run.capture, ffmpeg, ffmpegMs(io,
-          ffmpegLimitMs(Date.now() - began)), run.step);
+        encode(io, dir, script, run.capture, ffmpeg, limitMs, run.step);
       } catch (error) {
         if (!(error instanceof Missing)) throw error;
-        return none();
+        if (!error.timedOut) return none();
+        keep(dir, run.capture, id);
+        throw Object.assign(caused('outside', 'Give the dev container more CPU, then run film ' +
+          `${id} again.`, `ffmpeg did not finish the film of ${id} up to step ${run.step} ` +
+          `within ${Math.round(limitMs / 1000)} s.`), { keep: true });
       }
       dropFrames(dir, run.capture);
     }
@@ -619,8 +629,8 @@ module.exports = (lib) => {
     }
     const ffmpeg = findBrowser(io.env, (io.preflight || {}).ffmpegs || FFMPEG);
     if (!ffmpeg) {
-      throw new Missing('Add ffmpeg to the dev container, then run film frames again.\nNo ' +
-        `ffmpeg exists on this machine, and ${id} has a film.`);
+      throw caused('outside', 'Add ffmpeg to the dev container, then run film frames again.',
+        `No ffmpeg exists on this machine, and ${id} has a film.`);
     }
     const times = pictureTimes(cuesOf(fs.readFileSync(vtt, 'utf8')));
     const folder = path.join(dir, 'frames');
@@ -814,7 +824,7 @@ module.exports = (lib) => {
         io.print([stopped ? `Leave out --media.\nThe run of ${id} failed in step ${stopped.step}, ` +
           'and the session pushes no film or pictures of it.'
           : `Give --media the version of the film or pictures that the session pushed.\n${id} ` +
-            'has files to push, and the evidence names their version.'], 'Wrote no demo evidence.');
+            'has files to push, and the evidence needs their version.'], 'Wrote no demo evidence.');
         return 1;
       }
       if (!stopped) {
