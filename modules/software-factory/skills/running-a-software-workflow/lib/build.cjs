@@ -370,10 +370,11 @@ module.exports = (lib) => {
 
   // bound returns { reason, command } when the question rule does not pass the answer that
   // links version, or null when the rule passes. command is the pull that fixes a store that
-  // lacks what the rule reads, in a check or end --offline, or null (a push cannot pull). Every live criterion that the version changes or
-  // removes since the lock `last`, a Demo criterion too, needs an answered question about it,
-  // with an answer later than that lock. The lock records the hash of each live criterion of
-  // the version that it locks (`criteria.sha256`), so the rule needs no older criteria text,
+  // lacks what the rule reads, in a check or end --offline, or null (a push cannot pull).
+  // Every live criterion that the version changes or removes since the lock `last`, a Demo
+  // criterion too, needs an answered question about it, with an answer later than that lock.
+  // The lock records the hash of each live criterion of the version that it locks
+  // (`criteria.sha256`), so the rule needs no older criteria text,
   // which a push store lacks: an id whose recorded hash differs from the hash in version, or
   // that is no longer live, is changed. A criterion that version only adds is not. A lock with
   // no such record counts every criterion as changed, so a lock made before the record needs
@@ -417,12 +418,12 @@ module.exports = (lib) => {
         ...checks.map((check) => check.criterion).filter((id) => !Object.hasOwn(recorded, id))];
     const ids = [...new Set(changed)];
     const shown = (list) => `${list.slice(0, 3).join(', ')}${list.length > 3 ? ' and more' : ''}`;
-    // index.json lists questions, and the folder is not in the store: a check that read none
-    // would say that no question has an answer, which is not known.
+    // index.json lists questions, and the folder is not in the store: reading none would
+    // report that no question has an answer, which is false.
     if (ids.length && countedOf(context, 'questions').length &&
       context.newest('questions', 'questions.json') === null) {
       return { reason: `Version ${num(version.number)} changes ${shown(ids)}, and the store ` +
-        'lacks the questions, so the check cannot tell which have an answer.',
+        'lacks the questions, so which questions have an answer is unknown.',
       command: pulls('questions') };
     }
     const answers = answered(context, last.time);
@@ -455,6 +456,23 @@ module.exports = (lib) => {
         `and acceptance-lock version ${num(last.number)} is from ${last.at}.`;
     }
     return ANSWER.test(id) ? boundProblem(context, version, last) : null;
+  }
+
+  // lockBefore returns { last, since } of version: the newest of locks that is older than the
+  // version ({ number, at, time, criteria, doc }, or null for none) and its time in
+  // milliseconds, as linkProblem takes them. A lock time that does not parse is later than any.
+  function lockBefore(context, locks, version) {
+    const at = timeOf(version.at);
+    const before = locks.filter((one) => !(timeOf(one.at) >= at));
+    let last = null;
+    if (before.length) {
+      const top = before.reduce((a, b) => (b.number > a.number ? b : a));
+      const doc = lockDoc(context, top.number);
+      const criteria = doc && isObject(doc.criteria) ? doc.criteria.version : NaN;
+      last = { number: top.number, at: top.at, time: timeOf(top.at), criteria, doc };
+    }
+    const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
+    return { last, since };
   }
 
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
@@ -491,17 +509,8 @@ module.exports = (lib) => {
       return doc !== null && isObject(doc.criteria) ? doc.criteria.version : null;
     };
     const opens = (version) => {
-      const at = timeOf(version.at);
-      if (Number.isNaN(at)) return false;
-      const before = locks.filter((one) => !(timeOf(one.at) >= at));
-      let last = null;
-      if (before.length) {
-        const top = before.reduce((a, b) => (b.number > a.number ? b : a));
-        const doc = lockDoc(context, top.number);
-        const criteria = doc && isObject(doc.criteria) ? doc.criteria.version : NaN;
-        last = { number: top.number, at: top.at, time: timeOf(top.at), criteria, doc };
-      }
-      const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
+      if (Number.isNaN(timeOf(version.at))) return false;
+      const { last, since } = lockBefore(context, locks, version);
       if (ANSWER.test(version.decision) && lockedByNewest() === version.number) return true;
       return linkProblem(context, version, last, since) === null;
     };
@@ -556,11 +565,18 @@ module.exports = (lib) => {
       }
       const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
       because = because || linkProblem(context, entry, last, since) || '';
-      // A store that lacks a lock or the questions gets the pull as its first line.
-      const lacks = ANSWER.test(entry.decision) ? bound(context, entry, last) : null;
-      if (lacks !== null && lacks.command !== null && lacks.reason === because) {
-        pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
-          `${context.offline ? 'end' : 'check'} again.`;
+      // A store that lacks a lock or the questions gets the pull as its first line. The rule
+      // of criteriaTarget compares the answer with the lock before the version, which is not
+      // the newest lock when a later lock exists, so the pull names that lock.
+      if (ANSWER.test(entry.decision) && !Number.isNaN(timeOf(entry.at))) {
+        const before = lockBefore(context, locks, entry);
+        const lacks = bound(context, entry, before.last);
+        if (lacks !== null && lacks.command !== null &&
+          linkProblem(context, entry, before.last, before.since) === lacks.reason) {
+          because = lacks.reason;
+          pull = `Run \`qory artifact pull ${lacks.command}\`, then ` +
+            `${context.offline ? 'end' : 'check'} again.`;
+        }
       }
     }
     const reason = because.replace(/\.$/, '') || (byRun

@@ -40,8 +40,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the question rule passes, or the newest acceptance lock locks that version. A plan can
   then be written for a version that an answer opens before its lock exists, and `changes`
   lists the criteria that the answer changes. A check and a push give the same result for
-  the same facts. When the store lacks the lock that the rule compares, or the questions
-  that `index.json` lists, a check has the pull as its first line (`Run \`qory artifact
+  the same facts, except while acceptance-lock is withdrawn: a push store lacks the lock
+  before the version, so a push fails closed where a check that pulled it passes. When the
+  store lacks the lock that the rule compares, or the questions that `index.json` lists, a
+  check has the pull as its first line (`Run \`qory artifact
   pull acceptance-lock --version <N>\`, then check again.`) and a push reports the reason.
   The newest lock opens the version that it locks only while acceptance-lock is not
   withdrawn. The question rule reads the locks that no cancelled run wrote and that are no

@@ -1857,6 +1857,21 @@ function pulls(result) {
   assert.equal(result.lines[0], PULL, result.out);
 }
 
+// pullsLock asserts that result, the result of a check, exits 3 with the pull of lock `number`
+// by its number as its first line, because a plain pull fetches one version. A push has PULL.
+function pullsLock(result, number) {
+  assert.equal(result.status, 3, result.out);
+  assert.equal(result.lines[0], 'Run `qory artifact pull acceptance-lock --version ' +
+    `${number}\`, then check the lock again.`, result.out);
+}
+
+// pullsEither asserts pulls, or pullsLock when the result is that of a check.
+const pullsEither = (number) => (result) => {
+  assert.equal(result.status, 3, result.out);
+  assert.ok([PULL, 'Run `qory artifact pull acceptance-lock --version ' +
+    `${number}\`, then check the lock again.`].includes(result.lines[0]), result.out);
+};
+
 test('acceptance-lock: a stored lock that index.json does not list exits 3', () => {
   // unlisted returns a fixture with LOCK_DOC as acceptance-lock version 1, which index.json
   // does not list, and with fields, criteria version 2.
@@ -1887,9 +1902,9 @@ test('acceptance-lock: a lock in index.json that the store does not have exits 3
     listed(folder, 'acceptance-lock', 1, 'av_lock1', { at: LOCKED });
     return folder;
   };
-  both(absent(), WEAK, pulls);
-  both(absent(), LOCK_DOC, pulls);
-  both(absent({ writer: PERSON, at: LATER }), LOCK_2, pulls);
+  both(absent(), WEAK, pullsEither(1));
+  both(absent(), LOCK_DOC, pullsEither(1));
+  both(absent({ writer: PERSON, at: LATER }), LOCK_2, pullsEither(1));
   // A check exits 3 when an older lock is missing, and a push reads only the newest lock.
   const older = () => {
     const folder = criteriaVersion(locked(), 2, { writer: PERSON, at: LATER });
@@ -1898,7 +1913,7 @@ test('acceptance-lock: a lock in index.json that the store does not have exits 3
     fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v1'), { recursive: true });
     return folder;
   };
-  pulls(check(older(), 'acceptance-lock', lockFile(LOCK_2)));
+  pullsLock(check(older(), 'acceptance-lock', lockFile(LOCK_2)), 1);
   passes(push(older(), 'acceptance-lock', lockFile(LOCK_2)), 'acceptance-lock');
 });
 
@@ -2120,7 +2135,7 @@ test('acceptance-lock: no probe gets a new lock through', () => {
   // A lock in index.json that the store does not have.
   const absent = fixture();
   listed(absent, 'acceptance-lock', 1, 'av_lock1', { at: LOCKED });
-  pulls(check(absent, 'acceptance-lock', lockFile(WEAK)));
+  pullsLock(check(absent, 'acceptance-lock', lockFile(WEAK)), 1);
   // A lock of version 1 after lock 2 of version 2.
   const older = 'Lock version 2 of the acceptance criteria.\nacceptance-lock version 2 locks ' +
     'version 2, and acceptance-lock.json has the older version 1.';
@@ -3201,6 +3216,29 @@ test('build-plan, verification, walkthrough: the lock that locks the answer open
   }
 });
 
+test('build-plan, verification, walkthrough: a check names the lock before the version to pull', () => {
+  // Lock 2 locks version 2, the lock is withdrawn (version 3), and lock 1, the lock before
+  // version 2, is not in the store: lock 2 is the newest lock, and not the one to pull.
+  const make = () => {
+    const folder = answerStore('an_1', { locked2: true });
+    listed(folder, 'acceptance-lock', 3, 'av_lock3',
+      { at: '2026-11-15T14:00:00Z', withdrawn: true });
+    fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+    return folder;
+  };
+  const why = 'Version 2 is linked to an answer, and acceptance-lock version 1 is not in ' +
+    'the store, so the check cannot bind it to a criterion.';
+  for (const [type, file, what] of READERS) {
+    exactly(check(make(), type, file),
+      `Run \`qory artifact pull acceptance-lock --version 1\`, then check again.\n` +
+      `Then push ${what} again: ${why}`);
+    // With the lock pulled, the question rule passes and the target is version 2.
+    const pulled = make();
+    version(pulled, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
+    passes(check(pulled, type, file), type);
+  }
+});
+
 test('build-plan, verification, walkthrough: an answer with no question is refused', () => {
   const why = 'Version 2 changes ac-4, and no question about ac-4 has an answer after ' +
     'acceptance-lock version 1.';
@@ -3216,8 +3254,8 @@ test('build-plan, verification, walkthrough: a lock or questions missing from th
   const ASK = 'Ask a member to write the change in a request for changes.';
   const lockWhy = 'Version 2 is linked to an answer, and acceptance-lock version 1 is not in ' +
     'the store, so the check cannot bind it to a criterion.';
-  const questionsWhy = 'Version 2 changes ac-4, and the store lacks the questions, so the ' +
-    'check cannot tell which have an answer.';
+  const questionsWhy = 'Version 2 changes ac-4, and the store lacks the questions, so ' +
+    'which questions have an answer is unknown.';
   const without = (type) => () => {
     const folder = answerStore('an_1');
     fs.rmSync(path.join(folder, type), { recursive: true });
@@ -3231,8 +3269,8 @@ test('build-plan, verification, walkthrough: a lock or questions missing from th
     exactly(check(without('acceptance-lock/main/v1')(), type, file),
       'Run `qory artifact pull acceptance-lock --version 1`, then check again.\n' +
       `Then push ${what} again: ${lockWhy}`);
-    // index.json lists questions and the folder is not in the store: no question has an
-    // answer is not known, so the check says what lacks.
+    // index.json lists questions and the folder is not in the store: the finding names what
+    // the store lacks, and does not report that no question has an answer.
     exactly(push(without('questions')(), type, file),
       `${ASK}\nThen push ${what} again: ${questionsWhy}`);
     exactly(check(without('questions')(), type, file),

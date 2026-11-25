@@ -98,11 +98,12 @@ module.exports = (lib) => {
   // still count, also while acceptance-lock is withdrawn: a lock protects checks that a person
   // approved, so a withdrawal never opens a second lock of the same approval. A lock with the
   // JSON value of the newest lock that counts is that lock, and replaces only the locks before
-  // it. A check reads the locks that the store has: a plain `qory artifact pull` fetches one
-  // version, so a check that needs another lock pulls it by number. The store of a push has
-  // one lock: the newest lock that counts, when qory's push folder holds the newest version
-  // that no cancelled run wrote, and with an older qory, whose push folder holds the newest
-  // version by number, the newest lock by number, cancelled or not.
+  // it. A check reads each lock that counts: a plain `qory artifact pull` fetches one
+  // version, so a check whose store lacks a lock exits 3 with the pull of that lock by its
+  // number. The store of a push has one lock: the newest lock that counts, when the push
+  // folder of qory has the newest version that no cancelled run wrote, and with an older
+  // qory, whose push folder has the newest version by number, the newest lock by number,
+  // cancelled or not.
   // A push reads the newest lock that counts when its store has it. That lock has the highest
   // criteria version of all locks, because each lock before it passed this check. When a
   // newer lock of a cancelled run is the one in the store, its criteria version is NaN, and
@@ -119,10 +120,16 @@ module.exports = (lib) => {
     const pushed = text.replace(/\r\n?/g, '\n');
     // While the lock is withdrawn, qory mounts the lock before the withdrawal in a push
     // store, and a pull with no --version fetches none: a lock that the store still lacks
-    // gets the line of lacksBefore, and a push never reads the newest lock as NaN.
+    // gets the line of lacksBefore, and a push never reads the newest lock as NaN. A check or
+    // end --offline that lacks a lock otherwise gets the pull of that lock by its number,
+    // because a plain pull fetches one version; a push has no pull to give.
     const withdrawn = context.withdrawn('acceptance-lock');
-    const lacking = (number) => (withdrawn ? context.lacksBefore('acceptance-lock', number)
-      : new Missing(PULL));
+    const lacking = (number) => {
+      if (withdrawn) return context.lacksBefore('acceptance-lock', number);
+      if (context.mode === 'push') return new Missing(PULL);
+      return new Missing(`Run \`qory artifact pull acceptance-lock --version ${number}\`, ` +
+        `then ${context.offline ? 'end' : 'check the lock'} again.`);
+    };
     if (withdrawn && context.mode === 'push' && newest !== null && !stored.includes(newest)) {
       throw lacking(newest);
     }

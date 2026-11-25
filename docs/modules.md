@@ -2521,8 +2521,10 @@ the `decision` passes. For an answer (`an_`), the question rule also passes (see
 when it was pushed, and a push store has the newest lock only, not the lock before the
 version that the rule compares. `build-plan`, `verification` and `walkthrough` read
 `acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
-apply one rule, and a check and a push give the same result for the same facts. A version
-that the rule refuses is never the target, and the finding shows the reason: a criterion
+apply one rule, and a check and a push give the same result for the same facts, with one
+exception: while `acceptance-lock` is withdrawn, a push store lacks the lock before the
+version, so a push fails closed where a check that pulled that lock passes. A version that
+fails the rule is never the target, and the finding shows the reason: a criterion
 that the version changes with no answered question about it, or a lock or the questions that
 the store lacks. For a store that lacks them, a check has the pull as its first line (`Run
 \`qory artifact pull acceptance-lock --version <N>\`, then check again.`, or `qory artifact
@@ -2530,8 +2532,8 @@ pull questions`), and a push, which cannot pull, has the usual first line and th
 The newest lock opens the version that it locks only while `acceptance-lock` is not
 withdrawn, and only when the lock is live (no cancelled run wrote it, and it is no
 withdrawal), the store has its document, and it locks that version: a later version that the
-same answer links needs its own answer. The question rule reads the locks of `index.json`
-that no cancelled run wrote and that are no withdrawal, also while `acceptance-lock` is
+same answer links needs an answer about its version. The question rule reads the locks of
+`index.json` that no cancelled run wrote and that are no withdrawal, also while `acceptance-lock` is
 withdrawn. `matrix` pulls `acceptance-lock`, each live lock that the store lacks by its
 number (a plain pull fetches one version), and `questions`, for the same target. The plan,
 the verification and the walkthrough may read an older version than the one that Qory
