@@ -92,9 +92,9 @@ function idProblem(data, name, known) {
 // reportProblem returns what breaks the review report format in data, the parsed report of
 // the reviewer name, as one clause, or null when data is in the format. A report of another
 // reviewer returns { other }. known is the set of ids of the reviewer's findings in the
-// stage, empty when not given: an id that the report repeats or closes and known lacks, or one
-// that it both repeats and closes, returns { point }, the point of the finding.
-function reportProblem(data, name, known = new Set()) {
+// stage: an id that the report repeats or closes and known lacks, or one that it both
+// repeats and closes, returns { point }, the point of the finding.
+function reportProblem(data, name, known) {
   if (!isObject(data)) return `it is ${jsonKind(data)}, not an object`;
   const extra = Object.keys(data).find((key) => !REPORT_MEMBERS.includes(key));
   if (extra !== undefined) return `it has the member ${short(plain(extra), 40)}`;

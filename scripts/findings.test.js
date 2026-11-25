@@ -1040,7 +1040,7 @@ test('findings round: the line rule of a point and a file is the $defs line of t
     if (cp >= 0xd800 && cp <= 0xdfff) continue;
     const char = String.fromCodePoint(cp);
     data.findings[0].file = `a${char}b`;
-    if (line.test(`a${char}b`) !== (reportProblem(data, 'code-reviewer') === null)) {
+    if (line.test(`a${char}b`) !== (reportProblem(data, 'code-reviewer', new Set()) === null)) {
       wrong.push(`U+${cp.toString(16).toUpperCase().padStart(4, '0')}`);
     }
   }
