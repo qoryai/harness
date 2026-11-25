@@ -151,8 +151,8 @@ module.exports = (lib) => {
   // path under .qory is.
   const within = (scope, file) => !git.isQory(file) && lib.covers(scope.paths, file);
 
-  // outsideLines returns the line of .git/info/exclude when it has a pattern, and the line of
-  // each path of paths, by default the paths outside the write scope.
+  // outsideLines returns the finding of a pattern in .git/info/exclude, when there is one, and
+  // the line of each path of paths, by default the paths outside the write scope.
   function outsideLines(io, found, paths = found.outside) {
     const values = secrets.secretValues(io.env);
     const committed = paths.filter((file) => found.committedOutside.has(file));
@@ -200,7 +200,7 @@ module.exports = (lib) => {
     };
     append(now, explain(found.scope, now));
     append(committed, [EXAMPLE, REPORT, ...explain(found.committedScope, committed)]);
-    return [...(found.work.excluded ? [git.EXCLUDED] : []), ...findings,
+    return [...(found.work.excluded ? [found.work.excluded] : []), ...findings,
       ...explained.filter((line) => line === NO_PLAN)];
   }
 
@@ -272,7 +272,7 @@ module.exports = (lib) => {
         `${plural(keys.commits, 'commit')} with no key.`);
       return 0;
     }
-    io.print([...(work.excluded ? [git.EXCLUDED] : []), ...done.findings, ...keys.lines,
+    io.print([...(work.excluded ? [work.excluded] : []), ...done.findings, ...keys.lines,
       scanned], `Checked ${plural(done.count, 'changed path')} against ${quote(track.kind || '')}: ` +
       `${plural(done.findings.length, 'finding')}.`);
     return 1;

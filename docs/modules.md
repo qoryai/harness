@@ -1273,23 +1273,28 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `<outbox>`. The session creates that folder and writes each output to
   `<outbox>/<type>/<type>.json`.
   The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
-  `inputs.json`, the check finds nothing. It finds:
+  `inputs.json`, the check finds nothing. A run with no `qory.outbox`, such as a run with
+  the access `read` or `write-no-push`, has no outbox, and the check reads no output file;
+  a malformed `qory.outputs` is a finding there too. A missing file is no finding, also for
+  a required output. When a `schema` is null, the type has no JSON Schema, and the check
+  applies none to its file and finds no member that qory sets or fills. The check finds:
   - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
     `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
-    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
-    after this one:", with a line for each such part. Only an absent list passes;
+    or `false`, or a `schema` is neither an object nor null. The finding is "Fix
+    qory.outputs in the lines after this one:", with a line for each such part. Only an
+    absent list passes;
   - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
     inputs file of the run." The point says that the setup of the run must provide it;
-  - a stage that declares an output while `qory.outbox` is missing or is not an absolute
+  - a stage that declares an output while `qory.outbox` is present and is not an absolute
     path. The finding is "Set qory.outbox in the inputs file to the absolute path of the
-    outbox folder.", with the cause "The inputs file has no qory.outbox." or "qory.outbox of
-    the inputs file is not an absolute path.", and the check reads no file. The point states
-    that the setup of the run must set it;
-  - a required output with no file;
+    outbox folder.", with the cause "qory.outbox of the inputs file is not an absolute
+    path.", and the check reads no file. The point states that the setup of the run must
+    set it;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
-    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
-    cause line for each of these;
+    is followed. A file that is a link, is no regular file, has more than 1 MiB, or has a
+    path that cannot be read, such as one below a regular file, gets one cause line for each
+    of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
     `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
@@ -1316,8 +1321,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A file with findings gives the line "Fix the <n> findings of <file> in the lines after
   this one:" and then the findings, and adds the `run_again` point "<The type> output
   breaks its format rules, so the run could not deliver it, and another round writes it
-  again." A required output with no file adds the point "The stage needs <the type>, which
-  the run did not write, and another round writes it again."
+  again."
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or
@@ -4083,7 +4087,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line, and the scan result is the line before "Checked ...". git runs with full stat
   checks, no untracked cache, no global excludes file, no global or system git config (git
   2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
-  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
+  `.git/info/exclude` is red, other than the line `/.qory`, which qory writes there, and a
+  line that starts with `/.qory/`. A line that is empty, has only spaces or starts with `#`
+  is no pattern, and no white space is trimmed. The finding is "Remove this line from
+  .git/info/exclude, then run the verb again.", with the first such pattern in quotes on the
+  next line. An ignored path is no change, but an untracked `.gitignore`
   file is one, also when it ignores itself; one inside an ignored folder is none. git
   compares change times by the second, so a tracked file whose times or size differ from its
   index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
@@ -4485,8 +4493,8 @@ Exit status:
   the folder, 0 needs a range with no changed path.
 - 1: a path outside the Files, including a path under `.qory`; any changed path when the
   folder has no build plan; a key; more than 500 commits since the start commit; or a
-  pattern in `.git/info/exclude`. One line per finding, the fix first, and never the value
-  of a key.
+  pattern in `.git/info/exclude` other than `/.qory` or a line that starts with `/.qory/`.
+  One or more lines per finding, the fix first, and never the value of a key.
 - 2: wrong arguments, with the usage on stderr.
 - 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
   plan that cannot be read, a Files cell that is no list of paths, or a start commit that

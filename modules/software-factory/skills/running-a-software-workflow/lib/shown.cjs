@@ -1,5 +1,6 @@
-// shown and escaped of qory.yaml findings: a copy of core's lib/schema.cjs, because
-// repository-settings.cjs loads without the library. shortcut: a test compares both copies.
+// shown, for qory.yaml findings and the .git/info/exclude finding, and escaped: a copy of core's
+// lib/schema.cjs, because repository-settings.cjs loads without the library. shortcut: a test
+// compares both copies.
 'use strict';
 
 const codePoints = (text) => [...text].length;
