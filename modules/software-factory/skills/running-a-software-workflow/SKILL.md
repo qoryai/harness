@@ -181,8 +181,9 @@ criterion ends the line.
 `plan-the-build` and `write-acceptance-checks` redo only what a changed criterion touches.
 Right after `checks.cjs resume`, run `checks.cjs changes` once. It pulls the criteria version
 that the newest acceptance lock locks, compares it with the criteria version that the run
-reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. No agent
-writes that file: the tool guard denies the writes below `.qory/build/` that it reads. The
+reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. The tool
+guard denies an agent's writes below `.qory/build/`. A file written past it can change what is
+planned, but not a check's result: `keptFiles` and `lock --verify` refuse a wrong result. The
 last line of its output is one of these three, and it reads nothing of the build plan
 except that a version exists:
 

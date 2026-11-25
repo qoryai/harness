@@ -1,6 +1,7 @@
 // The record that the verb changes writes: .qory/build/changes.json in the working folder (see
-// verbs/changes.cjs). The build-plan check reads it. No agent writes it: the tool guard
-// denies the writes below .qory/build/ that it reads.
+// verbs/changes.cjs). The build-plan check reads it. The tool guard denies an agent's writes
+// below .qory/build/, and a file written past it can change what is planned, not a check's
+// result: keptFiles and lock --verify refuse a wrong result.
 'use strict';
 
 const fs = require('node:fs');
