@@ -33,7 +33,7 @@ const REPLY_TEXT = 500;
 module.exports = (lib) => {
   const {
     FINDINGS_BYTES, FINDINGS_FIX, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson,
-    plainText, readFile, readOpen, schema, sections, sourceText,
+    plainText, readFile, readLimited, readOpen, schema, sections, sourceText,
   } = lib;
   const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
@@ -98,7 +98,8 @@ module.exports = (lib) => {
     if (stat.size > FINDINGS_BYTES) {
       throw new Missing(`${FINDINGS_FIX}\n"open-findings.json" has ${stat.size} bytes.`);
     }
-    const data = parseJson(readFile(file, 'open-findings.json'), 'open-findings.json');
+    const data = parseJson(readLimited(file, 'open-findings.json', stat.size, FINDINGS_BYTES),
+      'open-findings.json');
     const { round, findings } = readOpen(data, 'open-findings.json');
     const open = findings.filter((one) => one.state === 'open');
     return {

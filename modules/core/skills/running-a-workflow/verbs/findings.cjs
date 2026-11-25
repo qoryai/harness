@@ -210,6 +210,18 @@ function twiceOrLone(text) {
   return false;
 }
 
+// The largest line that qory reads, a Go int64.
+const MAX_LINE = 2n ** 63n - 1n;
+
+// lineAsQory is a reviver of JSON.parse that keeps a number of the member line only in the
+// digit form that qory reads, 1 to MAX_LINE; 1.0, 1e2 or a larger number becomes its text,
+// which reportProblem counts as no whole number.
+function lineAsQory(key, value, context) {
+  if (key !== 'line' || typeof value !== 'number') return value;
+  const { source } = context;
+  return /^[1-9][0-9]*$/.test(source) && BigInt(source) <= MAX_LINE ? value : source;
+}
+
 // reviewerFindings returns { found, closed } for the report of the reviewer name at file:
 // found is the open findings after the report, and closed counts the closes of a valid report.
 // mine is the reviewer's findings in --previous: those open stay open unless the report closes
@@ -254,7 +266,7 @@ function reviewerFindings(file, name, mine = []) {
   }
   let data;
   try {
-    data = JSON.parse(text);
+    data = JSON.parse(text, lineAsQory);
   } catch {
     return missing(`Reviewer ${name} wrote a report that is not one JSON object: it is no JSON.`);
   }
@@ -357,6 +369,7 @@ function round(io, { reports, names, suite, previous }) {
 module.exports = {
   mineOf,
   previousFindings,
+  readLimited,
   reviewerFindings,
   verbs: {
     findings: {

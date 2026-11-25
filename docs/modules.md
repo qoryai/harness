@@ -1222,27 +1222,27 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   a text, outside the review report format or of another reviewer is one blocking finding
   of that reviewer, such as `Reviewer code-reviewer wrote no report.`. So is a report with
   more than 100 findings or 100 closes, a report that repeats or closes an id that is not a
-  finding of that reviewer
-  in the file of `--previous`, open or closed, one that repeats and closes one id, and one
-  that lists one id twice. After such a report, the earlier open findings of that reviewer
-  stay open. After a valid report, the open findings are those of the report and each
-  earlier open finding of that reviewer that the report neither repeats nor closes. The
-  suite result has qory's form `{tests, failed, skipped, output_tail}`, with counts that are
-  integers of 0 or more. A suite with `failed` over 0, a suite whose tests were all skipped,
-  and a result that is missing, over 4 MiB or in another form are one blocking finding of
-  `full-suite`. The rule of that form comes from the registry: `lib/suite.cjs` of
-  `running-a-software-workflow` adds it, so core contains no member name of the file, and
-  with no such rule the suite has no result. It prints `Blocking finding [<id> ]of
-  <reviewer>[, <file>[:<line>]][, open and not in its report]: <point>` and `Non-blocking
-  finding ...` for each open finding, the blocking ones first, each with `Proof: <proof>` on
-  the next line when it has one. A new finding has no id, and `, open and not in its report`
-  marks an earlier finding that the report neither repeats nor closes. The last line is
-  `Checked <n> reports[ and the suite result]: <b> blocking, <k> non-blocking open findings;
-  <c> closed.`, where `<c>` counts the closes of open findings in the valid reports, and a
-  repeat counts with the severity that the file of `--previous` has. It exits with 1 while a
-  finding is blocking and with 0 otherwise, 2 for a wrong argument and 3 when the report
-  folder is a link or no folder, or the file of `--previous` cannot be read. The exit
-  records no verdict: after `review-changes`, qory sends the verdict, and Verify records its
+  finding of that reviewer in the file of `--previous`, open or closed, one that repeats
+  and closes one id, and one that lists one id twice. After such a report, the earlier
+  open findings of that reviewer stay open. After a valid report, the open findings are
+  those of the report and each earlier open finding of that reviewer that the report
+  neither repeats nor closes. The suite result has qory's form `{tests, failed, skipped,
+  output_tail}`, with counts that are integers of 0 or more. A suite with `failed` over
+  0, a suite whose tests were all skipped, and a result that is missing, over 4 MiB or
+  in another form are one blocking finding of `full-suite`. The rule of that form comes
+  from the registry: `lib/suite.cjs` of `running-a-software-workflow` adds it, so core
+  contains no member name of the file, and with no such rule the suite has no result. It
+  prints `Blocking finding [<id> ]of <reviewer>[, <file>[:<line>]][, open and not in its
+  report]: <point>` and `Non-blocking finding ...` for each open finding, the blocking
+  ones first, each with `Proof: <proof>` on the next line when it has one. A new finding
+  has no id, and `, open and not in its report` marks an earlier finding that the report
+  neither repeats nor closes. The last line is `Checked <n> reports[ and the suite
+  result]: <b> blocking, <k> non-blocking open findings; <c> closed.`, where `<c>`
+  counts the closes of open findings in the valid reports, and a repeat counts with the
+  severity that the file of `--previous` has. It exits with 1 while a finding is
+  blocking and with 0 otherwise, 2 for a wrong argument and 3 when the report folder is
+  a link or no folder, or the file of `--previous` cannot be read. The exit records no
+  verdict: after `review-changes`, qory sends the verdict, and Verify records its
   verdict from the exit and its other steps. It writes no file.
 - `checks.cjs lock <file>`: the session runs it once, to lock the files that the draft
   `<file>` lists. It reads the one type of the registry with a lock: in

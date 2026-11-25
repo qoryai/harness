@@ -502,6 +502,13 @@ test('findings open: a file over 64 MiB exits 3, and one over 256 KB is read who
   const text = result.out + result.err;
   assert.equal(text.split('\n')[0], FINDINGS_FIX);
   assert.match(text, new RegExp(`has ${FINDINGS_BYTES + 1} bytes\\.`));
+  // A file of exactly 64 MiB, JSON and blank space, is read.
+  const most = put(ROUND);
+  fs.appendFileSync(most, ' '.repeat(FINDINGS_BYTES - fs.statSync(most).size));
+  assert.equal(fs.statSync(most).size, FINDINGS_BYTES);
+  const read = call(['findings', 'open', most]);
+  assert.equal(read.status, 1, read.out);
+  assert.equal(read.lines.length, 3);
   // 40 findings of 8 KB each, a file over 256 KB, print all 40.
   const large = put(many(40, () => ({ problem: 'x'.repeat(8000) })));
   assert.ok(fs.statSync(large).size > 256 * 1024);
@@ -1076,6 +1083,15 @@ test('findings round: a NUL in a text, a BOM, a member twice and an unpaired sur
   const spaced = (proof) => first({ reviewer: name, findings: [{ ...REVIEWED, proof }] });
   assert.doesNotMatch(spaced('failing input: \u00a011 rows give 9.'), /does not match/);
   assert.match(spaced('failing input: \t11 rows give 9.'), /a proof that starts with none of/);
+  assert.match(spaced('failing input:  11 rows give 9.'), /a proof that starts with none of/);
+  // A line is a number in digits from 1 to the largest int64, as qory reads it.
+  const lined = (line) => first(text.replace('"line":42', `"line":${line}`));
+  for (const line of ['1.0', '1e2', '9223372036854775808', '-1']) {
+    assert.equal(lined(line), `${format}finding 1 has a line that is not a whole number of 1 ` +
+      'or more.', line);
+  }
+  assert.doesNotMatch(lined('9223372036854775807'), /does not match/);
+  assert.doesNotMatch(lined('1'), /does not match/);
 });
 
 test('findings round: the line rule of a point and a file is the $defs line of the contract, ' +
