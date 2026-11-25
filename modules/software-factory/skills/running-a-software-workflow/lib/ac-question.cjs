@@ -4,10 +4,11 @@
 // proposed wording in `proposal`, "Make it met another way" and "Withdraw AC-N". Apiary adds
 // the fourth, an answer of the person's, so the question has no option for it. N is the number
 // of `about.item`. Its `context` is two Markdown paragraphs, `**Why:**` and `**Checked:**`.
-// The rule reads a new question in a check when the newest report of an agent of Build has
-// the Blocked: line for the criterion of its about, as lib/blocked-criterion.cjs reads them; it
-// reads any question with an option titled like one of the three answers, so that a push is
-// read too.
+// The rule reads a new question in a check when the newest report of build-planner or
+// acceptance-check-writer has the Blocked: line for the criterion of its about, as
+// lib/blocked-criterion.cjs reads them; a report of software-developer or software-debugger
+// does not count. It reads any question with an option titled like one of the three answers,
+// so that a push is read too.
 // shortcut: a push reads no report, so a question about a blocked criterion with none of the
 // three titles passes a push; replace with the workflow when qory writes it into the run.
 'use strict';

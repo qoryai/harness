@@ -2549,9 +2549,10 @@ The checks:
   what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
   question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
   or `Withdraw AC-N`, the three answers of a criterion that Build cannot meet as approved;
-  or, in a check, the question is new and the newest report of `build-planner`,
-  `acceptance-check-writer`, `software-developer` or `software-debugger` has the line
-  `Blocked: needs a change to criterion <about.item>`. It refuses a question with other than
+  or, in a check, the question is new and the newest report of `build-planner` or
+  `acceptance-check-writer` has the line `Blocked: needs a change to criterion
+  <about.item>`. A report of `software-developer` or `software-debugger` does not count.
+  It refuses a question with other than
   3 options, with other than one option of each of the three titles, with the number of
   `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on the
   change option, with a `context` that has no paragraph starting `**Why:**` or none starting
@@ -3570,10 +3571,12 @@ the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
   proposed wording in `proposal`, `Make it met another way` and `Withdraw AC-3, "…"`. The
   point is "AC-3, "<first sentence>", cannot be met as approved: <the cause>." `check
   points` refuses `points.json` with no `answer` point on such a question for each criterion
-  of such a line in the newest report of `build-planner`, `acceptance-check-writer`,
-  `software-developer` or `software-debugger`, and the check at the end stops a session
-  that ends with such a line and no `points.json`. `write-acceptance-checks` ends the same
-  way for a line of `acceptance-check-writer`.
+  of such a line in the newest report of `build-planner` or `acceptance-check-writer`, and
+  the check at the end stops a session that ends with such a line and no `points.json`. A
+  line of `software-developer` or `software-debugger` needs no such point:
+  `workflow-implement-changes` ends the run as "Failures" lists, and `review-changes` finds
+  the step not built. `write-acceptance-checks` ends the same way for a line of
+  `acceptance-check-writer`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes

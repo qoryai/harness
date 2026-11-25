@@ -5968,6 +5968,16 @@ test('blocked-criterion: the question quotes the criterion, has the proof and th
     'not write the decision record.', action: 'run_again' }] })));
 });
 
+// A blocked report of a writer of a build step ends the run as a failure, and review-changes
+// finds the step not built, so its line on a criterion needs no question and no answer point.
+test('blocked-criterion: a Blocked: line of a developer or the debugger leaves check points passing', () => {
+  for (const report of ['software-developer-1.md', 'software-debugger-2.md']) {
+    const root = blockedRun({ report, question: null, points: [{ text: 'The run could not ' +
+      'build the step.', action: 'run_again' }] });
+    passes(check(root, 'points', path.join(root, 'points.json')));
+  }
+});
+
 // A plan-the-build or write-acceptance-checks session has no step that a later review finds
 // unbuilt, so the end check stops a session that ends after such a line with no points.json.
 test('blocked-criterion: the end check stops a session with the line and no points.json', () => {

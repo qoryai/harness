@@ -1,5 +1,6 @@
-// A criterion that an agent of Build cannot meet as approved: the report of the agent has the
-// line "Blocked: needs a change to criterion <ac-N>: <the change>". Each such criterion needs
+// A criterion that build-planner or acceptance-check-writer cannot meet as approved: the
+// report of the agent has the line "Blocked: needs a change to criterion <ac-N>: <the
+// change>". Each such criterion needs
 // one question with the three answers that lib/ac-question.cjs checks, and an `answer` point on
 // it. The rule of points.json checks that point, and the check at the end finds a session that
 // ends with such a line and no points.json.
@@ -8,10 +9,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-// The agents of Build whose reports can have the line, each as .reports/<agent>-<n>.md of the
-// artifact folder.
-const AGENTS = ['build-planner', 'acceptance-check-writer', 'software-developer',
-  'software-debugger'];
+// The agents of Build whose line ends the run with the question, each report as
+// .reports/<agent>-<n>.md of the artifact folder. A blocked report of software-developer or
+// software-debugger ends the run of workflow-implement-changes as a failure, and
+// review-changes finds the step not built.
+const AGENTS = ['build-planner', 'acceptance-check-writer'];
 const REPORT = new RegExp(`^(${AGENTS.join('|')})-([0-9]{1,9})\\.md$`);
 const LINE = /^Blocked: needs a change to criterion `?(ac-[1-9][0-9]*)`?(?![\w`-])/m;
 
