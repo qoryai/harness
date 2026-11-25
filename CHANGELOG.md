@@ -2063,10 +2063,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   stopped each of these verbs, although qory leaves `.qory/` out of every commit. Any other
   pattern is red, such as `.qory`, `!/.qory` or `/.qory` after a space, because no white
   space is trimmed. Only an empty line or a line of spaces is blank. A line of a tab, a form
-  feed or U+00A0 is a pattern to git, and passed the check. The finding is "Remove this line
-  from .git/info/exclude, then run the verb again.", where it said to empty the file. Its
-  second line is the first such pattern in quotes, cut to 80 characters, with control
-  characters escaped, or "a path with a key in its name" when the pattern has a key.
+  feed or U+00A0 is a pattern to git, and passed the check before this change. The finding
+  is "Remove this line from .git/info/exclude, then run the verb again.", in place of "Empty
+  .git/info/exclude, then run the verb again: its patterns hide files from git status." The
+  second line of the finding is the first such pattern in quotes, cut to 80 characters, with
+  control and format characters, the characters of the Unicode class
+  Default_Ignorable_Code_Point and U+FFFC escaped, or "a path with a key in its name" when
+  the pattern has a key.
 - A hook process loads no preload from the environment of its session or from a `.env` file.
   Each of the 13 hook commands in `modules/core/settings/` starts `node` through
   `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is

@@ -1020,6 +1020,9 @@ const PATTERNS = [['.qory', '".qory"'], ['.qory/', '".qory/"'], ['/.qoryx', '"/.
   ['\f', '"\\f"'], ['\u00a0', '"\u00a0"'], ['\u00a0/.qory', '"\u00a0/.qory"'],
   ['/.qory\u00a0', '"/.qory\u00a0"'], ['/.qory\n\u00a0', '"\u00a0"'],
   ['a\u202eb"\u0000\u001b[2J', '"a\\u202eb\\"\\u0000\\u001b[2J"'],
+  ['/.qory\ufe0f', '"/.qory\\ufe0f"'], ['\u3164', '"\\u3164"'], ['\ufffc', '"\\ufffc"'],
+  ['\u034f\u{e0100}', '"\\u034f\\u{e0100}"'],
+  ['\u3164'.repeat(80), `"${'\\u3164'.repeat(12)}..."`],
   ['x'.repeat(80), `"${'x'.repeat(80)}"`], ['x'.repeat(81), `"${'x'.repeat(77)}..."`],
   [`/${TOKEN}`, '"a path with a key in its name"'],
   [`${'x'.repeat(90)} ${TOKEN}`, '"a path with a key in its name"']];
@@ -1055,6 +1058,27 @@ for (const [at, [text, shown]] of PATTERNS.entries()) {
     assert.equal(sh(dir, 'rev-parse', 'HEAD'), start);
   });
 }
+
+test('scope: a line of 6 MB with a key in .git/info/exclude is the finding, masked', () => {
+  const dir = checkout();
+  exclude(dir, `sk-ant-${'x'.repeat(6 * 1024 * 1024)}\n`);
+  const got = call(dir, ['scope', 'deliverable:d-1']);
+  assert.equal(got.status, 1, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, '  "a path with a key in its name"']);
+});
+
+test('scope: the value of a secret variable in .git/info/exclude is masked', () => {
+  const dir = checkout();
+  const value = 'quiet-river-0123456';
+  // The second value ends after the 80 characters that the finding shows.
+  for (const secret of [value, `${value}/`.repeat(40)]) {
+    exclude(dir, `docs/${secret}/\n`);
+    const got = call(dir, ['scope', 'deliverable:d-1'], { env: { X_SECRET: secret } });
+    assert.equal(got.status, 1, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, '  "a path with a key in its name"']);
+    assert.ok(!got.out.includes(value), got.out);
+  }
+});
 
 test('freeze: keeps the skip-worktree mark of a path that a sparse checkout leaves out', () => {
   const dir = checkout();
@@ -1677,6 +1701,18 @@ test('run locked, diff and probe: a pattern in .git/info/exclude is the finding'
   }
   exclude(dir, '/.qory\n');
   assert.equal(call(dir, ['diff', '--from', sh(dir, 'rev-parse', 'HEAD')]).status, 0);
+});
+
+test('run locked and probe: the line that qory writes to .git/info/exclude is no finding', () => {
+  const dir = lockedCheckout();
+  exclude(dir, '/.qory\n');
+  const locked = call(dir, ['run', 'locked']);
+  assert.equal(locked.status, 0, locked.out);
+  assert.equal(lastRecord(dir).state, 'green');
+  const patch = PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;');
+  write(dir, '.qory/artifacts/p.patch', patch);
+  const probe = call(dir, ['probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']);
+  assert.equal(probe.status, 0, probe.out);
 });
 
 test('limits: run reads the harness report at the top of the checkout, and never qory.yaml', () => {
