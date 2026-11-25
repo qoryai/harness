@@ -16,7 +16,7 @@ const { pointRules, pointText } = require('../types/points.cjs');
 const FINDING_FIELD = /^\s*(?:\d+[.)]\s+)?([A-Z][A-Za-z]*):(?:\s|$)/;
 
 // The "Blocked:" line that
-// running-a-workflow (SKILL.md:166-168: "One that starts with `needs <type>`") lists by its
+// running-a-workflow (SKILL.md:168-170: "One that starts with `needs <type>`") lists by its
 // start. A module adds the lines of its skills as the stops of its workflow-checks.cjs. Any
 // other Blocked: line that starts with "needs" matches none of them.
 const NEEDS = [/^needs (?!a\b)[a-z0-9-]+\.?$/];

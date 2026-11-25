@@ -1071,6 +1071,43 @@ test('the step limit reads read-only agents from their files, by agent_type', ()
   }
 });
 
+test('the step limit leaves out a reviewer of a step on Claude Code, with its one Write', () => {
+  const home = harnessHome();
+  const agents = path.join(home, 'modules', 'extra', 'agents');
+  fs.mkdirSync(agents, { recursive: true });
+  const write = (name, tools) => fs.writeFileSync(path.join(agents, `${name}.md`),
+    `---\nname: ${name}\ndescription: An agent of the tests.\ntools: ${tools}\n---\n\nText.\n`);
+  const root = next('step-root');
+  fs.mkdirSync(root);
+  const limited = (type, runtime) => {
+    const args = { input: { session_id: 's1', agent_id: 'a1', agent_type: type },
+      env: { QORY_RUN_ID: 'run_1', QORY_HARNESS_HOME: home }, root, runtime };
+    for (let at = 0; at <= steps.LIMIT; at += 1) steps.endStep(args, false);
+    const reason = steps.limited(args, false);
+    steps.clear(root, 's1');
+    return reason;
+  };
+  for (const name of ['check-reviewer', 'plan-reviewer']) {
+    write(name, 'Read, Grep, Glob, Skill, Write');
+    assert.equal(limited(`harness:${name}`, 'claude'), null, name);
+    // An agent of the working folder with that name, and every agent on Codex, count.
+    assert.equal(limited(name, 'claude'), steps.REASON);
+    assert.equal(limited(name, 'codex'), steps.REASON);
+    // So does the reviewer with another tool that writes.
+    for (const tool of ['Edit', 'Bash']) {
+      write(name, `Read, Write, ${tool}`);
+      assert.equal(limited(`harness:${name}`, 'claude'), steps.REASON, tool);
+    }
+    // The agent file of this repository.
+    write(name, /\ntools: (.*)\n/.exec(fs.readFileSync(path.join(MODULES, 'software-factory',
+      'agents', `${name}.md`), 'utf8'))[1]);
+    assert.equal(limited(`harness:${name}`, 'claude'), null, name);
+  }
+  // Write alone does not exempt another reviewer, such as one of a change.
+  write('code-reviewer', 'Read, Grep, Glob, Skill, Write');
+  assert.equal(limited('harness:code-reviewer', 'claude'), steps.REASON);
+});
+
 test('on Claude Code, an agent that wrote nothing in 12 steps may only write', () => {
   const { root, hook } = stepRun();
   const who = claudeAgent('spec-writer');
@@ -5380,6 +5417,348 @@ test('qory.hook_session takes the place of qory.review and qory.review_session',
   const review = sessionSetup();
   assert.equal(review.call(writeAs(path.join(review.reports, 'code-reviewer.json'), REVIEWER)),
     null);
+});
+
+// The folder of the reports of the two reviewers of a step, the first lines of its denies and a
+// report's name.
+const STEP_DIR = '.step-reports';
+const STEP_ONLY = 'Write only .step-reports/<agent name>/<sha256>.json in the artifact folder';
+const STEP_KEPT = 'Leave .step-reports/ to check-reviewer and plan-reviewer.';
+const STEP_FILE = `${'a'.repeat(64)}.json`;
+
+// stepSetup returns sessionSetup of a session of Build, with a Codex role file of each reviewer.
+function stepSetup() {
+  const setup = sessionSetup(() => ({}));
+  for (const name of ['plan-reviewer', 'check-reviewer']) {
+    fs.writeFileSync(path.join(setup.home, 'codex', 'agents', `${name}.toml`),
+      `name = "${name}"\n`);
+  }
+  return setup;
+}
+
+test('a reviewer of a step writes only its report, named by a SHA-256', () => {
+  const { runFolder, call } = stepSetup();
+  const reports = path.join(runFolder, STEP_DIR);
+  for (const name of ['plan-reviewer', 'check-reviewer']) {
+    const type = `harness:${name}`;
+    const dir = path.join(reports, name);
+    const file = path.join(dir, STEP_FILE);
+    const both = (target) => [writeAs(target, type), codex('apply_patch',
+      { command: add(target) }, name)];
+    for (const input of both(file)) assert.equal(call(input), null);
+    // A report that exists is written again, also by a relative path. A second Add File writes
+    // over it on Codex, as codex-rs/apply-patch/src/lib.rs:473-499 at d3ca5182 shows.
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(file, '{}');
+    for (const input of both(file)) assert.equal(call(input), null);
+    assert.equal(call({ ...writeAs(`${name}/${STEP_FILE}`, type), cwd: reports }), null);
+    // Another file of the folder, the report of the other reviewer included, a draft, a file of
+    // the checkout, a report of another folder, and a path with a .. part.
+    const other = name === 'plan-reviewer' ? 'check-reviewer' : 'plan-reviewer';
+    for (const target of [path.join(dir, 'report.json'), path.join(dir, `0${STEP_FILE}`),
+      path.join(dir, STEP_FILE.toUpperCase()), path.join(dir, 'sub', STEP_FILE),
+      path.join(reports, STEP_FILE), path.join(reports, 'spec-reviewer', STEP_FILE),
+      path.join(reports, other, STEP_FILE), path.join(WORK, STEP_DIR, name, STEP_FILE),
+      `${dir}/../${name}/${STEP_FILE}`, path.join(runFolder, 'build-plan.md'),
+      path.join(WORK, 'src/reply.ts'), path.join(runFolder, '.reports', `${name}-1.md`)]) {
+      for (const input of both(target)) firstLine(call(input), STEP_ONLY);
+    }
+    firstLine(call(writeAs(path.join(runFolder, '.reports', name, STEP_FILE), type)),
+      'Write no file under .reports/');
+    firstLine(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }, type)),
+      STEP_ONLY);
+    // An agent of the working folder with that name is no reviewer of the harness.
+    firstLine(call(writeAs(file, name)), STEP_KEPT);
+    // Nor does the reviewer write it in a review session, or in the session of a reviewer.
+    for (const qory of [(dirs) => ({ review_session: { reports: dirs } }),
+      (dirs) => ({ review: { report: path.join(dirs, 'x.json') } })]) {
+      const session = sessionSetup(qory);
+      assert.equal(typeof session.call(writeAs(path.join(session.runFolder, STEP_DIR, name,
+        STEP_FILE), type)), 'string');
+    }
+    // A report with a second link, and a folder that is a link.
+    const linked = path.join(dir, `${'b'.repeat(64)}.json`);
+    fs.linkSync(file, linked);
+    for (const input of both(linked)) firstLine(call(input), STEP_ONLY);
+    fs.rmSync(dir, { recursive: true });
+    const away = next('step-away');
+    fs.mkdirSync(away);
+    fs.symlinkSync(away, dir);
+    for (const input of both(file)) firstLine(call(input), STEP_ONLY);
+    fs.rmSync(dir);
+  }
+});
+
+test('no other call writes in .step-reports of the artifact folder', () => {
+  const { runFolder, call } = stepSetup();
+  const reports = path.join(runFolder, STEP_DIR);
+  const dir = path.join(reports, 'plan-reviewer');
+  const file = path.join(dir, STEP_FILE);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(path.join(runFolder, '.notes'));
+  fs.symlinkSync(reports, path.join(runFolder, 'link'));
+  // A write of the main session and of any other agent, by each write tool and by a .. part, a
+  // link, and other letters of the name.
+  for (const type of [undefined, 'implementer', 'harness:build-planner', 'harness:spec-reviewer']) {
+    for (const target of [file, path.join(reports, 'x.md'), reports,
+      `${runFolder}/.notes/../${STEP_DIR}/plan-reviewer/${STEP_FILE}`,
+      path.join(runFolder, 'link', 'plan-reviewer', STEP_FILE),
+      path.join(runFolder, '.STEP-Reports', 'plan-reviewer', STEP_FILE),
+      path.join(runFolder, '.ſtep-reports', 'plan-reviewer', STEP_FILE)]) {
+      firstLine(call(writeAs(target, type)), STEP_KEPT);
+    }
+    firstLine(call(claude('Edit', { file_path: file, old_string: 'a', new_string: 'b' }, type)),
+      STEP_KEPT);
+    firstLine(call(claude('NotebookEdit', { notebook_path: file, new_source: 'x' }, type)),
+      STEP_KEPT);
+  }
+  for (const type of [undefined, 'default', 'spec-reviewer']) {
+    firstLine(call(codex('apply_patch', { command: add(file) }, type)), STEP_KEPT);
+  }
+  // A shell command that writes there, or that can: the reviewers of a step included.
+  const shell = [`echo '{}' > ${file}`, `cp /tmp/x.json ${dir}`, `rm -rf ${reports}`,
+    `mv ${runFolder} /tmp/x`, `ln -s /tmp/x ${reports}`, `touch ${runFolder}/link/x.json`,
+    `cd ${runFolder} && cp /tmp/x.json .step-reports/plan-reviewer/`,
+    `touch ${runFolder}/.step-rep*/plan-reviewer/x.json`, `touch ${runFolder}/.ste''p-reports/x`,
+    `touch ${runFolder}/.{step,x}-reports/y`, `touch ${runFolder}/.STEP-REPORTS/x`,
+    `python3 -c "open('${file}', 'w')"`, `node /tmp/x.cjs ${runFolder}/link/x`,
+    'node /tmp/x.cjs "$D/.step-reports/x.json"',
+    `python3 - <<'EOF'\nopen('.step-reports/x', 'w')\nEOF`,
+    `apply_patch <<'EOF'\n${add(file)}\nEOF`];
+  for (const command of shell) {
+    for (const type of [undefined, 'implementer', 'harness:spec-reviewer', 'harness:plan-reviewer',
+      'harness:check-reviewer']) {
+      const reason = call(bashAs(command, type));
+      assert.equal(typeof reason, 'string', `${command} by ${type}`);
+      if (type === undefined || type === 'implementer') firstLine(reason, STEP_KEPT);
+    }
+  }
+  // A read, the checks script alone, and a write beside the folder pass.
+  for (const command of [`cat ${file}`, `ls -la ${reports}`,
+    `node ${SESSION_CHECKS} step end plan done`, `touch ${runFolder}/build-plan.md`,
+    `cp /tmp/x ${runFolder}/build-plan.md`, `cat ${runFolder}/build-plan.md`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  for (const name of ['.step-reports.md', 'my.step-reports', 'step-reports']) {
+    assert.equal(call(writeAs(path.join(runFolder, name))), null, name);
+  }
+  // Outside a run, the guard denies nothing.
+  assert.equal(call(writeAs(file), {}), null);
+});
+
+test('a write in .step-reports outside the artifact folder of the run is denied too', () => {
+  const { runFolder, call } = stepSetup();
+  const local = path.join(WORK, '.qory', 'artifacts');
+  for (const type of [undefined, 'implementer', 'harness:spec-reviewer']) {
+    for (const folder of [WORK, local, runFolder]) {
+      const reason = call(writeAs(path.join(folder, STEP_DIR, STEP_FILE), type));
+      assert.ok(firstLine(reason, STEP_KEPT).endsWith(`The call writes ${path.join(folder,
+        STEP_DIR, STEP_FILE)}.`), reason);
+    }
+  }
+  for (const type of [undefined, 'implementer']) {
+    // The name as written, with quotes in it, and with a glob of the folder of either.
+    for (const command of ['touch .step-reports/x', 'cp /tmp/x .qory/artifacts/.step-reports/',
+      'echo "put it in .step-reports" > note.txt']) {
+      const reason = firstLine(call(bashAs(command, type)), STEP_KEPT);
+      assert.ok(reason.endsWith('The command has .step-reports.'), reason);
+    }
+    for (const command of ['touch .qory/artifacts/.step-rep*/x',
+      "touch .qory/artifacts/.ste''p-reports/x", `touch ${runFolder}/.step-rep*/x`]) {
+      firstLine(call(bashAs(command, type)), STEP_KEPT);
+    }
+  }
+  for (const command of ['touch .qory/artifacts/x', 'touch .qory/artifacts/.notes/*',
+    'touch src/x']) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+});
+
+test('the checks script alone runs with a path of the artifact folder, and no other call', () => {
+  const { runFolder, call } = stepSetup();
+  const step = `node ${SESSION_CHECKS} step end plan done`;
+  for (const dir of [runFolder, path.join(runFolder, '.reports')]) {
+    assert.equal(call(bashAs(`${step} --report ${path.join(dir, 'x.md')}`)), null);
+  }
+  fs.mkdirSync(path.join(runFolder, STEP_DIR));
+  fs.symlinkSync(path.join(runFolder, STEP_DIR), path.join(runFolder, 'link'));
+  assert.equal(call(bashAs(`${step} --report ${runFolder}/link/x.md`)), null);
+  for (const command of [`node /tmp/x.cjs --report ${runFolder}/link/x.md`,
+    `${step} --report ${runFolder}/link/x.md; node /tmp/x.cjs ${runFolder}/link/x.md`]) {
+    firstLine(call(bashAs(command)), STEP_KEPT);
+  }
+});
+
+// aboveSetup returns the folder above a new artifact folder, that folder, and the call of a
+// command.
+function aboveSetup(name = 'step-above') {
+  const { env } = stepSetup();
+  const above = next(name);
+  const artifacts = path.join(above, 'qory-artifacts');
+  fs.mkdirSync(path.join(artifacts, STEP_DIR), { recursive: true });
+  fs.symlinkSync(path.join(artifacts, STEP_DIR), path.join(artifacts, 'link'));
+  const call = (command) => decide({ input: bashAs(command, 'implementer'), env, locked,
+    root: WORK, runFolder: artifacts, script: SESSION_SCRIPT, runtime: 'claude' });
+  return { above, artifacts, call };
+}
+
+// A copy that keeps the path of its source, rsync -R or --relative and cp --parents, writes it
+// below the destination, as a copy of the contents of a folder does. A glob reaches the folder
+// of the step reports through a link to the artifact folder.
+test('a copy with the source path, or a glob through a link, reaches the step reports', () => {
+  const { above, artifacts, call } = aboveSetup();
+  const link = next('step-link');
+  fs.symlinkSync(artifacts, link);
+  // The name rule finds no .step-reports in this source, so the copy rules read it.
+  const glob = 'qory-artifacts/.step-report?';
+  for (const command of [`rsync -R ${glob} ${above}`, `rsync -aR ${glob} ${above}`,
+    `rsync --relative -a ${glob} ${above}`, `cp --parents ${glob}/x.json ${above}`,
+    `cp -R --parents ${glob} ${above}`, `cp --pa ${glob}/x.json ${above}`,
+    `cp --parent ${glob}/x.json ${above}`, `cp --path ${glob}/x.json ${above}`,
+    `rsync --files-from=list.txt . ${above}`, `rsync -a --files-from list.txt . ${above}`,
+    `cp x ${link}/.step-report?/`,
+    `cp -R src/. ${link}/.step*`, `mv x ${link}/.step-report?`, `rm -rf ${link}/.step*`,
+    `rsync -a src/ ${link}/.step-report?/`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
+  // The same link reaches .reports of the artifact folder.
+  fs.mkdirSync(path.join(artifacts, '.reports'));
+  firstLine(call(`rm -rf ${link}/.report?`), 'Leave .reports/ to checks.cjs');
+  // The same copies into a folder that is not above the artifact folder pass, as do copies
+  // with no such option, a copy of a named file through the link, and a copy that keeps the
+  // path into .qory/, which only the step reports read so.
+  for (const command of [`rsync -R ${glob} /x`, `cp --parents ${glob}/x.json /x`,
+    `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`,
+    'rsync -R src/a .qory/', `rsync -a -- -R ${above}`, `cp --p ${glob}/x.json ${above}`,
+    // rsync stops at a shortened long option, as popt matches only whole names.
+    `rsync --rel ${glob} ${above}`]) {
+    assert.equal(call(command), null, command);
+  }
+});
+
+// The guard reads the folders before a wildcard through their links, and a [, *, ? or \ in the
+// real path stays a character of the name.
+test('a glob below a folder named with [ reaches the step reports and .reports', () => {
+  for (const name of ['br[1]', 'st*r', 'q?m', 'bk\\s']) {
+    const { above, artifacts, call } = aboveSetup(name);
+    fs.mkdirSync(path.join(artifacts, '.reports'));
+    const escaped = above.replace(/[[\]*?\\]/g, '\\$&');
+    for (const [command, reason] of [[`rm -rf ${escaped}/qory-artifacts/.step*`, STEP_KEPT],
+      [`rm -rf '${above}'/qory-artifacts/.step*`, STEP_KEPT],
+      [`rm -rf ${escaped}/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs'],
+      [`rm -rf '${above}'/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs']]) {
+      firstLine(call(command), reason);
+    }
+  }
+  // A folder whose name matches the folder of the artifact folder as a glob is another folder.
+  for (const [name, other] of [['br1', 'br[1]'], ['star', 'st*r'], ['qam', 'q?m'],
+    ['bks', 'bk\\s']]) {
+    const { above, call } = aboveSetup(name);
+    const twin = path.join(path.dirname(above), path.basename(above).replace(name, other));
+    fs.mkdirSync(path.join(twin, 'qory-artifacts'), { recursive: true });
+    for (const command of [`rm -rf '${twin}'/qory-artifacts/.step*`,
+      `rm -rf '${twin}'/qory-artifacts/.report?`]) {
+      assert.equal(call(command), null, command);
+    }
+  }
+});
+
+test('a copy or a move of a named file into a folder above the artifact folder passes', () => {
+  const { above, artifacts, call } = aboveSetup();
+  for (const command of [`mv a ${above}`, `mv a b ${above}/`, `mv -f -- a ${above}`,
+    `mv -t ${above} a`, `mv --target-directory=${above} a`, `ls | xargs mv -t ${above}`,
+    `sudo mv *.ts ${above}`, `cp a ${above}`, `cp -R src ${above}/`, `cp a ${above}/../step-abov*`,
+    `install -m 644 a ${above}`, `ln -s a ${above}/`, `rsync -a src ${above}/`,
+    `find src -exec cp -R {} ${above} \\;`, `find src -exec mv -t ${above} {} +`,
+    `mv -f -t ${above} a`, `mv -S .b a ${above}`, `mv a ${above}/../step-abov*`,
+    `mv --verbose --target-directory=${above} a`, `mv --no-clobber -t ${above} a`,
+    `mv --strip-trailing-slashes -t ${above} a`,
+    // A redirect is no word of the copy or the move.
+    `cp a ${above} 2>/dev/null`, `cp a ${above} > log.txt`,
+    `mv a ${above} 2>/dev/null`, `mv a ${above} 2> /dev/null || true`,
+    `mv a ${above} > /dev/null 2>&1`, `mv a ${above} &>/dev/null`, `mv a ${above} </dev/null`,
+    `mv a ${above} 2>&1 | tail -3`, `mv a ${above} > log.txt`, `mv 2>/dev/null a ${above}`,
+    `mv a ${artifacts} 2>/dev/null`, `mv a ${above} 2>&1 >/dev/null`, `mv a ${above} 2>"$log"`,
+    `mv a ${above} 2> "err.log"`, `mv a ${above} > 'x.log'`, `mv a ${above} 2>&1 > /dev/null`,
+    // A file of another name moves into the artifact folder, as a copy of it does.
+    `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
+    assert.equal(call(command), null, command);
+  }
+  // A move or a removal of the folder or of one above it, and a write in .step-reports.
+  for (const command of [`mv ${artifacts} /x`, `mv -t /x ${artifacts}`, `mv ${above} /x`,
+    `mv ${above}/* /x`, `mv ${artifacts} ${above}/z`, `mv ${artifacts} ${artifacts}`,
+    `mv {${artifacts},/x}`, `mv ${artifacts}`,
+    `rm -rf ${artifacts}`, `rm -rf ${above}`, `rm -rf ${above}/*`, `rm -rf ${above}/q*`,
+    `find ${above} -delete`, `echo /x | xargs mv ${artifacts}`, `echo /x | xargs mv a ${above}`,
+    `mv -ft /x a ${artifacts}`, `mv -t/x a ${artifacts}`, `mv --target=/x a ${artifacts}`,
+    `mv -S -t ${artifacts} /x`, `mv -- -t ${artifacts} /x`, `mv --suffix -t ${artifacts} /x`,
+    `mv -t /x -S -t ${artifacts}`, `mv -t /x --suffix -t ${artifacts}`,
+    `mv -t /x -- -t ${artifacts}`, `mv --target-directory=/x -S -t ${artifacts}`,
+    `mv -t /x -S --target-directory ${artifacts}`, `mv -t /x -- --target-directory ${artifacts}`,
+    `mv ${artifacts} /x 2>/dev/null`, `mv ${artifacts} 2>/dev/null /x`,
+    `mv 2>/dev/null ${artifacts} /x`, `mv ${artifacts} /x > ${above}/l`,
+    `mv a ${above} > ${artifacts}`, `mv a ${artifacts} '>' /x`, `mv ${artifacts} > /x`,
+    // The guard splits these commands, so the words after the split are not in the move.
+    `mv a ${artifacts} 2>&1 /x`, `mv a ${artifacts} <&3 /x`, `mv ${artifacts} 2>&1 /x`,
+    // A copy into a folder above it of a source that can have the folder's name, as at
+    // .reports: a source that is vague, ends with / or /., or a copy of a folder's contents.
+    `cp -R src/. ${above}`, `cp -R stage/. ${above}`, `cp -a src/ ${above}/`, `cp -rT src ${above}`,
+    `cp "$f" ${above}`, `cp -R src/. ${above}/../step-abov*`, `install -m 644 "$f" ${above}`,
+    `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`, `rsync -a "$f" ${above}`,
+    `mv -f -- "$f" ${above}`, `mv src/. ${above}`, `cp -R qory-artifacts ${above}`,
+    `cp -R src/. ${above} 2>/dev/null`, `rsync -a src/ ${above}/ > log.txt`,
+    // The forms that the docs list as denied, with .step-reports or a link to it as the source.
+    ...[`${artifacts}/.step-reports`, `${artifacts}/link`].flatMap((source) => [
+      `sh -c 'mv ${source} /x'`, `find ${source}/ -exec mv {} /x \\;`,
+      `echo ${source} | xargs -I{} mv {} /x`, `mv ${source} /x 2>&1 > "a.log"`,
+      `mv ${source}/x /x 2>&1 >"$log"`]),
+    `mv a ${artifacts} > "a;b" /x`, `mv a ${artifacts} <(echo) /x`, `mv a ${artifacts} \`ls\``,
+    `mv a ${artifacts} >\\; /x`,
+    `mv -T a ${artifacts}`, `mv a ${artifacts} -S .b`, `sh -c 'mv ${artifacts} /x'`,
+    `cp a ${artifacts}/.step-reports/x`, `mv x ${artifacts}/.step-reports/`,
+    `rsync -a src/ ${artifacts}/.step-reports/`, `mv x ${artifacts}/link`,
+    `cp x ${artifacts}/link/`, `mv x ${artifacts}/.step*`, `cp -R src/. ${artifacts}`,
+    `cp -R src/. ${above}/q*`, `mv src/. ${artifacts}`, `mv "$f" ${artifacts}`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
+  assert.ok(call(`mv a ${artifacts} 2>"&1" /x`));
+  // These moves are denied, since the guard reads if or while as the command, and the words of
+  // a comment or of a quoted file with a space as paths of the move.
+  for (const command of [`if mv a ${above}; then echo x; fi`, `while mv a ${above}; do :; done`,
+    `mv a ${above} # a note`, `mv a ${above} > "a b"`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
+  // The destination of a move still counts for .qory/build/.
+  firstLine(call('mv src/a .'), 'Leave .qory/build/ as it is');
+});
+
+test('a copy or a removal into the root folder reaches each protected folder below it', () => {
+  // The root folder / ends with the separator, so a path below it starts with / alone.
+  for (const command of ['cp -R stage/. /', 'rsync -a src/ /', 'rm -rf /']) {
+    firstLine(guard(bashAs(command, 'implementer')), 'Leave .qory/build/ as it is');
+  }
+  // In a run, the deny of .qory/build/ comes before that of .step-reports.
+  const { call } = aboveSetup();
+  firstLine(call('cp -R stage/. /'), 'Leave .qory/build/ as it is');
+  assert.equal(call('cp a /'), null);
+});
+
+test('an extraction into the artifact folder or above it passes', () => {
+  const { above, artifacts, call } = aboveSetup();
+  for (const command of [`tar -xf a.tar -C ${above}`, `tar -xf a.tar -C${above}`,
+    `curl -s https://example.com/a.tgz | tar -xz -C ${above}`, `unzip a.zip -d ${above}`,
+    `ditto -x -k a.zip ${above}`, `tar -xf a.tar -C ${artifacts}`, `unzip a.zip -d ${artifacts}`,
+    `ditto -x -k a.zip ${artifacts}`, `cd ${artifacts} && tar -xf a.tar`]) {
+    assert.equal(call(command), null, command);
+  }
+  // So does one in a session with no run folder, whose artifact folder is in the working folder.
+  for (const command of ['tar -xf a.tar -C .qory/artifacts', 'unzip a.zip -d .qory/artifacts',
+    'ditto -x -k a.zip .qory/artifacts']) {
+    assert.equal(guard(bashAs(command, 'implementer')), null, command);
+  }
+  // A command that has the name .step-reports is denied, and another script that reaches it.
+  firstLine(call(`tar -xf a.tar -C ${artifacts}/.step-reports`), STEP_KEPT);
+  firstLine(call(`node x.js ${artifacts}/link`), STEP_KEPT);
 });
 
 test('a review session keeps the lock, .qory/build/ and the guard of .reports/', () => {

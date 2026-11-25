@@ -488,6 +488,13 @@ test('a planned deliverable that is not built gives changes-requested with no po
   assert.deepEqual(written(w, []), { checkout: '', reports: [] });
 });
 
+// shortcut: as in the test above, this test checks the text of the skill only; replace it with a
+// run of the verb when a verb applies the ledger check.
+test('the session counts a planned deliverable as built only when its newest row is done', () => {
+  says(section(WORKFLOW, 'The ledger check'),
+    'the row of that id with the highest `pass` has the `state` `done`');
+});
+
 test('a reviewer that writes no report gives one blocking finding', () => {
   const w = work(CLEAN);
   const call = session(w);

@@ -21,8 +21,18 @@
 //   are all it allows, and it starts no agent. The guard denies the write tools (Write, Edit,
 //   MultiEdit, NotebookEdit and apply_patch) to each agent of that session, whatever its type,
 //   and to each agent whose type ends in -reviewer in any session but a review session, the
-//   report path included. Outside a reviewer session it does not run reviewShell for such an
-//   agent; the other rules of the guard limit its shell;
+//   report path included, but for the one report file that the next entry allows. Outside a
+//   reviewer session it does not run reviewShell for such an agent; the other rules of the
+//   guard limit its shell;
+// - a write by an agent of STEP_REVIEWERS, which reviews the file of a step inside a session,
+//   but one: a Write or an apply_patch of reportPatch's form to
+//   <artifacts>/.step-reports/<name>/<sha256>.json, with the agent's name as reportName reads
+//   it, as stepReport reads the call. The sessions of qory.review, qory.review_session and
+//   qory.hook_session allow no such write;
+// - any other write whose path, after links and .. parts, has a folder .step-reports, matched
+//   as a disk that ignores case does, and a shell command, other than one of read-only commands
+//   and checks.cjs alone, whose text or a word of it has that folder, that writes in the folder
+//   of the artifact folder, or that can write there with a word that reaches it;
 // - in the session of a hook's agent, when inputs.json has the member qory.hook_session, the
 //   rules of a reviewer session, with qory.hook_session.report as the one path that the main
 //   session writes. These rules apply in place of those of qory.review and
@@ -373,6 +383,8 @@ const PATCH_ADD = new RegExp(`^\\*\\*\\* Add File: ([^${PATCH_SPACE}](?:[^]*[^${
 // compared as it is, with no white space trimmed. <path> is absolute, has no . or .. part, no
 // empty part and no trailing slash, and has at most PATH_MAX characters. A second header, an
 // update, a delete, a move and any other line make it null.
+// Codex writes an Add File over a file that exists, so a second Add File rewrites a report:
+// apply_hunks_to_files in codex-rs/apply-patch/src/lib.rs:473-499 of openai/codex at d3ca5182.
 function reportPatch(patch) {
   if (typeof patch !== 'string' || patch.includes('\r') || patch.includes('\0')) return null;
   const lines = patch.split('\n');
@@ -547,7 +559,9 @@ const real = (full) => walkPath(full).real;
 // for walkPath, which applies them after the links before them.
 const joined = (from, word) => (path.isAbsolute(word) ? word : `${from}${path.sep}${word}`);
 
-const under = (full, dir) => full === dir || full.startsWith(`${dir}${path.sep}`);
+// under reports whether full is dir or a path below it; dir may end with path.sep, as / does.
+const under = (full, dir) => full === dir ||
+  full.startsWith(dir.endsWith(path.sep) ? dir : `${dir}${path.sep}`);
 
 // caseless reports whether the disk of dir, a folder that exists, ignores case: dir with its
 // case swapped reads as the same folder. There, a part of a path that does not exist yet
@@ -1036,18 +1050,22 @@ function plainRedirects(text) {
 // segments returns the simple commands of a shell command and of the text of each shell in
 // it that commands finds: each text split at ; & | ( ) ` and line breaks, but not at the |
 // or & of a redirect, which plainRedirects reads, so that a group such as `( cp a b )` or
-// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots }. words are the
-// words that commandWords keeps; cwds the known folders that the command can run in, as
-// folders finds them from cwd; at the folder it runs in, as walk finds it, or null when
-// that is unknown; and dots whether a wildcard matches a leading dot.
+// `$(cp a b)` reads as its command, each as { text, words, cwds, at, dots, cut }. cut tells
+// that the split at a ( or a `, or at the & of a redirect such as 2>&1, can leave out words of
+// the command. words are the words that commandWords keeps; cwds the known folders that the
+// command can run in, as folders finds them from cwd; at the folder it runs in, as walk finds
+// it, or null when that is unknown; and dots whether a wildcard matches a leading dot.
 function segments(command, cwd = process.cwd(), keep = () => true) {
   const texts = commands(dropBodies(command)).map((one, index) => {
     // An escaped parenthesis, as in `find . \( -name a \) -delete`, is a word of the command.
     const pieces = plainRedirects(one).replace(/\\[()]/g, ' ').split(/([;&|\n()`]+)/);
     const out = [];
     for (let at = 0; at < pieces.length; at += 2) {
-      out.push({ text: pieces[at], before: pieces[at - 1] || '', after: pieces[at + 1] || '',
-        index, ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
+      const after = pieces[at + 1] || '';
+      const cut = /^[(`]/.test(after) || (/[<>]\s*$/.test(pieces[at]) &&
+        !/^\s*[\d-]+(?:\s+\d*[<>]+\s*[^\s'"\\<>$]+)*\s*$/.test(pieces[at + 2]));
+      out.push({ text: pieces[at], before: pieces[at - 1] || '', after, cut, index,
+        ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
     }
     return out;
   });
@@ -1069,12 +1087,12 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
   // A wildcard matches a leading dot only after the shell is set to: dotglob in bash,
   // globdots in zsh in any spelling, or GLOBIGNORE, which turns dotglob on.
   const dots = optionsIn(command, all, ['dotglob', 'globdots', 'globignore']);
-  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind }) => {
+  return parts.filter(keep).map(({ text, words, dirs, outputs, at, lost, vars, blind, cut }) => {
     const chdirs = [...dirs, ...toolDirs(words)];
     const known = chdirs.filter((dir) => !vague(dir));
     const cwds = from.map((one) => into(one, known));
     const sure = at !== null && known.length === chdirs.length;
-    return { text, words, outputs, cwds, lost, vars, blind,
+    return { text, words, outputs, cwds, lost, vars, blind, cut,
       at: sure ? into(at, known) : null, dots };
   });
 }
@@ -1862,13 +1880,52 @@ function contentsInto(words) {
   return has('rRa', ['--recursive', '--archive']) && has('T', ['--no-target-directory']);
 }
 
+// keepsPaths reports whether words, a cp or an rsync, write each source by its path below the
+// destination: cp with --parents, --path or a prefix from --pa, as GNU getopt reads one, and
+// rsync with -R, --relative or --files-from; rsync's popt reads no shortened long option.
+function keepsPaths(words) {
+  const tool = path.basename(words[0] || '');
+  const end = words.indexOf('--');
+  const options = words.slice(1, end < 0 ? words.length : end);
+  if (tool === 'cp') {
+    return options.some((word) => word.length >= 4 &&
+      ['--parents', '--path'].some((name) => name.startsWith(word)));
+  }
+  return tool === 'rsync' && options.some((word) => word === '--relative' ||
+    /^--files-from(?:=|$)/.test(word) || /^-[^-]*R/.test(word));
+}
+
+// movesInto reports whether words, a mv, move sources into dest, so that it removes the sources
+// only: with -t or --target-directory, or with a source and no xargs or parallel in text, which
+// add words; and with no other option for the destination, as in -ft, --target=x or -T. -t counts
+// only after options with no value, since it is a value in -S -t and a file in -- -t.
+function movesInto(text, words, dest, sources) {
+  if (sources.includes(dest)) return false;
+  const first = words.findIndex((word, at) => at > 0 &&
+    !/^(?:-[^-tTS]+|--(?!su|t|no-t)[a-z-]+)$/.test(word));
+  const given = /^(?:-t|--target-directory(?:=.*)?)$/s.test(words[first] || '');
+  return !words.some((word, at) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) &&
+    !(given && at === first)) && (given || (sources.length > 0 && !FED.test(text)));
+}
+
+// unredirected returns words, as written, with no redirect and no file of one, as in 2>x or > x.
+// A word with a quote or a backslash stays, unless the file is one whole quoted word, since a
+// split can have left out a part of it.
+function unredirected(words) {
+  const odd = (word) => /['"\\]/.test(word.replace(/^(\d*[<>]+)?(["'])[^"'\\]*\2$/, ''));
+  return words.filter((word, at) => odd(word) || (!/^\d*[<>]/.test(word) &&
+    !(at > 0 && /^\d*[<>]+$/.test(words[at - 1]))));
+}
+
 // pathHits reports whether a simple command that writes changes full, as its words read once
 // each is resolved from a folder of the command's cwds: a word that is full, or below full
 // when folder is true, or a folder above full for a command of REMOVERS or, when full is a
 // file, a restore or a checkout of a path. A checkout with no `--` reads a word as a path only
 // when it exists, so `checkout .` is one and `checkout <name>` of a name that is no path is
-// not. fold and realOf compare and resolve paths.
-function pathHits(segment, full, folder, how) {
+// not. fold and realOf compare and resolve paths. With step, full is the folder of the step
+// reports: a copy and a move read their words with no redirect, and a move that movesInto finds
+// counts as a copy of its sources.
+function pathHits(segment, full, folder, how, step = false) {
   const { fold, realOf, spend } = how;
   const words = plainWords(segment.words);
   const sub = subWrites(segment.words) ? words[subIndex(words)] : null;
@@ -1882,7 +1939,7 @@ function pathHits(segment, full, folder, how) {
     // find writes the paths below each start that its -name options match.
     // The redirects of the text are find's, so an -exec command is read by its words.
     return find.exec.some((exec) => pathHits({ ...segment, words: exec, text: exec.join(' '),
-      outputs: [] }, full, folder, how)) ||
+      outputs: [] }, full, folder, how, step)) ||
       segment.cwds.some((cwd) => find.starts.some((start) => {
         spend();
         const at = fold(realOf(joined(cwd, start)));
@@ -1895,18 +1952,24 @@ function pathHits(segment, full, folder, how) {
   // A copy into a folder above full writes full when a source has the name of the part of
   // full's path below that folder, or a source is vague or ends with /. A recursive cp with
   // -T or --no-target-directory copies the contents of its source into that folder.
-  if (LAST_WRITTEN.has(path.basename(words[0]))) {
-    const { dest, sources } = copyParts(segment.words);
-    const into = contentsInto(words);
+  const tool = path.basename(words[0]);
+  const copies = LAST_WRITTEN.has(tool);
+  const moving = step && tool === 'mv';
+  const args = step ? unredirected(segment.words) : segment.words;
+  const { dest, sources } = copies || moving ? copyParts(args) : {};
+  const moves = moving && !segment.cut && movesInto(segment.text, plainWords(args), dest, sources);
+  if (copies || moves) {
+    // A copy that keepsPaths finds writes a source by its path, as a copy of contents does.
+    const into = contentsInto(words) || (step && keepsPaths(words));
     const named = (first) => into || sources.some((source) => vague(source) ||
       /\/\.?$/.test(source) ||
       globMatch(path.basename(source), first, { nocase, dots: segment.dots }));
     if (dest && !vague(dest) && wild(dest) && segment.cwds.some((cwd) => {
       spend();
       const pattern = path.resolve(cwd, dest);
+      const depth = pattern.split(path.sep).filter(Boolean).length;
       return globReach(pattern, target, fold, segment.dots) === 'above' &&
-        named(target.split(path.sep).filter(Boolean)[pattern.split(path.sep).filter(Boolean)
-          .length]);
+        named(target.split(path.sep).filter(Boolean)[depth]);
     })) return true;
     if (dest && !vague(dest) && !wild(dest) && segment.cwds.some((cwd) => {
       spend();
@@ -1920,12 +1983,13 @@ function pathHits(segment, full, folder, how) {
   }
   return pathWords(segment).some((shown) => segment.cwds.some((cwd) => {
     spend(1 + (shown.length >> 8));
+    const removes = remover && !(moves && shown === dest);
     if (wild(shown)) {
       // A glob writes each path it matches: full, a folder above it for a remover or a
       // restore, or a path below full when full is a folder.
       const reach = globReach(path.resolve(cwd, shown), target, fold, segment.dots);
       return reach === 'equal' || (reach === 'below' && folder) ||
-        (reach === 'above' && (remover || (!folder && restorer)));
+        (reach === 'above' && (removes || (!folder && restorer)));
     }
     const word = literal(shown);
     const resolved = realOf(joined(cwd, word));
@@ -1933,7 +1997,7 @@ function pathHits(segment, full, folder, how) {
     if (exact === target || (folder && under(exact, target))) return true;
     if (!under(target, exact)) return false;
     // A restore writes only tracked files, and .qory/build/ holds none.
-    return remover || (!folder && restorer && (named || disk.exists(resolved)));
+    return removes || (!folder && restorer && (named || disk.exists(resolved)));
   }));
 }
 
@@ -2120,10 +2184,15 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     return `${CHANGES_MAIN}The command is ${reviewShown(call.command)}.`;
   }
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
-    const dirs = [artifactFolder(root, env, runFolder), path.join(root, '.qory', 'artifacts')]
-      .filter(Boolean).map((dir) => fold(path.join(dir, '.reports')));
-    const reason = reportsGlob(call.command, cwd, [...new Set(dirs)], fold);
+    const dirs = (name) => [...new Set([artifactFolder(root, env, runFolder),
+      path.join(root, '.qory', 'artifacts')].filter(Boolean)
+      .map((dir) => fold(path.join(dir, name))))];
+    const reason = reportsGlob(call.command, cwd, dirs('.reports'), fold);
     if (reason) return reason;
+    if (STEP_FOLDER.test(args.command)) return `${STEP_KEPT}The command has .step-reports.`;
+    const hidden = reportsGlob(call.command, cwd, dirs(STEP_REPORTS), fold, STEP_KEPT,
+      STEP_FOLDER);
+    if (hidden) return hidden;
   }
   // A reviewer agent of a review session writes its report with Write or apply_patch only.
   if (call.kind === 'shell' && session && reviewer && !reads) {
@@ -2147,6 +2216,7 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (call.kind === 'shell') {
     const reason = readShell(call.command, { cwd, root, lockOf, nocase, home, spend, kept,
       exempt: sessionExempt(call.command, env, script),
+      alone: reportsGuard.runsChecks(call.command, env, script),
       checks: reviewChecks(call.command, env, script),
       checked: (checksVerb(call.command, env, script) || [])[0] === 'check' ||
         comparesVersions(call.command, env, script) });
@@ -2177,6 +2247,13 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
     return shielded && shielded.inputs ? shielded.reason
       : sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, env });
   }
+  if (agent && !session && !reviewing &&
+    steps.STEP_REVIEWERS.has(reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME))) {
+    return stepReport({ call, input, env, runtime, start, runFolder }) ? null
+      : `${STEP_ONLY}The call writes ${paths.join(', ')}.`;
+  }
+  const stepped = paths.find((full) => STEP_FOLDER.test(full));
+  if (stepped) return `${STEP_KEPT}The call writes ${stepped}.`;
   // shortcut: in a review session the main session and agents other than reviewers keep
   // the rules of the run, as at access write-no-push: the guard does not tell access read
   // from write-no-push. qory's read-only mount of the checkout enforces read; keep it so.
@@ -2383,7 +2460,7 @@ function reaches(parts, files, folder, root, { realOf, fold, spend, cwd }, skip 
 // opaque command of it reaches one of them. lockOf returns the files of the lock; with
 // nocase, a name matches in any case. It spends a unit of spend for each comparison.
 function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [], exempt,
-  checks, checked }) {
+  alone, checks, checked }) {
   spend(command.length >> 10);
   const all = segments(command, cwd);
   const parts = all.filter(segmentWrites);
@@ -2400,7 +2477,8 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   };
   const how = { realOf, spend, cwd, listed: new Map(),
     fold: (full) => (nocase ? full.toLowerCase() : full) };
-  const hit = (full, folder) => parts.some((one) => pathHits(one, full, folder, how)) ||
+  const hit = (full, folder, step) => parts.some((one) => pathHits(one, full, folder, how,
+    step)) ||
     names(full, cwds, root).some((name) => parts.some((one) => {
       spend(1 + (one.text.length >> 12));
       return writes(one, name, nocase);
@@ -2421,7 +2499,7 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   if (home && hit(home, true)) return `${HOMED}${home}; the command writes in it.`;
   for (const one of kept.filter((each) => !each.deep)) {
-    const target = (one.shell || [one.full]).find((full) => hit(full, one.folder));
+    const target = (one.shell || [one.full]).find((full) => hit(full, one.folder, one.step));
     if (target) return `${one.head}The command writes ${one.folder ? 'in ' : ''}${target}.`;
   }
   const { files = [], what, problem, type } = lockOf();
@@ -2440,10 +2518,14 @@ function readShell(command, { cwd, root, lockOf, nocase, home, spend, kept = [],
   }
   // A command whose writes the guard does not read, other than one of sessionExempt, writes
   // no word that reaches the report folder of a review session.
+  // Nor does it, other than the checks script alone, reach .step-reports of the artifact folder;
+  // the guard does not read what tar, unzip and ditto extract, as a script that writes there.
+  const scripts = all.filter((one) => !/^(?:tar|unzip|ditto)$/
+    .test(path.basename(plainWords(one.words)[0] || '')));
   for (const one of dark ? kept.filter((each) => (each.folder && !each.home && !each.deep &&
-    !exempt) ||
+    !(each.step ? alone : exempt)) ||
     (each.matrix && !checked)) : []) {
-    const found = reaches(all, [], one.full, root, how);
+    const found = reaches(one.step ? scripts : all, [], one.full, root, how);
     if (found) {
       return `${one.head}The guard cannot tell what ${path.basename(dark.words[0])} writes, ` +
         `and the call contains ${found.word}.`;
@@ -2626,10 +2708,11 @@ function globMeets(pattern, dir, { realOf, fold }, dots) {
 // globReach returns how pattern, a full path with wildcards, meets full: 'equal' when it
 // matches full, 'above' when it matches a folder above full, 'below' when it matches only
 // paths below full, and null when it matches none of them. fold compares the parts, and with
-// dots a wildcard matches a leading dot.
+// dots a wildcard matches a leading dot. The parts before the first wildcard are read through
+// their links, as the shell reads them; a wildcard that matches a link is not followed.
 function globReach(pattern, full, fold, dots) {
   charge(1 + ((pattern.length + full.length) >> 8));
-  const parts = pattern.split(path.sep).filter(Boolean);
+  const parts = linked(pattern).split(path.sep).filter(Boolean);
   const wanted = full.split(path.sep).filter(Boolean);
   const nocase = fold('A') === 'a';
   const meets = parts.slice(0, wanted.length).every((part, at) => (wild(part)
@@ -2637,6 +2720,17 @@ function globReach(pattern, full, fold, dots) {
   if (!meets) return null;
   if (parts.length === wanted.length) return 'equal';
   return parts.length < wanted.length ? 'above' : 'below';
+}
+
+// linked returns pattern, a full path, with its parts before the first wildcard read through
+// their links, and the wildcard characters and backslashes of that real path escaped.
+function linked(pattern) {
+  const parts = pattern.split(path.sep);
+  const at = parts.findIndex((part) => wild(part));
+  if (at <= 0) return pattern;
+  charge();
+  const head = real(literal(parts.slice(0, at).join(path.sep)) || path.sep);
+  return [head.replace(/[\\*?[]/g, '\\$&'), ...parts.slice(at)].join(path.sep);
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on
@@ -2658,14 +2752,16 @@ function placeOf(input, root, env) {
 // after brace expansion, as segments reads the words, or that has a wildcard and can match a
 // folder of dirs, the .reports folders of the artifact folders, or a path below it, from a
 // folder of its command, or null. reports-guard.cjs finds
-// such a word with fs.globSync, which has no limit on its work; globReach has one.
-function reportsGlob(command, cwd, dirs, fold) {
+// such a word with fs.globSync, which has no limit on its work; globReach has one. head and
+// named are the deny and the pattern of another folder in place of .reports.
+function reportsGlob(command, cwd, dirs, fold, head = reportsGuard.HIDDEN_REASON,
+  named = reportsGuard.REPORTS) {
   for (const one of segments(command, cwd)) {
     for (const raw of one.words) {
       for (const each of braces(raw)) {
         const plain = unquote(each);
-        if (reportsGuard.REPORTS.test(plain)) {
-          return `${reportsGuard.HIDDEN_REASON}The shell turns the word ${raw} into ${plain}.`;
+        if (named.test(plain)) {
+          return `${head}The shell turns the word ${raw} into ${plain}.`;
         }
         if (!wild(each) || vague(each)) continue;
         for (const from of one.cwds) {
@@ -2673,7 +2769,7 @@ function reportsGlob(command, cwd, dirs, fold) {
             charge();
             const how = globReach(path.resolve(from, patternOf(each)), dir, fold, one.dots);
             if (how === 'equal' || how === 'below') {
-              return `${reportsGuard.HIDDEN_REASON}The glob ${raw} matches ${dir}.`;
+              return `${head}The glob ${raw} matches ${dir}.`;
             }
           }
         }
@@ -3116,7 +3212,8 @@ function reportName(agentType, runtime, home) {
 // with qory.review or qory.review_session, the file inputs.json of the harness home, wherever
 // the home lies, and the home itself when it lies outside root, the working folder; in a
 // review session, the report folder, read through its links, and verification.json and
-// .reports/matrix-record.json of the artifact folder, which only checks.cjs matrix writes.
+// .reports/matrix-record.json of the artifact folder, which only checks.cjs matrix writes; and
+// in every session, .step-reports of the artifact folder.
 // Each entry is { full, folder, inputs, nocase, head, except }, with head the first two lines
 // of its deny; matrix is true for the two files of the artifact folder; inputs is true
 // for an entry of the home, whose deny comes before the rule of a reviewer's report. except
@@ -3145,6 +3242,13 @@ function keptFiles(env, session, nocase, root, artifacts) {
     const full = real(session.reports);
     out.push({ full, folder: true, inputs: false, head: REPORTS_KEPT,
       nocase: nocase || caseless(full) || caseless(path.dirname(full)) });
+  }
+  // The reports of STEP_REVIEWERS: a shell command that writes there, by a link, a .. part, or a
+  // move or a removal of a folder above, as readShell reads it.
+  if (artifacts) {
+    const full = path.join(artifacts, STEP_REPORTS);
+    out.push({ full, folder: true, inputs: false, step: true, head: STEP_KEPT,
+      nocase: nocase || caseless(artifacts) || caseless(path.dirname(artifacts)) });
   }
   // shortcut: the guard reads the text of a call, so the checks script run by another script,
   // or a path that code joins from parts, passes; a verification.json that the main session
@@ -3399,6 +3503,48 @@ function sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, 
   return `${SESSION_ONLY}The report of this agent is ${report}. ${writes}`;
 }
 
+// reportPath returns the path that call writes, in the two forms that write a report: a Write
+// with one path, or an apply_patch of the form of reportPatch. It returns null for any other
+// call and for a path with a .. part.
+function reportPath(call, input, cwd) {
+  let given = null;
+  if (call.kind === 'write' && input.tool_name === 'Write' && call.paths.length === 1) {
+    given = joined(cwd, call.paths[0]);
+  } else if (call.kind === 'write' && input.tool_name === 'apply_patch') {
+    given = reportPatch((input.tool_input || {}).command);
+  }
+  return given === null || given.split(path.sep).includes('..') ? null : given;
+}
+
+// The folder of the reports of STEP_REVIEWERS in the artifact folder, and that folder in a path
+// or a command, with the u flag for U+017F (long s), as in reports-guard.cjs. The name of a
+// report is the SHA-256 of what the agent reviewed.
+const STEP_REPORTS = '.step-reports';
+const STEP_FOLDER = /(?<![\w.-])\.step-reports(?![\w.-])/iu;
+const STEP_REPORT = /^[0-9a-f]{64}\.json$/;
+const STEP_KEPT = 'Leave .step-reports/ to check-reviewer and plan-reviewer.\nEach of them ' +
+  'writes only its report there, with Write or with an apply_patch that adds it. ';
+const STEP_ONLY = 'Write only .step-reports/<agent name>/<sha256>.json in the artifact folder, ' +
+  'with Write.\nThis reviewer writes one file, its report, with Write or with an apply_patch ' +
+  'that adds it; <sha256> is the SHA-256 of the reviewed file. ';
+
+// stepReport reports whether call is the write of a report by an agent of STEP_REVIEWERS: to
+// <artifacts>/.step-reports/<name>/<sha256>.json, through no link, where the file, when it exists,
+// is a regular file with one link.
+function stepReport({ call, input, env, runtime, start, runFolder }) {
+  if (typeof input.agent_id !== 'string' || input.agent_id === '') return false;
+  const name = reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME);
+  if (!steps.STEP_REVIEWERS.has(name) || typeof start !== 'string' || start === '') return false;
+  const cwd = real(typeof input.cwd === 'string' && input.cwd ? input.cwd : process.cwd());
+  const given = reportPath(call, input, cwd);
+  const artifacts = artifactFolder(real(start), env, runFolder);
+  if (given === null || !artifacts || !STEP_REPORT.test(path.basename(given))) return false;
+  const above = walkPath(path.dirname(given));
+  if (above.unsure || above.real !== path.join(artifacts, STEP_REPORTS, name)) return false;
+  const stat = disk.lstat(path.join(above.real, path.basename(given)));
+  return !stat || (stat.isFile() && stat.nlink === 1);
+}
+
 // sessionReport reports whether call writes exactly <reports>/<name>.json: a Write with one
 // path, or an apply_patch of the form of reportPatch. The path in the call has no ..
 // part; the folders above its last part are read through their links, as walkPath reads
@@ -3406,13 +3552,8 @@ function sessionDeny({ call, input, paths, root, cwd, nocase, session, runtime, 
 // exists, a folder outside root, the working folder, and the file, when it exists, is a regular
 // file with one link. On a disk that ignores case, the compare ignores it too, as in reviewDeny.
 function sessionReport({ call, input, cwd, reports, name, root, nocase }) {
-  let given = null;
-  if (call.kind === 'write' && input.tool_name === 'Write' && call.paths.length === 1) {
-    given = joined(cwd, call.paths[0]);
-  } else if (call.kind === 'write' && input.tool_name === 'apply_patch') {
-    given = reportPatch((input.tool_input || {}).command);
-  }
-  if (given === null || given.split(path.sep).includes('..')) return false;
+  const given = reportPath(call, input, cwd);
+  if (given === null) return false;
   const top = disk.lstat(reports);
   if (top && !top.isDirectory()) return false;
   const base = walkPath(reports);
@@ -3552,7 +3693,7 @@ function run({ runtime, before } = {}) {
 // The fixed texts that start a deny, for the check of their first lines.
 const REASONS = { BACKGROUND, BUILT, MAIN, CRASHED, HOMED, MODED, LINKED, NO_ROOT, TOO_MUCH,
   OPAQUE, LOST, LINK_MADE, UNSURE, NOT_JSON, SESSION_NONE, SESSION_NAME, SESSION_SHELL,
-  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT };
+  SESSION_ONLY, REPORTS_KEPT, INPUTS_KEPT, HOME_KEPT, STEP_KEPT, STEP_ONLY };
 
 module.exports = { decide, lockedFiles, patchPaths, countsAsWrite, deny, run, reportName,
   REASONS };

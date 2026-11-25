@@ -144,9 +144,25 @@ test('the session starts the developer twice and the debugger once per step, the
   contains(failed, 'When this session ran no `step end <id> done`, the run has no commit: skip ' +
     '"The submission", do no later step, and end as "Points" of `running-a-workflow` lists, ' +
     'with one `run_again` point whose text is the line after "End with" in this section.');
-  contains(failed, 'Otherwise do "The submission". When a case of "The submission" ends the ' +
-    'run, end as that case lists. Otherwise write no `points.json`, run no verdict command, ' +
-    'and do no later step. `review-changes` runs next and reports the open step as ' +
+  inOrder(failed, 'Otherwise commit the files of the failed step with steps 1 and 2.',
+    '`<base>` is the `base` of the last row of `steps` in ' +
+    '`<folder>/.reports/build-ledger.json`, the commit on which the failed step started.',
+    '1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost.',
+    '2. When the checkout has a change, commit it with the two commands of "The end".',
+    'When the commit has a file with a key, a path outside the Files of every deliverable, a ' +
+    'new repository folder or a changed submodule, the scope check of qory\'s push stops the ' +
+    'push, and qory pushes no commit of the run, those of the done steps included. When ' +
+    '`git add -A` exits with 128, as for a new repository folder with no commit or a file that ' +
+    'git cannot read, the commit has only the changes to files that git tracks, and no new ' +
+    'file; when git cannot read a tracked file, `git commit` exits with 128 too and makes no ' +
+    'commit. When a submodule or a new repository folder has changed files, those files stay ' +
+    'out of the commit. In both cases the end check stops each end, and its third stop ends ' +
+    'the run with the end check\'s point.');
+  assert.doesNotMatch(oneLine(failed), /git checkout|rm -rf|scope --plan|same: /);
+  contains(failed, 'Then do "The ' +
+    'submission". When a case of "The submission" ends the run, end as that case lists. ' +
+    'Otherwise write no `points.json`, run no verdict command, and do no later step. ' +
+    '`review-changes` runs next and reports the open step as ' +
     '`blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.');
   assert.doesNotMatch(oneLine(failed), /next round of Build starts the step again/);
   // The order of the steps: the deliverables not built, then the findings, blocking first.
@@ -244,7 +260,8 @@ test('the session writes the text of the change after the last step, and not on 
   contains(section(WORKFLOW, 'The end'), 'When every step ended done or replayed, do "The ' +
     'submission", then "The end" of `running-a-workflow`.');
   inOrder(section(WORKFLOW, 'A step that fails'), 'Run `step end <id> failed',
-    'Otherwise do "The submission".', 'End with "The run stopped, because');
+    'commit it with the two commands of "The end"', 'Then do "The submission".',
+    'End with "The run stopped, because');
   const stop = section(WORKFLOW, 'A stop on the build plan');
   contains(stop, 'Skip "The submission"');
   assert.doesNotMatch(stop, /report-build|submission-writer/);
@@ -752,11 +769,13 @@ function submit(w, call) {
 
 // doneStep builds one step in one attempt of the developer, which writes file with code and each
 // [path, text] of more, and returns the commit of the step.
-function doneStep(w, call, id, file, code, more, targeted, leftOut = 'Left out: none') {
+function doneStep(w, call, id, file, code, more, targeted, leftOut = 'Left out: none',
+  pass = 1) {
   const begun = call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
     ...stepFiles(w));
   assert.equal(begun.status, 0, begun.out);
-  assert.equal(begun.lines.at(-1), `Run ${id} as pass 1: start its agent, then run step end.`);
+  assert.equal(begun.lines.at(-1), `Run ${id} as pass ${pass}: start its agent, then run step ` +
+    'end.');
   writeFile(w, file, code);
   for (const [name, text] of more) writeFile(w, name, text);
   const written = report(w, 'software-developer', writerReport([file, ...more.map((one) =>
@@ -953,6 +972,50 @@ function endsWithPoint(w, call, step) {
   assert.equal(fs.existsSync(path.join(call.outbox, 'pull-request')), false);
 }
 
+// The first line of the end check on changes that no commit contains.
+const COMMIT_FIX = 'Commit these changes, then end the session: the suite and the review read ' +
+  'only committed work.';
+
+// buildInputs writes inputs of w for a Build write session, with qory.outputs pull-request and
+// the members of extra. It returns the path.
+function buildInputs(w, extra = {}) {
+  const inputs = path.join(fresh('in'), 'inputs.json');
+  const qory = JSON.parse(read(w.inputs)).qory;
+  fs.writeFileSync(inputs, JSON.stringify({ qory: { ...qory, outputs: [{ type: 'pull-request',
+    required: false, schema: {} }], ...extra } }));
+  return inputs;
+}
+
+// shell runs command in the checkout of w with no git identity in the environment and an
+// empty folder as HOME.
+const shell = (w, command) => childProcess.spawnSync('/bin/sh', ['-c', command], { cwd: w.repo,
+  env: { PATH: process.env.PATH, HOME: fresh('home'), GIT_CONFIG_NOSYSTEM: '1' },
+  encoding: 'utf8' });
+
+// endCommands returns the commands of the code block of "The end" that starts with first.
+function endCommands(first) {
+  const block = section(WORKFLOW, 'The end').split('\n```\n').find((one) => one.startsWith(first));
+  assert.ok(block, `"The end" lists no ${first}`);
+  return block.replace(/ \\\n +/g, ' ').trim().split('\n');
+}
+
+// commitChanges runs the two commands of "The end" of the skill in the checkout of w, with
+// message. It returns the result of the second, with the exit status of the first as added.
+function commitChanges(w, message) {
+  const [add, commit] = endCommands('git add ');
+  const added = shell(w, add);
+  return { ...shell(w, commit.replace('"<what changed>"', `"${message}"`)), added: added.status };
+}
+
+// commandOf returns the command that pattern finds in the section of the skill with that title.
+function commandOf(title, pattern) {
+  const found = pattern.exec(section(WORKFLOW, title));
+  assert.ok(found, `"${title}" lists no ${pattern}`);
+  return found[1];
+}
+
+const RESET = commandOf('A step that fails', /Run `(git reset [^`]+)`/);
+
 test('after one step done and one step failed, the session does "The submission"', () => {
   const w = work();
   const call = session(w);
@@ -963,6 +1026,22 @@ test('after one step done and one step failed, the session does "The submission"
   failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
   // d-1 ended done in this session, so the run has its commit and does "The submission".
   assert.equal(submits(w), true);
+  // Until the session commits the files of the failed step, the end check stops the end.
+  const stopped = call('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(stopped.status, 1, stopped.out + stopped.err);
+  assert.deepEqual(stopped.out.split('\n').filter(Boolean), [COMMIT_FIX,
+    '  Not committed: tests/header.test.cjs (1 in all)']);
+  // The commit of "The end" takes them and leaves no change.
+  const kept = commitChanges(w, 'Keep the files of the failed step');
+  assert.equal(kept.status, 0, kept.stderr);
+  assert.equal(git(w.repo, w.env, 'status', '--porcelain', '--untracked-files=all',
+    '--', ':!.qory'), '');
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD~1'), commit);
+  // Both commits have the identity that freeze sets.
+  assert.deepEqual(git(w.repo, w.env, 'log', '-2', '--format=%an %ae %cn %ce').split('\n'),
+    Array(2).fill('qory qory@localhost qory qory@localhost'));
+  assert.equal(git(w.repo, w.env, 'show', '--format=', '--name-only', 'HEAD'),
+    'tests/header.test.cjs');
   const { handoff, report: built } = submit(w, call);
   const sent = JSON.parse(fs.readFileSync(handoff, 'utf8'));
   assert.deepEqual(sent.steps, [{ commit, step: 'deliverable:d-1' }]);
@@ -975,6 +1054,198 @@ test('after one step done and one step failed, the session does "The submission"
   const ended = call('end', w.artifacts, '--inputs', withOutput(w));
   assert.equal(ended.status, 0, ended.out + ended.err);
   assert.deepEqual(logOf(w).filter((one) => one.startsWith('run verdict')), []);
+});
+
+test('the reset after a step that fails uses the last row, not an older one of the step', () => {
+  const w = work();
+  const first = session(w);
+  lockFirst(w, first);
+  const start = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  assert.equal(qory(w, first, 'artifact', 'pull').status, 0);
+  assert.equal(first('resume').status, 0);
+  const lost = doneStep(w, first, 'deliverable:d-1', 'src/orders.cjs', LINES, [], LOCKED_1);
+  failStep(w, first, 'deliverable:d-2', D2_RED, TARGETED_2);
+  // The next run starts without the commit of d-1, so it builds d-1 again, and d-2 fails again.
+  git(w.repo, w.env, 'reset', '-q', '--hard', start);
+  git(w.repo, w.env, 'clean', '-q', '-f', '-d');
+  const call = session(w);
+  assert.equal(qory(w, call, 'artifact', 'pull').status, 0);
+  assert.equal(call('resume').status, 0);
+  const done = doneStep(w, call, 'deliverable:d-1', 'src/orders.cjs', `${LINES}// Again.\n`, [],
+    LOCKED_1, undefined, 2);
+  failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
+  const { steps } = JSON.parse(read(w.artifacts, '.reports/build-ledger.json'));
+  assert.deepEqual(steps.filter((one) => one.id === 'deliverable:d-2')
+    .map((one) => [one.state, one.base]), [['failed', lost], ['failed', done]]);
+  assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 0);
+  const ran = shell(w, RESET.replace('<base>', steps.at(-1).base));
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), done);
+  assert.notEqual(done, lost);
+  assert.equal(fs.existsSync(path.join(w.repo, 'tests/header.test.cjs')), true);
+});
+
+test('no hook and no signing key of the checkout stops the commit of the session', () => {
+  const w = work();
+  const hooks = path.join(w.repo, '.git/hooks');
+  fs.mkdirSync(hooks, { recursive: true });
+  for (const name of ['pre-commit', 'commit-msg']) {
+    fs.writeFileSync(path.join(hooks, name), '#!/bin/sh\nexit 1\n', { mode: 0o755 });
+  }
+  git(w.repo, w.env, 'config', 'commit.gpgsign', 'true');
+  git(w.repo, w.env, 'config', 'gpg.program', 'false');
+  writeFile(w, 'src/orders.cjs', LINES);
+  // Without the two options, the hook stops the commit, and with no hook, the signature does.
+  const bare = 'git -c user.name=qory -c user.email=qory@localhost';
+  assert.equal(shell(w, `${bare} commit -qam One`).status, 1);
+  assert.equal(shell(w, `${bare} -c core.hooksPath=/dev/null commit -qam One`).status, 128);
+  const done = commitChanges(w, 'Write one line per order');
+  assert.equal(done.status, 0, done.stderr);
+  assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%s %G?'), 'Write one line per order N');
+});
+
+test('git reset ends a merge or a cherry-pick and keeps each file for the commit', () => {
+  const end = section(WORKFLOW, 'The end');
+  contains(end, 'When a merge or a cherry-pick is in progress, run `git reset -q` first');
+  contains(end, 'A commit with a new repository folder, or with a new commit or changed files ' +
+    'of a submodule, fails the scope check of qory\'s push: the check does not scan the files ' +
+    'of a repository folder or a submodule for keys, so it exits with 1, and qory pushes no ' +
+    'commit of the run.');
+  const reset = /run `(git reset -q)` first/.exec(end)[1];
+  for (const verb of ['merge', 'cherry-pick']) {
+    const w = work();
+    const commit = (message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+      '-a', '-m', message);
+    const first = git(w.repo, w.env, 'rev-parse', '--abbrev-ref', 'HEAD');
+    git(w.repo, w.env, 'checkout', '-q', '-b', 'other');
+    writeFile(w, 'src/orders.cjs', HEADER);
+    writeFile(w, 'tests/added.txt', 'added\n');
+    git(w.repo, w.env, 'add', '-A');
+    commit('Other');
+    git(w.repo, w.env, 'checkout', '-q', first);
+    writeFile(w, 'src/orders.cjs', WRONG);
+    commit('Ours');
+    assert.equal(shell(w, `git -c user.name=a -c user.email=a@b ${verb} other`).status, 1, verb);
+    writeFile(w, 'src/orders.cjs', LINES);
+    writeFile(w, 'tests/new.txt', 'new\n');
+    const stopped = commitChanges(w, 'Write one line per order');
+    assert.equal(stopped.status, 128, verb);
+    const ran = shell(w, reset);
+    assert.equal(ran.status, 0, ran.stderr);
+    const done = commitChanges(w, 'Write one line per order');
+    assert.equal(done.status, 0, `${verb}: ${done.stderr}`);
+    assert.deepEqual(git(w.repo, w.env, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+      ['M\tsrc/orders.cjs', 'A\ttests/added.txt', 'A\ttests/new.txt'], verb);
+    assert.equal(git(w.repo, w.env, 'show', 'HEAD:src/orders.cjs'), LINES.trim(), verb);
+    assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%P').split(' ').length, 1, verb);
+  }
+});
+
+test('the session commits its changes with no git identity set, and nothing of .qory', () => {
+  const outside = fresh('outside');
+  const link = (w) => fs.symlinkSync(outside, path.join(w.repo, '.qory'));
+  const track = (w, message) => git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+    '-m', message);
+  // Each case sets up .qory of the checkout.
+  const cases = [
+    ['a folder', (w) => writeFile(w, '.qory/x.json', '{}\n')],
+    ['a link', link],
+    ['a link that the index has', (w) => {
+      link(w);
+      git(w.repo, w.env, 'add', '-f', '.qory');
+    }],
+    ['a file that the index has', (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+    }],
+    ['a changed file that a commit has', (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+      track(w, 'Add .qory');
+      writeFile(w, '.qory/x.json', '[]\n');
+    }],
+    ['a link in place of a folder that a commit has', (w) => {
+      writeFile(w, '.qory/x.json', '{}\n');
+      git(w.repo, w.env, 'add', '-f', '.qory/x.json');
+      track(w, 'Add .qory');
+      fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
+      link(w);
+    }],
+    ['an ignored folder', (w) => {
+      writeFile(w, '.gitignore', 'reports/\n.qory/\n');
+      git(w.repo, w.env, 'add', '.gitignore');
+      track(w, 'Ignore .qory');
+      writeFile(w, '.qory/x.json', '{}\n');
+    }],
+    ['a folder that .git/info/exclude lists', (w) => {
+      fs.appendFileSync(path.join(w.repo, '.git/info/exclude'), '/.qory\n');
+      writeFile(w, '.qory/x.json', '{}\n');
+    }],
+    ['an ignored link', (w) => {
+      writeFile(w, '.gitignore', 'reports/\n.qory\n');
+      git(w.repo, w.env, 'add', '.gitignore');
+      track(w, 'Ignore .qory');
+      link(w);
+    }],
+  ];
+  for (const [what, setUp] of cases) {
+    const w = work();
+    fs.rmSync(path.join(w.repo, '.qory'), { recursive: true, force: true });
+    setUp(w);
+    // Git takes no identity from the machine, as in the agent's image.
+    git(w.repo, w.env, 'config', 'user.useConfigOnly', 'true');
+    writeFile(w, 'src/orders.cjs', LINES);
+    writeFile(w, 'notes/new.txt', 'new\n');
+    fs.rmSync(path.join(w.repo, 'README.md'));
+    const done = commitChanges(w, 'Write one line per order');
+    assert.equal(done.status, 0, `${what}: ${done.stderr}`);
+    assert.equal(done.added, 0, what);
+    assert.deepEqual(git(w.repo, w.env, 'show', '--format=', '--name-status', 'HEAD').split('\n'),
+      ['D\tREADME.md', 'A\tnotes/new.txt', 'M\tsrc/orders.cjs'], what);
+    assert.equal(git(w.repo, w.env, 'log', '-1', '--format=%an %ae %cn %ce %s'),
+      'qory qory@localhost qory qory@localhost Write one line per order', what);
+    const inputs = buildInputs(w);
+    assert.equal(session(w)('end', w.artifacts, '--inputs', inputs).status, 0, what);
+  }
+  // Only .qory at the top is left out: these paths are in the commit.
+  const named = work();
+  fs.appendFileSync(path.join(named.repo, '.git/info/exclude'), '/.qory\n');
+  const names = ['.qory.txt', '.qoryx/a', 'src/.qory/a', 'x.qory'];
+  for (const name of [...names, '.qory/a']) writeFile(named, name, 'x\n');
+  const took = commitChanges(named, 'Add the files');
+  assert.deepEqual([took.added, took.status], [0, 0], took.stderr);
+  assert.deepEqual(git(named.repo, named.env, 'show', '--format=', '--name-only', 'HEAD')
+    .split('\n'), names);
+  assert.equal(git(named.repo, named.env, 'status', '--porcelain', '--untracked-files=all'), '');
+  // With no identity in the command, the same commit exits with 128.
+  const w = work();
+  git(w.repo, w.env, 'config', 'user.useConfigOnly', 'true');
+  writeFile(w, 'src/orders.cjs', LINES);
+  const bare = childProcess.spawnSync('git', ['commit', '-am', 'Write one line per order'],
+    { cwd: w.repo, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: fresh('home'),
+      GIT_CONFIG_NOSYSTEM: '1' } });
+  assert.equal(bare.status, 128, bare.stderr);
+  assert.match(bare.stderr, /Author identity unknown/);
+});
+
+// A new repository folder with no commit makes git add exit 128, so the commit takes only the
+// change to a tracked file, and the end check stops the end on what stays.
+test('with a new repository folder with no commit, the commit has no new file', () => {
+  const w = work();
+  writeFile(w, 'src/orders.cjs', LINES);
+  writeFile(w, 'tests/new.txt', 'new\n');
+  writeFile(w, 'tests/nested/a.txt', 'a\n');
+  git(path.join(w.repo, 'tests/nested'), w.env, 'init', '-q');
+  const before = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  const done = commitChanges(w, 'Keep the files of the failed step');
+  assert.equal(done.added, 128);
+  assert.equal(done.status, 0, done.stderr);
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD~1'), before);
+  assert.equal(git(w.repo, w.env, 'show', '--format=', '--name-only', 'HEAD'), 'src/orders.cjs');
+  const ended = session(w)('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.equal(ended.out.split('\n')[0], COMMIT_FIX);
+  assert.match(notCommitted(ended), /tests\/nested.*tests\/new\.txt \(2 in all\)$/);
 });
 
 test('a later run whose first new step fails ends with a point, though an earlier run built ' +
@@ -1221,3 +1492,287 @@ for (const reviewers of [true, 'reviewers']) {
     escalates(w, endThrice(w, call, 'submission-writer', inputs));
   });
 }
+
+// CORE_PLUGIN is a composed plugin of the module core alone, whose registry has no end check
+// of a module.
+const CORE_PLUGIN = path.join(tmp, 'core-plugin');
+fs.cpSync(path.join(CORE, 'agents'), path.join(CORE_PLUGIN, 'agents'), { recursive: true });
+
+// notCommitted returns the line after COMMIT_FIX in the output of an end check, or null.
+function notCommitted(ended) {
+  const lines = ended.out.split('\n');
+  const at = lines.indexOf(COMMIT_FIX);
+  return at === -1 ? null : lines[at + 1];
+}
+
+test('the end check of a Build write session lists each kind of change that no commit ' +
+  'contains', () => {
+  const w = work();
+  const sub = fresh('sub');
+  git(sub, w.env, 'init', '-q');
+  git(sub, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'One');
+  git(w.repo, w.env, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub,
+    'lib/sub');
+  git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add lib/sub');
+  const call = session(w);
+  const inputs = buildInputs(w);
+  // Tracked, staged, untracked and deleted files, an ignored file, a file under .qory, and a
+  // new commit in the submodule.
+  writeFile(w, 'src/orders.cjs', LINES);
+  writeFile(w, 'src/staged.cjs', START);
+  git(w.repo, w.env, 'add', 'src/staged.cjs');
+  writeFile(w, 'notes/new.txt', 'new\n');
+  fs.rmSync(path.join(w.repo, 'README.md'));
+  writeFile(w, 'reports/junit.xml', '<testsuite/>\n');
+  writeFile(w, '.qory/outbox/x.json', '{}\n');
+  git(path.join(w.repo, 'lib/sub'), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q',
+    '--allow-empty', '-m', 'Two');
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.equal(notCommitted(ended), '  Not committed: README.md, lib/sub, notes/new.txt, ' +
+    'src/orders.cjs, src/staged.cjs (5 in all)');
+  // A change of the files in the submodule counts as its path too.
+  git(path.join(w.repo, 'lib/sub'), w.env, 'reset', '-q', '--hard', 'HEAD~1');
+  writeFile(w, 'lib/sub/new.txt', 'new\n');
+  git(w.repo, w.env, 'checkout', '-q', '--', 'README.md', 'src/orders.cjs');
+  git(w.repo, w.env, 'rm', '-q', '--cached', 'src/staged.cjs');
+  for (const file of ['src/staged.cjs', 'notes/new.txt']) fs.rmSync(path.join(w.repo, file));
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    '  Not committed: lib/sub (1 in all)');
+});
+
+test('the end check lists at most 20 changes, and fewer when the line would pass 200 ' +
+  'characters', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const names = Array.from({ length: 21 }, (_, at) => `f${String(at + 1).padStart(2, '0')}`);
+  for (const name of names) writeFile(w, name, 'x\n');
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    `  Not committed: ${names.slice(0, 20).join(', ')}, … (21 in all)`);
+  for (const name of names) fs.rmSync(path.join(w.repo, name));
+  const long = Array.from({ length: 4 }, (_, at) => `${'d'.repeat(55)}/${at + 1}.txt`);
+  for (const name of long) writeFile(w, name, 'x\n');
+  const line = notCommitted(call('end', w.artifacts, '--inputs', inputs));
+  assert.equal(line, `  Not committed: ${long.slice(0, 2).join(', ')}, … (4 in all)`);
+});
+
+test('the end check finds no change for a session that makes no commit, or with none left',
+  () => {
+    const w = work();
+    const call = session(w);
+    const end = (...argv) => call('end', w.artifacts, ...argv);
+    // A clean checkout, and one with only an ignored file and a file under .qory.
+    assert.equal(end('--inputs', buildInputs(w)).status, 0);
+    writeFile(w, 'reports/junit.xml', '<testsuite/>\n');
+    writeFile(w, '.qory/outbox/x.json', '{}\n');
+    // A .gitignore file that ignores itself, as pytest writes it.
+    writeFile(w, '.pytest_cache/.gitignore', '*\n');
+    assert.equal(end('--inputs', buildInputs(w)).status, 0);
+    // With an untracked file: a review, a reviewer and a hook session, a session of another
+    // output, one with no output, and one with no inputs file.
+    writeFile(w, 'notes/new.txt', 'new\n');
+    for (const extra of [{ review: {} }, { review_session: {} }, { hook_session: {} }]) {
+      const ended = end('--inputs', buildInputs(w, extra));
+      assert.equal(ended.status, 0, `${JSON.stringify(extra)}: ${ended.out}`);
+    }
+    assert.equal(end('--inputs', buildInputs(w, { outputs: [{ type: 'verification',
+      required: false, schema: {} }] })).status, 0);
+    assert.equal(end('--inputs', w.inputs).status, 0);
+    assert.equal(end().status, 0);
+    // A stack of core alone has no end check of a module.
+    const core = main(['end', w.artifacts, '--inputs', buildInputs(w)], {
+      cwd: w.repo, artifacts: [w.artifacts], env: call.env, plugin: CORE_PLUGIN, qory: w.qory,
+      out: { write() {} }, err: { write() {} } });
+    assert.equal(core, 0);
+    // A checkout that the session cannot write, as qory mounts the checkout of a review.
+    if (process.getuid?.() !== 0) {
+      fs.chmodSync(w.repo, 0o555);
+      try {
+        assert.equal(end('--inputs', buildInputs(w)).status, 0);
+      } finally {
+        fs.chmodSync(w.repo, 0o755);
+      }
+    }
+    assert.equal(notCommitted(end('--inputs', buildInputs(w))),
+      '  Not committed: notes/new.txt (1 in all)');
+  });
+
+test('at the third end check, the point counts the checks that found changes', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  // The first check fails on a report alone, and the next two on a change.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  const first = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(first.status, 1);
+  assert.equal(notCommitted(first), null);
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const results = [2, 3].map(() => call('end', w.artifacts, '--inputs', inputs));
+  assert.deepEqual(results.map((one) => one.status), [1, 0]);
+  const points = path.join(w.artifacts, 'points.json');
+  const texts = JSON.parse(read(points)).map((one) => one.text);
+  assert.ok(texts.includes('The Build session ended 2 times with changes it did not commit, ' +
+    'so the suite and the review could not check them.'), texts.join('\n'));
+  const checked = call('check', 'points', points);
+  assert.equal(checked.status, 0, checked.out + checked.err);
+});
+
+test('the point counts each check with changes since a check passed, also after one with none',
+  () => {
+    const w = work();
+    const call = session(w);
+    const inputs = buildInputs(w);
+    const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+    const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+    const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+    // A check with changes before the check that passes does not count.
+    change();
+    assert.equal(end(), 1);
+    undo();
+    assert.equal(end(), 0);
+    // Changes at the first and the third check, and a report alone at the second.
+    report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+    change();
+    assert.equal(end(), 1);
+    undo();
+    assert.equal(end(), 1);
+    change();
+    assert.equal(end(), 0);
+    const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+    assert.ok(texts.some((text) => text.startsWith('The Build session ended 2 times with ')),
+      texts.join('\n'));
+  });
+
+test('the point counts at most the failed checks since a check passed', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+  const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+  const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+  const count = path.join(w.artifacts, '.reports', 'uncommitted.json');
+  // A check that passes writes no count, with no file and after a check with changes.
+  assert.equal(end(), 0);
+  assert.equal(fs.existsSync(count), false);
+  change();
+  assert.equal(end(), 1);
+  const before = read(count);
+  undo();
+  assert.equal(end(), 0);
+  assert.equal(read(count), before);
+  // Then a report alone at the first check, and changes at the second and the third.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  assert.equal(end(), 1);
+  change();
+  assert.equal(end(), 1);
+  // A count above the failed checks, such as one that a crash left, counts as those checks.
+  fs.writeFileSync(count, JSON.stringify({ count: 40 }));
+  assert.equal(end(), 0);
+  const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+  assert.ok(texts.some((text) => text.startsWith('The Build session ended 3 times with ')),
+    texts.join('\n'));
+});
+
+test('the point counts the one check with changes after an earlier count and a report', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+  const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+  const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+  change();
+  assert.equal(end(), 1);
+  assert.equal(end(), 1);
+  undo();
+  assert.equal(end(), 0);
+  // A report alone at the first two checks, and changes at the third.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  assert.equal(end(), 1);
+  assert.equal(end(), 1);
+  change();
+  assert.equal(end(), 0);
+  const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+  assert.ok(texts.some((text) => text.startsWith('The Build session ended 1 time with ')),
+    texts.join('\n'));
+});
+
+test('the end check lists a checkout once, whatever paths of it the session has', () => {
+  const w = work();
+  const call = session(w);
+  const link = path.join(fresh('links'), 'repo');
+  fs.symlinkSync(w.repo, link);
+  const starts = [w.repo, `${w.repo}/`, path.join(w.repo, 'src'), link].map((one) => ({
+    path: one, commit: w.start }));
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', buildInputs(w, { start_commits: starts }));
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.deepEqual(ended.out.split('\n').filter(Boolean), [COMMIT_FIX,
+    '  Not committed: notes/new.txt (1 in all)']);
+});
+
+test('the end check lists a submodule whatever its ignore setting', () => {
+  for (const file of ['.gitmodules', '.git/config']) {
+    const w = work();
+    const sub = fresh('sub');
+    git(sub, w.env, 'init', '-q');
+    git(sub, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'One');
+    git(w.repo, w.env, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub,
+      'lib/sub');
+    git(w.repo, w.env, 'config', '-f', file, 'submodule.lib/sub.ignore', 'all');
+    git(w.repo, w.env, 'add', '.gitmodules');
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add lib/sub');
+    const call = session(w);
+    const inputs = buildInputs(w);
+    const line = '  Not committed: lib/sub (1 in all)';
+    assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0, file);
+    // An untracked file in the submodule, then a commit of it.
+    writeFile(w, 'lib/sub/new.txt', 'new\n');
+    assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)), line, file);
+    git(path.join(w.repo, 'lib/sub'), w.env, 'add', '-A');
+    git(path.join(w.repo, 'lib/sub'), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m',
+      'Two');
+    assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)), line, file);
+    // scope counts the new commit too, whatever the ignore setting.
+    const start = git(w.repo, w.env, 'rev-parse', 'HEAD');
+    const plan = call('scope', '--plan', '--inputs', buildInputs(w, { start_commits: [
+      { path: w.repo, commit: start }] }));
+    assert.equal(plan.status, 1, plan.out);
+  }
+});
+
+test('the end check reads each checkout, hides a key in a path, and skips a folder that git ' +
+  'cannot read', () => {
+  const w = work();
+  const other = work();
+  const call = session(w);
+  const starts = [w.repo, other.repo, fresh('no-checkout')].map((one) => ({ path: one,
+    commit: w.start }));
+  const inputs = buildInputs(w, { start_commits: starts });
+  assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0);
+  writeFile(other, 'notes/new.txt', 'new\n');
+  assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)),
+    '  Not committed: notes/new.txt (1 in all)');
+  call.env.SHOP_TOKEN = 'example-value-1234';
+  fs.rmSync(path.join(other.repo, 'notes/new.txt'));
+  writeFile(w, 'notes/example-value-1234.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', inputs);
+  assert.equal(notCommitted(ended), '  Not committed: a path with a key in its name (1 in all)');
+  assert.ok(!(ended.out + ended.err).includes('example-value-1234'));
+});
+
+test('a single end check with changes escalates with a point of 1 time', () => {
+  const w = work();
+  const call = session(w);
+  // An end.json that cannot be read counts as the last check.
+  fs.mkdirSync(path.join(w.artifacts, '.reports'), { recursive: true });
+  fs.writeFileSync(path.join(w.artifacts, '.reports', 'end.json'), '{');
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', buildInputs(w));
+  assert.equal(ended.status, 0, ended.out);
+  const points = path.join(w.artifacts, 'points.json');
+  assert.deepEqual(JSON.parse(read(points)), [{ text: 'The Build session ended 1 time with ' +
+    'changes it did not commit, so the suite and the review could not check them.',
+  action: 'run_again' }]);
+  assert.equal(call('check', 'points', points).status, 0);
+});

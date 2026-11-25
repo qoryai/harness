@@ -110,8 +110,10 @@ Tell each writer to change only the sentences that the findings quote, and to ke
 lists unchanged. After these starts, skip the first item of "Questions and replies", and
 start no reviewer: `check` before the push still runs. When another finding left fails a
 push, start no such writer: the run pushes nothing, so the fix would be lost, and the next
-round's review finds the sentence again. With no other finding left, do the pushes and the
-later steps, and end as "The end" lists.
+round's review finds the sentence again. On a file that needs the report file of its
+reviewer, as a skill of your workflow lists, start no such writer either: an edit after the
+last review needs a new review. With no other finding left, do the pushes and the later
+steps, and end as "The end" lists.
 
 With any other finding left, the run ends as "Points" lists, with one point for each such
 finding:
@@ -369,12 +371,14 @@ sends. A push that exits with 4 was refused by qory's checks of that type, which
 findings, each starting with the fix.
 
 After a `check` that exits with 1, or a push that exits with 4, start the agent that wrote
-the files with each finding quoted, at most twice per push. Tell it to change only the lines
-that the findings quote or name, and to add a section that a finding names as missing. Then
-run `check` again, and push only when it exits with 0. When `check` still exits with 1 after
-the agent's second start, push nothing more, and end as "Failures" lists for a later step,
-or, before the push of `<output>`, with "The draft of the <output> still breaks its format
-rules, so the run pushed no <output>."
+the files with each finding quoted, at most twice per push. When a step needs the report
+file of its reviewer, review the file again after each such start. With no start of that
+reviewer left, start no such agent, and end as after the agent's second start. Tell the
+agent to change only the lines that the findings quote or name, and to add a section that a
+finding names as missing. Then run `check` again, and push only when it exits with 0. When
+`check` still exits with 1 after the agent's second start, push nothing more, and end as
+"Failures" lists for a later step, or, before the push of `<output>`, with "The draft of the
+<output> still breaks its format rules, so the run pushed no <output>."
 
 ## Check each report
 
@@ -411,7 +415,9 @@ hook adds one `run_again` point for each kind of problem to `points.json`, runs
 `points.json` and runs `<qory> run verdict escalate --points` too, so the run gets the
 verdict even when the session recorded none. When the run has `points.json` and a verdict
 already, the hook checks nothing and runs no verdict. When that command fails, the session
-still ends. A runtime with no such hook ends the session with no check.
+still ends. A runtime with no such hook ends the session with no check. A module of the
+stack can add one more check to the end check, such as a check that the session recorded
+each change; its findings and points count as the others do.
 
 The end check also checks each output that the stage declares, for a type of any module.
 qory lists them in `qory.outputs` of the `inputs.json` of the session: one entry

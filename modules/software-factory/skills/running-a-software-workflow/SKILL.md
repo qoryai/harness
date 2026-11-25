@@ -86,19 +86,47 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      a change or a commit: run that command, then the same `step begin` again. Both
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
-3. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
+3. The steps `plan`, `checks` and each step of a demo script, `script:scenario-1` and
+   `script:scenario-1#2`, end `done` only with a valid report of their reviewer for the file
+   as it is, with no blocking finding. Run `checks.cjs step end <id> done` with no flag
+   before each start of that reviewer, also when the file did not change, and after each
+   review, before you push, lock or run the file. This call exits with 1 and records
+   nothing. Do nothing on a line that these cases do not list:
+   - Before a start, a line "The report of this file is <path>." has the path: give the
+     reviewer `<folder>/<path>` as the report file. With no such line, end as "Failures"
+     lists, unless the skill of your workflow lists the line it printed.
+   - After a review whose last word is not `blocked`, a line that starts with "Start" and
+     the reviewer's name means that the report file is missing or breaks its format, which
+     the line after it states. Start the same reviewer again with the input it got, the path
+     of its text report and those lines, and tell it to write only its report file, with the
+     findings of that text report. That start does not count toward the reviewer's start
+     limit, so run no `starts` before it. This applies only when the file did not change
+     since that review; a review of a changed file counts as the skill of your workflow
+     lists. The reviewed content changed when the path in the line "The report of this file
+     is <path>." differs from the path that the call before the start printed. For `checks`,
+     the reviewed content also includes the files that the lock lists. Then run the call
+     again. When the line is still there after two such starts, run `step end <id> failed`,
+     and end as "Failures" lists.
+   - After a review, a line that starts with "Fix the blocking findings" means that the
+     report file has a blocking finding: push, lock and run nothing. The file needs a fix of
+     its writer and a new review, as your workflow lists for a finding marked `break`.
+4. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
    `--attempt <agent>,<role>,<tier>` per agent start, one
    `--pushed <type>/<name>/<version>` per version the step stored, and, for a step
    `script:`, `--script-sha256 <sha256>`. `step end` adds the model of each start: the
    `model:` of the agent file, else the `model` of the session's `settings.json`; on Codex,
    the `model` of `agents/<agent>.toml`, else of `config.toml`; else `unknown`. When
-   `step end done` exits with 1, the step made an edit that no commit of the step has, or
-   the report has a list `Left out:` that
+   `step end done` exits with 1, the step made an edit that no commit of the step has, the
+   step's file has no passing review, or the report has a list `Left out:` that
    `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
    with the writer of the report, then run `step end done` again once. If it exits 1 on
-   the list again, run `step end <id> failed --report <file>` with the cause. Else end as
-   "Failures" lists. `step end failed`
+   the list again, run `step end <id> failed --report <file>` with the cause. With a
+   line that starts with "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking
+   findings", do the steps of your workflow from the start of that reviewer again, or from
+   the start of the writer for a blocking finding, then run `step end done` again once. If
+   no start of that reviewer is left, or it exits 1 on the review again, run `step end <id>
+   failed`, and end as "Failures" lists. Else end as "Failures" lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
 

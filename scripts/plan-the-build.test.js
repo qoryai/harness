@@ -74,13 +74,67 @@ test('each new agent has its guardrails, stop conditions and expected output, an
     }
     assert.match(text, new RegExp(`\\nmodel: \\$\\{qory:${tier}\\}\\n`), `${name}: tier ${tier}`);
   }
-  // A reviewer reads only; the planner writes only the draft, with the exception lines that
-  // rule 2 of scripts/check.sh asks for.
-  assert.match(agent('plan-reviewer'), /\ntools: Read, Grep, Glob, Skill\n/);
+  // The reviewer writes only its report, the planner only the draft, with the exception lines
+  // that rule 2 of scripts/check.sh asks for.
+  assert.match(agent('plan-reviewer'), /\ntools: Read, Grep, Glob, Skill, Write\n/);
   const planner = agent('build-planner');
   assert.match(planner, /\ntools: Read, Grep, Glob, Skill, Write, Edit\n/);
   assert.match(planner, /\nTool exception: Write, because /);
   assert.match(planner, /\nTool exception: Edit, because /);
+});
+
+test('each change of the plan is reviewed again, also after the last review', () => {
+  const order = section(skill('workflow-plan-the-build'), 'The order of the run')
+    .replace(/\s+/g, ' ');
+  assert.ok(order.includes('6. Run `<skill folder>/checks.cjs step end plan done` for the path ' +
+    'of the report file'));
+  assert.ok(order.includes('After each start of the planner, whatever its reason, do steps 5 ' +
+    'and 6 again, also when the plan did not change'));
+  assert.ok(order.includes('After each review, run the same call again for the report that the ' +
+    'reviewer wrote, as "The build ledger" lists, and do no step 7 while it prints a line that ' +
+    'starts with "Start plan-reviewer" or "Fix the blocking findings".'));
+  // The rule of each reviewed step, for the call with no flag before and after a review.
+  const ledger = section(skill('running-a-software-workflow'), 'The build ledger')
+    .replace(/\s+/g, ' ');
+  for (const part of ['Run `checks.cjs step end <id> done` with no flag before each start of ' +
+    'that reviewer, also when the file did not change, and after each review, before you push, ' +
+    'lock or run the file. This call exits with 1 and records nothing.',
+  'Start the same reviewer again with the input it got, the path of its text report and those ' +
+    'lines, and tell it to write only its report file, with the findings of that text report. ' +
+    // A start that writes only the report runs no `starts`, for a demo script too.
+    'That start does not count toward the reviewer\'s start limit, so run no `starts` before ' +
+      'it. This applies only when the file did not change since that review; a review of a ' +
+      'changed file counts as the skill of your workflow lists. The reviewed content changed ' +
+      'when the path in the line "The report of this file is <path>." differs from the path ' +
+      'that the call before the start printed. For `checks`, the reviewed content also ' +
+      'includes the files that the lock lists. Then run the call again.',
+  'When the line is still there after two such starts, run `step end <id> failed`',
+  'a line that starts with "Fix the blocking findings" means that the report file has a ' +
+    'blocking finding: push, lock and run nothing.']) {
+    assert.ok(ledger.includes(part), part);
+  }
+  assert.ok(order.includes('After the last review, start the planner no more, not for a ' +
+    'sentence either.'));
+  // The rules of every workflow make the same exception for a file that a report is needed for.
+  const core = read(CORE, 'skills/running-a-workflow/SKILL.md').replace(/\s+/g, ' ');
+  assert.ok(core.includes('On a file that needs the report file of its reviewer, as a skill of ' +
+    'your workflow lists, start no such writer either'));
+  assert.ok(core.includes('When a step needs the report file of its reviewer, review the file ' +
+    'again after each such start.'));
+});
+
+test('the example of a report file passes the reader of findings round', () => {
+  const text = read(CORE, 'skills/reviewing-drafts/SKILL.md');
+  const report = JSON.parse(fenced(section(text, 'The report file')));
+  const { reportProblem } = require(
+    path.join(CORE, 'skills/running-a-workflow/lib/findings.cjs'));
+  assert.equal(reportProblem(report, 'plan-reviewer'), null);
+  // On Claude Code, Write fails on a file that the agent has not read, as in a second review.
+  assert.ok(section(text, 'The report file').replace(/\s+/g, ' ')
+    .includes('When the file exists, read it, then write it.'));
+  for (const proof of ['failing check: ', 'failing input: ', 'broken rule: ']) {
+    assert.ok(text.includes(`\`${proof}\``), proof);
+  }
 });
 
 test('the stack declares plan-the-build with the tier thinking, the access write and its ' +
@@ -498,6 +552,11 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.match(checked.err, /; 7 deliverables; 0 findings\.\n$/);
   assert.equal(call('report', 'plan-reviewer',
     report(w, 'plan-reviewer-1', 'What you read:\n- build-plan.md\n\nclean\n')).status, 0);
+  const named = call('step', 'end', 'plan', 'done');
+  assert.equal(named.status, 1, named.out);
+  const reviewed = path.join(w.artifacts, /The report of this file is (\S+)\./.exec(named.out)[1]);
+  fs.mkdirSync(path.dirname(reviewed), { recursive: true });
+  fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'plan-reviewer', findings: [] }));
   const pushed = qory(w, call, 'artifact', 'push', 'build-plan', file);
   assert.equal(pushed.status, 0, pushed.err);
   assert.equal(pushed.out, 'Pushed build-plan version 1.\n');

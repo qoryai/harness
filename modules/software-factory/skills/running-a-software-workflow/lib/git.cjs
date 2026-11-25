@@ -117,21 +117,25 @@ function git(cwd, args, {
 const OWNER = ['Run the check as the user that owns the checkout.', 'git exits with "dubious ' +
   'ownership" in a checkout of another user, and the check reads no safe.directory setting.'];
 
-// ok runs git and returns its stdout, or throws Missing with fix when it fails. The line
-// has the first line of git's error output, unless that line has a key or a secret value
-// of the environment: the error lines of git contain file names. A checkout of another
-// user gets OWNER.
+// ok runs git and returns its stdout, or throws Missing with fix when it fails. The line has the
+// first line of git's error output that is neither blank nor a hint, unless that line has a key
+// or a secret value of the environment: the error lines of git contain file names. A checkout of
+// another user gets OWNER.
 function ok(Missing, cwd, args, fix, options = {}) {
   const ran = git(cwd, args, options);
   if (ran.error || ran.status !== 0) {
     if (!ran.error && /detected dubious ownership/.test(String(ran.stderr || ''))) {
       throw new Missing(OWNER[0], [OWNER[1]]);
     }
-    let why = ran.error ? ran.error.message : String(ran.stderr || '').split('\n')[0];
+    const lines = String(ran.stderr || '').split('\n');
+    const first = lines.find((line) => line.trim() && !line.startsWith('hint:')) || lines[0];
+    let why = ran.error ? ran.error.message : first;
     if (secrets.scanLine(why, secrets.secretValues(options.env))) {
       why = 'its error line has a key, so the line is left out';
     }
-    throw new Missing(`${fix}.\ngit ${args[0]} failed: ${why.slice(0, 80)}`);
+    // The name of the command: the first argument that is no option or value of -c.
+    const name = args.find((arg, at) => !arg.startsWith('-') && args[at - 1] !== '-c');
+    throw new Missing(`${fix}.\ngit ${name} failed: ${why.slice(0, 80)}`);
   }
   return ran.stdout;
 }
@@ -168,8 +172,10 @@ function resolve(cwd, env, commit) {
 // HEAD, or in an untracked one, which counts.
 function changes(Missing, cwd, env) {
   const fix = 'Run the verb in the checkout of the work';
+  // --ignore-submodules=none, unlike diff.ignoreSubmodules of SAFE, is read in place of the
+  // ignore setting of a submodule in .gitmodules and .git/config.
   const out = ok(Missing, cwd, ['status', '--porcelain=v1', '-z', '--no-renames',
-    '--untracked-files=all', '--ignored=matching'], fix, { env });
+    '--untracked-files=all', '--ignored=matching', '--ignore-submodules=none'], fix, { env });
   const paths = [];
   const untracked = new Set();
   const ignores = new Set();
@@ -363,9 +369,10 @@ function emptyBlob(Missing, cwd, env) {
 // docs/run.md, "Changes left by run"), so the runners count no such path.
 const isQory = (file) => file === '.qory' || file.startsWith('.qory/');
 
-// checkout returns { top, commit, changed, untracked, ignores, excluded } of the checkout of
-// io: changed lists each changed path that is not under .qory, ignores is the set of the
-// untracked .gitignore files that git ignores, and excluded is what excluded returns.
+// checkout returns { top, commit, changed, qory, untracked, ignores, excluded } of the checkout of
+// io: changed lists each changed path that is not under .qory, qory each tracked path under .qory
+// that has a change, ignores is the set of the untracked .gitignore files that git ignores, and
+// excluded is what excluded returns.
 function checkout(Missing, io) {
   const dir = top(Missing, io.cwd, io.env);
   const found = changes(Missing, dir, io.env);
@@ -373,6 +380,7 @@ function checkout(Missing, io) {
     top: dir,
     commit: head(dir, io.env),
     changed: found.paths.filter((file) => !isQory(file)),
+    qory: found.paths.filter((file) => isQory(file) && !found.untracked.has(file)),
     untracked: found.untracked,
     ignores: found.ignores,
     excluded: excluded(Missing, dir, io.env),

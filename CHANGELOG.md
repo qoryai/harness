@@ -58,7 +58,67 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - A new acceptance lock keeps the checks of each criterion that did not change, as a whole
   list, and keeps every support file of the newest lock at its path and hash. When the
   push store lacks the newest lock, the check fails closed.
-
+- The review of a step's file, which `step end <id> done` needs for the plan, the checks and
+  each demo script, the first script of a scenario included. `plan-reviewer` and
+  `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the
+  file they reviewed, in the review report format, besides their text. With no such report
+  for the file as it is, an invalid one or one with a blocking finding, `step end done`
+  exits 1 with the reviewer to start, the path of its report and the ledger unchanged. The
+  SHA-256 of the checks leaves out `commit` and takes the `sha256` of each listed file from
+  the working folder, so `freeze` and `lock` keep it, and an edit of a check file after the
+  review does not. The call with no flag records nothing and prints the path of the report,
+  so the session runs it before each start of the reviewer and after each review. `step end`
+  of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
+  starts once for the first review of the first script of each demo scenario, and at most 12
+  times for those reviews in a run together; each later review of that script, as after a
+  finding or after a lost session, and each correction share 3 starts in each follow of
+  `implement-changes`, for all scenarios together, and a start that writes only the report
+  of an unchanged file counts toward no limit. The reviewed content changed when the path in
+  the line "The report of this file is <path>." differs from the path that the call before
+  the start printed. For `checks`, the reviewed content also includes the files that the
+  lock lists. After the last of the 3 starts, which only the `starts` of those 3 shows, a
+  review with only non-blocking findings ends the step `done` on the script as it was
+  reviewed, with no fix, unless the session started again after a lost session. The tool
+  guard lets each of the two agents write only its report, and denies `.step-reports` to
+  every other call, also a copy or a move into a folder above the artifact folder of a
+  source that can have the name of the folder below, as for `.reports`, and of any source
+  with `cp --parents`, also as `--path` or a prefix from `--pa`, or with `rsync -R`,
+  `--relative` or `--files-from`, which write a source by its path. The limits, as for
+  `.reports`: an agent with a shell can write the report with a path that a variable,
+  `$( )`, a backquote or `eval` makes, with a script that a later call runs, with a path
+  that code joins from parts, with an archive that `tar`, `unzip` or `ditto` extracts, with
+  a copy of the sources that `find -exec` or `xargs` add, with a copy that the guard splits
+  at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, with a copy of `.`, as in `cp -R . /tmp`,
+  with a copy with `-t` in a combined option, as in `cp -Rt /tmp stage/.` or
+  `cp -at /tmp stage/.`, with a copy by `ditto`, as in `ditto stage /tmp`, with a glob whose
+  wildcard matches a link, as in `cp x lin?/.step-report?/`, or with a copy by `gcp`, as in
+  `gcp --parents a/b /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can write
+  it. Any edit after the review needs a new review, so `workflow-plan-the-build` fixes no
+  sentence after the last one. Every other kind of step ends as before, and on Claude Code
+  the step limit leaves the two agents out, as before.
+- The end check of a Build write session that ends without `points.json` stops the end while
+  a checkout of `qory.start_commits` has a change that no commit contains, so that the full
+  suite and the review run on committed work. A session counts when `qory.outputs` has
+  `pull-request`, its checkout is writable, and it has no `qory.review`,
+  `qory.review_session` or `qory.hook_session`. A change is a tracked, staged or untracked
+  file that git does not ignore, or a changed submodule, outside `.qory/`. The finding is
+  `Commit these changes, then end the session: the suite and the review read only committed
+  work.`, then `Not committed:` with at most 20 paths and their count. At the third failed
+  check, the point is "The Build session ended <n> times with changes it did not commit, so
+  the suite and the review could not check them.", where `<n>` counts the checks that found
+  a change. The check is the new registry member `end(io)`, which
+  `running-a-software-workflow` adds; other stacks are unchanged.
+- After a step that fails in a session with a step done, the Build session commits the files
+  that the failed step left, before it writes the text of the change. `git reset -q <base>`,
+  with the `base` of the last row of the build ledger, keeps each file and takes the commits
+  of the failed step off the branch. The skill `workflow-implement-changes` lists the two
+  commands for a commit: with the identity `qory` and `qory@localhost`, as `freeze` sets it,
+  because `git commit` exits with 128 where no identity is set, with no hook and no
+  signature, and with no path under `.qory`. `git reset -q` ends a merge or a cherry-pick in
+  progress. The session takes no file out and sets no file back: when the commit has a file
+  with a key, a path outside the plan, a new repository folder or a changed submodule, the
+  scope check of qory's push stops the push, qory pushes no commit, and the run ends
+  `push_scope_refused`.
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
@@ -97,6 +157,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   in the folder, or has another track leaves the build plan as the source. The track is the
   one in `## Track` of the approved proposal: it is still "Fast track" after a switch to
   the standard track, until the track comes from `inputs.json`.
+- The verb `revert-attempt --base <commit>` of `running-a-software-workflow`. It makes one
+  commit, with HEAD as its parent, whose tree is the tree of the base, and moves HEAD, the index
+  and the files to it, so that nothing is left uncommitted and no push needs a force. When HEAD
+  has the tree of the base already, it makes no commit and exits 0 with "Nothing to revert", so a
+  rerun after a crash goes on. It exits 3 with the fix first when the checkout has a change that
+  is not committed, when the branch has no commit, when the checkout already has a path that the
+  base adds (an untracked or ignored file, link or folder with such an entry, or a nested
+  repository, found by the file system, whatever its case or normalisation rules), when a path
+  that differs is a submodule on either side (a revert across a submodule stops), when a tracked
+  file under `.qory` has a change in the checkout, when a rebase is in progress, and when the
+  base is no commit of the checkout. Nothing calls it yet.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
@@ -130,17 +201,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   missing browser keeps the folder.
 - The check and the freeze of a demo script. `checks.cjs demo check` and the push check of
   `demo-script` compare the title, the evidence, the step count and the title and expected
-  result of each step with the approved scenario by exact string, and `demo check` refuses a
-  setup `open` whose address is outside the `App address:` of the build plan, with the fix
-  first. The new verb `demo run <scenario>` runs a script once with video off and prints its
-  sha256. `scripting-demos` freezes a script at its first pass in the build ledger, starts
-  `check-reviewer` on each change to a frozen script, and `demo check` refuses a third
-  correction. The call of `preflight` moved from the run of the locked checks to before the
-  first run of a script, and it reads the drafts in `.demo/`. `demo check` and the push
-  check of `demo-script` also refuse a script whose waits add up to more than 415 s: "Shorten
-  the waits in <script> to at most 415 s in total.", with the line "They add up to <m> s (a
-  wait with no timeout_ms counts 5 s), and a demo run has room for 415 s of waits." The
-  waits of the setup count too.
+  result of each step with the approved scenario by exact string, and `demo check` exits 1
+  for a setup `open` whose address is outside the `App address:` of the build plan, with the
+  fix first. The new verb `demo run <scenario>` runs a script once with video off and prints
+  its sha256. `scripting-demos` freezes a script at its first pass in the build ledger,
+  starts `check-reviewer` on the first script and on each change to a frozen script, and
+  `demo check` exits 1 for a third correction. The call of `preflight` moved from the run of
+  the locked checks to before the first run of a script, and it reads the drafts in
+  `.demo/`. `demo check` and the push check of `demo-script` also refuse a script whose
+  waits add up to more than 415 s: "Shorten the waits in <script> to at most 415 s in
+  total.", with the line "They add up to <m> s (a wait with no timeout_ms counts 5 s), and a
+  demo run has room for 415 s of waits." The waits of the setup count too.
 - Rule 14 of `scripts/check.sh`: no agent reaches a skill `running-a-*` or `workflow-*`,
   by a reference `${qory:skills/<name>}` in its file or in a skill that it reaches. qory is
   to compose the session of a hook's agent with that agent and its skills only, so a
@@ -1329,7 +1400,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the approval is withdrawn.", and the finding of a check of a build plan, verification or
   walkthrough is "Write <what> after a member approves the acceptance criteria again."
   `acceptance-lock` reads `questions` besides `acceptance-criteria`.
-
+- `scope`, `freeze`, `run`, `probe` and `diff` of `running-a-software-workflow` count a
+  changed submodule whatever its `ignore` setting in `.gitmodules` and `.git/config`: their
+  `git status` runs with `--ignore-submodules=none`.
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,
   which Forager does not pass to a session. The end check reads it from the file of
   `--inputs`, and so does `report-build`, which takes `--inputs` in both forms:
@@ -2222,6 +2295,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The tool guard reads the folders of a glob before its first wildcard through their links,
+  so a glob through a link to the artifact folder, as in `rm -rf link/.step*`, reaches
+  `.reports` and `.step-reports`. Before, the guard compared such a glob with the folders as
+  written, and the call passed.
+- The tool guard denies a copy, a move or a removal into the root folder `/` that reaches a
+  protected folder, such as `cp -R stage/. /` or `rm -rf /`. Each passed, since the guard
+  looked for paths below `//`.
 - `workflow-write-acceptance-checks` reads a live `Tests` criterion as one with no `removed`
   member, an object `{reason}`. Before, the skill had "no `removed` member set to `true`",
   but the checks read `removed` as an object, so a `true` is no removal.
