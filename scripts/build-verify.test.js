@@ -622,6 +622,31 @@ test('each JSON Schema of schemas/ is the json_schema of its type in process.yam
   }
 });
 
+test('both copies of the build-ledger schema take a reply of a fix, and refuse a bad one', () => {
+  const entry = artifactEntries().find((one) => one.name === 'build-ledger');
+  const copies = [schema.load('build-ledger'),
+    { file: 'process.yaml', schema: entry.json_schema,
+      patterns: schema.compile(entry.json_schema, 'process.yaml') }];
+  const base = SAMPLES['build-ledger'].valid[0].doc;
+  const withReply = (reply) => {
+    const doc = JSON.parse(JSON.stringify(base));
+    Object.assign(doc.steps[0], { id: 'fix:f3', kind: 'fix', reply });
+    return doc;
+  };
+  for (const loaded of copies) {
+    for (const reply of [{ kind: 'fixed', reason: 'The export returns the first limit rows.' },
+      { kind: 'disputed', reason: 'x'.repeat(2000) }]) {
+      assert.deepEqual(schema.errors(loaded, withReply(reply), 'x.json'), [], loaded.file);
+    }
+    for (const reply of [{ kind: 'agreed', reason: 'x' }, { kind: 'fixed', reason: '' },
+      { kind: 'fixed', reason: 'x'.repeat(2001) }, { kind: 'fixed' }, 'fixed: x',
+      { kind: 'fixed', reason: 'x', round: 2 }]) {
+      assert.notDeepEqual(schema.errors(loaded, withReply(reply), 'x.json'), [],
+        `${loaded.file}: ${JSON.stringify(reply)}`);
+    }
+  }
+});
+
 test('each type that a stage names has an entry in artifact_types, proposal by name only', () => {
   const yaml = fs.readFileSync(PROCESS, 'utf8');
   const stages = yaml.slice(0, yaml.indexOf('\nartifact_types:\n'));

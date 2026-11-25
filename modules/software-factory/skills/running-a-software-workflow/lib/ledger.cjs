@@ -46,6 +46,25 @@ module.exports = (lib) => {
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
 
   const brief = (commit) => commit.slice(0, 12);
+
+  // A step that fixes a finding of the work item, whose reply qory posts after the session, and
+  // the line of the reply in its report. The reason has 1 to 2,000 characters, as qory reads it.
+  const FINDING_STEP = /^fix:f[1-9][0-9]{0,8}$/;
+  const REPLY = /^(?:\*\*)?Reply:(?:\*\*)?[ \t]+(fixed|disputed):[ \t]*(.*)$/;
+  const REASON = 2000;
+
+  // reply returns the reply of the report of the step id, { kind, reason }, or the finding of a
+  // report that has no line Reply: with a reason, or more than one.
+  function reply(id, report) {
+    const found = report.replace(/\r\n?/g, '\n').split('\n')
+      .map((line) => REPLY.exec(line.trimEnd())).filter(Boolean);
+    const reason = found.length === 1 ? lib.cut(lib.plainText(found[0][2]), REASON) : '';
+    if (reason) return { reply: { kind: found[0][1], reason } };
+    const cause = found.length > 1 ? `The report has ${found.length} lines Reply:.`
+      : (found.length ? 'The line Reply: has no reason.' : 'The report has no line Reply:.');
+    return { finding: 'Add one line Reply: fixed: <what changed> or Reply: disputed: <why> to ' +
+      `the report of ${id}.\n${cause}` };
+  }
   const starts = require('./start.cjs')(lib);
 
   // git runs git in the working folder of the session.
@@ -157,9 +176,9 @@ module.exports = (lib) => {
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
-  // finish returns the commit of a done row, or the findings of edits made outside the step and
-  // of a list `Left out:` in the report that leftOut cannot read. A failed row gets no commit
-  // and no finding.
+  // finish returns the commit of a done row, with the reply of a step that fixes a finding, or
+  // the findings of edits made outside the step, of a list `Left out:` in the report that
+  // leftOut cannot read, and of such a step whose report has no reply. A failed row gets none.
   function finish(io, { ledger, place, state, report }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
@@ -168,6 +187,8 @@ module.exports = (lib) => {
     const { problems } = typeof report === 'string' ? lib.leftOut(report) : { problems: [] };
     if (problems.length) findings.push(['Fix the list Left out: of your report.', ...problems]
       .join('\n'));
+    const answer = FINDING_STEP.test(row.id) ? reply(row.id, report || '') : {};
+    if (answer.finding) findings.push(answer.finding);
     const files = changed(io);
     if (files.length) {
       const differ = files.length === 1 ? 'file of the checkout differs'
@@ -180,7 +201,8 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
-    return { findings, members: findings.length ? {} : { commit: top } };
+    return { findings, members: findings.length ? {}
+      : { commit: top, ...(answer.reply ? { reply: answer.reply } : {}) } };
   }
 
   // firstSentence returns the first sentence of a criterion, with no full stop at its end, no

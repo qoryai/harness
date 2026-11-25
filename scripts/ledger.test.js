@@ -920,6 +920,54 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
 const LINE = 'a line that is not an item in the list `Left out:`';
 const HEADER = 'a header that is not `Left out:` or `**Left out:**` at column 0';
 
+test('ledger: step end done of a fix of a finding needs one line Reply:, and records it', () => {
+  const w = work();
+  const call = resumed(w);
+  const fix = 'Add one line Reply: fixed: <what changed> or Reply: disputed: <why> to the report ' +
+    'of fix:f3.';
+  assert.equal(begin(call, w, 'fix:f3').status, 0);
+  for (const [text, cause] of [['Change: the limit.\n', 'The report has no line Reply:.'],
+    ['Reply: fixed:   \n', 'The line Reply: has no reason.'],
+    ['Reply: fixed: a\nReply: disputed: b\n', 'The report has 2 lines Reply:.'],
+    ['Reply: agreed: the limit\n', 'The report has no line Reply:.']]) {
+    const refused = call('step', 'end', 'fix:f3', 'done', '--report',
+      report(call, 'software-developer-fix-f3', `${text}done\n`));
+    assert.equal(refused.status, 1, refused.out);
+    assert.deepEqual(refused.lines.slice(0, 2), [fix, `  ${cause}`], text);
+    assert.equal(refused.lines.at(-1), 'Checked the step fix:f3: the ledger is unchanged.');
+    assert.deepEqual(stored(w).ledger.steps.map((row) => row.state), ['running'], text);
+  }
+  const long = `Export the first limit rows. ${'x'.repeat(2100)}`;
+  const done = call('step', 'end', 'fix:f3', 'done', '--report',
+    report(call, 'software-developer-fix-f3', `Files:\n- none\n\n**Reply:** disputed: ${long}\n` +
+      'done\n'));
+  assert.equal(done.status, 0, done.out);
+  const row = stored(w).ledger.steps[0];
+  assert.equal(row.reply.kind, 'disputed');
+  assert.equal([...row.reply.reason].length, 2000);
+  assert.ok(row.reply.reason.startsWith('Export the first limit rows. x'));
+  // A fix of a step whose id is no finding of the work item needs no reply, and a failed fix
+  // records none.
+  assert.equal(begin(call, w, 'fix:p1').status, 0);
+  const other = call('step', 'end', 'fix:p1', 'done', '--report',
+    report(call, 'software-developer-fix-p1', 'done\n'));
+  assert.equal(other.status, 0, other.out);
+  assert.equal(begin(call, w, 'fix:f4').status, 0);
+  const failed = call('step', 'end', 'fix:f4', 'failed', '--report',
+    report(call, 'software-developer-fix-f4', 'blocked\n'));
+  assert.equal(failed.status, 0, failed.out);
+  const rows = stored(w).ledger.steps;
+  assert.deepEqual(rows.map((one) => [one.id, one.reply === undefined]),
+    [['fix:f3', false], ['fix:p1', true], ['fix:f4', true]]);
+  // The next push keeps the row with its reply: the check of the type allows the member.
+  assert.equal(begin(call, w, 'fix:f5').status, 0);
+  assert.equal(call('step', 'end', 'fix:f5', 'done', '--report',
+    report(call, 'software-developer-fix-f5', 'Reply: fixed: Export the first limit rows.\n')).status,
+  0);
+  assert.deepEqual(stored(w).ledger.steps.at(-1).reply,
+    { kind: 'fixed', reason: 'Export the first limit rows.' });
+});
+
 test('ledger: step end done refuses a report with a list Left out: that cannot be read', () => {
   const w = work();
   const call = resumed(w);
