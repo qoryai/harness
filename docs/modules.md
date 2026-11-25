@@ -1905,20 +1905,24 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `/tmp/qory-artifacts`, a copy or a move of a named file into a folder above it, such as
   `mv a /tmp`, passes. As for `.reports/`, a copy or a move into such a folder is denied
   when a source has the name of the folder below it, as in `cp -R qory-artifacts /tmp`, is
-  vague, as in `"$f"`, or ends with `/` or `/.`, as in `cp -R stage/. /tmp`, and so is
-  `cp -rT`. So is a move or a removal of such a folder. A move whose source the guard cannot
-  tell from its destination is denied too: `find ... -exec mv {} /tmp \;`, `xargs -I{} mv {}
-  /tmp`, `sh -c 'mv a /tmp'` and `git mv a /tmp`. So is a move in `if` or `while`, with a
-  comment after it, with a quoted redirect file that has a space, as in `> "a b"`, with a
-  quoted or `$` redirect file after `2>&1`, or with the target in a combined or shortened
-  option, as in `mv -vt /tmp a`. The guard reads a shell command as it does for `.reports/`,
-  so a script that a later call runs still reaches the folder, and so do an archive that
-  `tar`, `unzip` or `ditto` extracts into the artifact folder, a copy of the sources that
-  `find -exec` or `xargs` add, as in `find src -exec cp -R {} /tmp \;`, a copy that the
-  guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, a copy of `.`, as in `cp -R
-  . /tmp`, a copy with `-t` in a combined option, as in `cp -Rt /tmp stage/.` or `cp -at
-  /tmp stage/.`, and a copy by `ditto`, as in `ditto stage /tmp`. On Gemini CLI, Cursor and
-  Copilot CLI no guard protects `.step-reports`, so any agent can write a report there.
+  vague, as in `"$f"`, or ends with `/` or `/.`, as in `cp -R stage/. /tmp`, and so are
+  `cp -rT` and a copy that writes each source by its path below the destination:
+  `cp --parents`, `rsync -R` and `rsync --relative`. So is a move or a removal of such a
+  folder. A glob reaches the folder through a link to the artifact folder, as in
+  `rm -rf link/.step*`. A move whose source the guard cannot tell from its destination is
+  denied too: `find ... -exec mv {} /tmp \;`, `xargs -I{} mv {} /tmp`, `sh -c 'mv a /tmp'`
+  and `git mv a /tmp`. So is a move in `if` or `while`, with a comment after it, with a
+  quoted redirect file that has a space, as in `> "a b"`, with a quoted or `$` redirect file
+  after `2>&1`, or with the target in a combined or shortened option, as in `mv -vt /tmp a`.
+  The guard reads a shell command as it does for `.reports/`, so a script that a later call
+  runs still reaches the folder, and so do an archive that `tar`, `unzip` or `ditto`
+  extracts into the artifact folder, a copy of the sources that `find -exec` or `xargs` add,
+  as in `find src -exec cp -R {} /tmp \;`, a copy that the guard splits at a redirect, as in
+  `cp -R src/. /x 2>&1 /tmp`, a copy of `.`, as in `cp -R . /tmp`, a copy with `-t` in a
+  combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, a copy by `ditto`,
+  as in `ditto stage /tmp`, and a glob whose wildcard matches a link, as in
+  `cp x lin?/.step-report?/`. On Gemini CLI, Cursor and Copilot CLI no guard protects
+  `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
   the guard. An agent of any other type in a session that is no reviewer's writes as it does

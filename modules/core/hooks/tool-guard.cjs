@@ -1816,6 +1816,17 @@ function contentsInto(words) {
   return has('rRa', ['--recursive', '--archive']) && has('T', ['--no-target-directory']);
 }
 
+// keepsPaths reports whether words, a cp or an rsync, write each source by its path below the
+// destination: cp with --parents, and rsync with -R or --relative, as in rsync -R a/b /x.
+function keepsPaths(words) {
+  const tool = path.basename(words[0] || '');
+  const end = words.indexOf('--');
+  const options = words.slice(1, end < 0 ? words.length : end);
+  if (tool === 'cp') return options.includes('--parents');
+  return tool === 'rsync' && options.some((word) => word === '--relative' ||
+    /^-[^-]*R/.test(word));
+}
+
 // movesInto reports whether words, a mv, move sources into dest, so that it removes the sources
 // only: with -t or --target-directory, or with a source and no xargs or parallel in text, which
 // add words; and with no other option for the destination, as in -ft, --target=x or -T. -t counts
@@ -1880,7 +1891,8 @@ function pathHits(segment, full, folder, how, step = false) {
   const { dest, sources } = copies || moving ? copyParts(args) : {};
   const moves = moving && !segment.cut && movesInto(segment.text, plainWords(args), dest, sources);
   if (copies || moves) {
-    const into = contentsInto(words);
+    // A copy that keepsPaths finds writes a source by its path, as a copy of contents does.
+    const into = contentsInto(words) || (step && keepsPaths(words));
     const named = (first) => into || sources.some((source) => vague(source) ||
       /\/\.?$/.test(source) ||
       globMatch(path.basename(source), first, { nocase, dots: segment.dots }));
@@ -2624,10 +2636,11 @@ function globMeets(pattern, dir, { realOf, fold }, dots) {
 // globReach returns how pattern, a full path with wildcards, meets full: 'equal' when it
 // matches full, 'above' when it matches a folder above full, 'below' when it matches only
 // paths below full, and null when it matches none of them. fold compares the parts, and with
-// dots a wildcard matches a leading dot.
+// dots a wildcard matches a leading dot. The parts before the first wildcard are read through
+// their links, as the shell reads them; a wildcard that matches a link is not followed.
 function globReach(pattern, full, fold, dots) {
   charge(1 + ((pattern.length + full.length) >> 8));
-  const parts = pattern.split(path.sep).filter(Boolean);
+  const parts = linked(pattern).split(path.sep).filter(Boolean);
   const wanted = full.split(path.sep).filter(Boolean);
   const nocase = fold('A') === 'a';
   const meets = parts.slice(0, wanted.length).every((part, at) => (wild(part)
@@ -2635,6 +2648,17 @@ function globReach(pattern, full, fold, dots) {
   if (!meets) return null;
   if (parts.length === wanted.length) return 'equal';
   return parts.length < wanted.length ? 'above' : 'below';
+}
+
+// linked returns pattern, a full path, with its parts before the first wildcard read through
+// their links.
+function linked(pattern) {
+  const parts = pattern.split(path.sep);
+  const at = parts.findIndex((part) => wild(part));
+  if (at <= 0) return pattern;
+  charge();
+  return [real(literal(parts.slice(0, at).join(path.sep)) || path.sep),
+    ...parts.slice(at)].join(path.sep);
 }
 
 // lockedReason returns the deny of a write to file, which the lock what lists. The path is on

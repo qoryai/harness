@@ -31,18 +31,19 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   reviewed, with no fix, unless the session started again after a lost session. The tool
   guard lets each of the two agents write only its report, and denies `.step-reports` to
   every other call, also a copy or a move into a folder above the artifact folder of a
-  source that can have the name of the folder below, as for `.reports`. The limits, as for
-  `.reports`: an agent with a shell can write the report with a path that a variable,
-  `$( )`, a backquote or `eval` makes, with a script that a later call runs, with a path
-  that code joins from parts, with an archive that `tar`, `unzip` or `ditto` extracts, with
-  a copy of the sources that `find -exec` or `xargs` add, with a copy that the guard splits
-  at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, with a copy of `.`, as in `cp -R . /tmp`,
-  with a copy with `-t` in a combined option, as in `cp -Rt /tmp stage/.` or
-  `cp -at /tmp stage/.`, or with a copy by `ditto`, as in `ditto stage /tmp`; and on Gemini
-  CLI, Cursor and Copilot CLI any agent can write it. Any edit after the review needs a new
-  review, so `workflow-plan-the-build` fixes no sentence after the last one. Every other
-  kind of step ends as before, and on Claude Code the step limit leaves the two agents out,
-  as before.
+  source that can have the name of the folder below, as for `.reports`, and of any source
+  with `cp --parents`, `rsync -R` or `rsync --relative`, which write a source by its path.
+  The limits, as for `.reports`: an agent with a shell can write the report with a path that
+  a variable, `$( )`, a backquote or `eval` makes, with a script that a later call runs,
+  with a path that code joins from parts, with an archive that `tar`, `unzip` or `ditto`
+  extracts, with a copy of the sources that `find -exec` or `xargs` add, with a copy that
+  the guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`, with a copy of `.`, as
+  in `cp -R . /tmp`, with a copy with `-t` in a combined option, as in `cp -Rt /tmp stage/.`
+  or `cp -at /tmp stage/.`, with a copy by `ditto`, as in `ditto stage /tmp`, or with a glob
+  whose wildcard matches a link, as in `cp x lin?/.step-report?/`; and on Gemini CLI, Cursor
+  and Copilot CLI any agent can write it. Any edit after the review needs a new review, so
+  `workflow-plan-the-build` fixes no sentence after the last one. Every other kind of step
+  ends as before, and on Claude Code the step limit leaves the two agents out, as before.
 - A proposal on the fast track has a sixth section, `## Commands`, after `## Track`: a table
   with the columns Kind, Command, Result file and Source, with one row for each of `lint`,
   `build` and `full`. `check proposal` and `push proposal` apply the rules of the Commands
@@ -2197,6 +2198,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The tool guard reads the folders of a glob before its first wildcard through their links,
+  so a glob through a link to the artifact folder, as in `rm -rf link/.step*`, reaches
+  `.reports` and `.step-reports`. Before, the guard compared such a glob with the folders as
+  written, and the call passed.
 - The tool guard denies a copy, a move or a removal into the root folder `/` that reaches a
   protected folder, such as `cp -R stage/. /` or `rm -rf /`. Each passed, since the guard
   looked for paths below `//`.

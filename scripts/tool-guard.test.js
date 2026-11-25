@@ -5491,6 +5491,33 @@ function aboveSetup() {
   return { above, artifacts, call };
 }
 
+// A copy that keeps the path of its source, rsync -R or --relative and cp --parents, writes it
+// below the destination, as a copy of the contents of a folder does. A glob reaches the folder
+// of the step reports through a link to the artifact folder.
+test('a copy with the source path, or a glob through a link, reaches the step reports', () => {
+  const { above, artifacts, call } = aboveSetup();
+  const link = next('step-link');
+  fs.symlinkSync(artifacts, link);
+  // The name rule finds no .step-reports in this source, so the copy rules read it.
+  const glob = 'qory-artifacts/.step-report?';
+  for (const command of [`rsync -R ${glob} ${above}`, `rsync -aR ${glob}/ ${above}/`,
+    `rsync --relative -a ${glob} ${above}`, `cp --parents ${glob}/x.json ${above}`,
+    `cp -R --parents ${glob} ${above}`, `cp x ${link}/.step-report?/`,
+    `cp -R src/. ${link}/.step*`, `mv x ${link}/.step-report?`, `rm -rf ${link}/.step*`,
+    `rsync -a src/ ${link}/.step-report?/`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
+  // The same link reaches .reports of the artifact folder.
+  fs.mkdirSync(path.join(artifacts, '.reports'));
+  firstLine(call(`rm -rf ${link}/.report?`), 'Leave .reports/ to checks.cjs');
+  // The same copies into a folder that is not above the artifact folder pass, as do copies
+  // with no such option and a copy of a named file through the link.
+  for (const command of [`rsync -R ${glob} /x`, `cp --parents ${glob}/x.json /x`,
+    `rsync -a src ${above}`, `cp -R src ${above}/`, `cp x ${link}/a.md`]) {
+    assert.equal(call(command), null, command);
+  }
+});
+
 test('a copy or a move of a named file into a folder above the artifact folder passes', () => {
   const { above, artifacts, call } = aboveSetup();
   for (const command of [`mv a ${above}`, `mv a b ${above}/`, `mv -f -- a ${above}`,
