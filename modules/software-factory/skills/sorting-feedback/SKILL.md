@@ -36,8 +36,8 @@ A point has these members, and no other:
 - `question`: only for a `question`, the id of its question: the next question id, and one
   more for each later point.
 
-Write no `reply`: another agent adds it. Write no other member, such as a state: the end of
-a point is read from the other outputs.
+Write no `reply`: another agent adds it, and a `reply` that a point already has stays. Write
+no other member, such as a state: the end of a point is read from the other outputs.
 
 Together, the points of a note cover each thing that it asks for. A note that asks for
 nothing, such as "Thank you.", gets no point: list it under "Left out:".

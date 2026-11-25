@@ -87,6 +87,8 @@ test('the stack declares plan-the-build with the tier thinking, the access write
   'plan', () => {
   const stack = read(ROOT, 'stacks/software/qory-stack.yaml');
   assert.match(stack,
+    /\n {2}triage-review: \{tier: thinking, access: write, plan: build-plan\}\n/);
+  assert.match(stack,
     /\n {2}plan-the-build: \{tier: thinking, access: write, plan: build-plan\}\n/);
   const settings = JSON.parse(read(SOFTWARE, 'settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-plan-the-build)', 'Skill(harness:planning-builds)',

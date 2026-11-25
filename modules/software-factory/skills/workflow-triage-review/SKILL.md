@@ -70,9 +70,12 @@ note of a person, a comment or a reply. A point is one thing that a source asks 
    start with "Fix first:". With 2 or 3, end as "Failures" lists for the checks script.
 
    `shortcut:` a criterion-change point changes no criterion; the next workflow step adds it.
-10. Run `<skill folder>/checks.cjs feedback open` again. With a line "Waiting for an answer:",
-    do "Questions with no answer". Otherwise run `<qory> run verdict passed` as the last
-    command, and end with "The run sorted the feedback: <k> to fix in Build."
+10. Run `<skill folder>/checks.cjs feedback open` again. With a line "Not asked:", end as
+    "Failures" of `running-a-workflow` lists for a step after the push. With a line "Waiting
+    for an answer:", do "Questions with no answer". A JSON line is a source that came during
+    the run: the next run of this workflow sorts it. Otherwise run
+    `<qory> run verdict passed` as the last command, and end with "The run sorted the
+    feedback: <k> to fix in Build."
 
 "Notes in a start" of `running-a-workflow` applies to each start. The questions writer and
 the reply writer get one start each, besides the start with the time and the starts for a

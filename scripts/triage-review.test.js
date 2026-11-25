@@ -476,9 +476,7 @@ test('the skill starts the triager, the questions writer and the reply writer in
   assert.ok(at[2] < push[0] && push[0] < push[1], push.join(' '));
 });
 
-test('the stack has the workflow, and the settings allow its skills and its agent', () => {
-  assert.match(fs.readFileSync(path.join(MODULES, '../stacks/software/qory-stack.yaml'), 'utf8'),
-    /\n {2}triage-review: \{tier: thinking, access: write, plan: build-plan\}\n/);
+test('the settings allow the skills and the agent of the workflow', () => {
   const settings = JSON.parse(read('software-factory/settings/claude/settings.json'));
   for (const rule of ['Skill(harness:workflow-triage-review)', 'Skill(harness:sorting-feedback)',
     'Agent(harness:feedback-triager)']) {

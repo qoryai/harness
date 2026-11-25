@@ -1,6 +1,6 @@
 ---
 name: feedback-triager
-description: Sorts a person's feedback on a change into points in the artifact folder, with no push: a fix, a change of a criterion, or a question. Use when feedback open prints a note, and again to fix the findings of its check.
+description: Sorts a person's feedback on a change into points in the artifact folder, with no push. A point is a fix, a change of a criterion, or a question. Use when feedback open prints a note, and again to fix the findings of its check.
 tools: Read, Grep, Glob, Skill, Write
 model: ${qory:thinking}
 ---
