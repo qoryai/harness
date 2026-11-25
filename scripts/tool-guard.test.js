@@ -5526,16 +5526,30 @@ test('a copy with the source path, or a glob through a link, reaches the step re
   }
 });
 
-// The guard reads the folders before a wildcard through their links, and a [ in the real path
-// stays a character of the name.
+// The guard reads the folders before a wildcard through their links, and a [, *, ? or \ in the
+// real path stays a character of the name.
 test('a glob below a folder named with [ reaches the step reports and .reports', () => {
-  const { above, artifacts, call } = aboveSetup('br[1]');
-  fs.mkdirSync(path.join(artifacts, '.reports'));
-  const escaped = above.replace(/[[\]]/g, '\\$&');
-  for (const [command, reason] of [[`rm -rf ${escaped}/qory-artifacts/.step*`, STEP_KEPT],
-    [`rm -rf '${above}'/qory-artifacts/.step*`, STEP_KEPT],
-    [`rm -rf ${escaped}/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs']]) {
-    firstLine(call(command), reason);
+  for (const name of ['br[1]', 'st*r', 'q?m', 'bk\\s']) {
+    const { above, artifacts, call } = aboveSetup(name);
+    fs.mkdirSync(path.join(artifacts, '.reports'));
+    const escaped = above.replace(/[[\]*?\\]/g, '\\$&');
+    for (const [command, reason] of [[`rm -rf ${escaped}/qory-artifacts/.step*`, STEP_KEPT],
+      [`rm -rf '${above}'/qory-artifacts/.step*`, STEP_KEPT],
+      [`rm -rf ${escaped}/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs'],
+      [`rm -rf '${above}'/qory-artifacts/.report?`, 'Leave .reports/ to checks.cjs']]) {
+      firstLine(call(command), reason);
+    }
+  }
+  // A folder whose name matches the folder of the artifact folder as a glob is another folder.
+  for (const [name, other] of [['br1', 'br[1]'], ['star', 'st*r'], ['qam', 'q?m'],
+    ['bks', 'bk\\s']]) {
+    const { above, call } = aboveSetup(name);
+    const twin = path.join(path.dirname(above), path.basename(above).replace(name, other));
+    fs.mkdirSync(path.join(twin, 'qory-artifacts'), { recursive: true });
+    for (const command of [`rm -rf '${twin}'/qory-artifacts/.step*`,
+      `rm -rf '${twin}'/qory-artifacts/.report?`]) {
+      assert.equal(call(command), null, command);
+    }
   }
 });
 
