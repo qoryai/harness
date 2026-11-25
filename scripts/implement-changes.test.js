@@ -145,12 +145,14 @@ test('the session starts the developer twice and the debugger once per step, the
     '"The submission", do no later step, and end as "Points" of `running-a-workflow` lists, ' +
     'with one `run_again` point whose text is the line after "End with" in this section.');
   inOrder(failed, 'Otherwise commit the files of the failed step with steps 1 to 4.',
-    '`<base>` is the commit that the failed step\'s row in ' +
-    '`<folder>/.reports/build-ledger.json` lists as `base`',
+    '`<base>` is the `base` of the last row of `steps` in ' +
+    '`<folder>/.reports/build-ledger.json`, the commit on which the failed step started.',
     '1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost.',
     '2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of ' +
-    'the step printed.', '- A key: remove it from the file. - A new repository folder or a ' +
-    'changed submodule: do what "The end" lists for it. - A path outside the Files of every ' +
+    'the step printed.', '- A key: remove its line with a shell command that does not contain ' +
+    'the key. `freeze` and `scope` print the number of the line; with more than one line, ' +
+    'start at the last. - A new repository folder or a changed submodule: do what "The end" ' +
+    'lists for it. - A path outside the Files of every ' +
     'deliverable, or a file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or ' +
     'remove the path when `<base>` does not have it.',
     '3. When the checkout has a change, commit it with the two commands of "The end".',
@@ -755,11 +757,13 @@ function submit(w, call) {
 
 // doneStep builds one step in one attempt of the developer, which writes file with code and each
 // [path, text] of more, and returns the commit of the step.
-function doneStep(w, call, id, file, code, more, targeted, leftOut = 'Left out: none') {
+function doneStep(w, call, id, file, code, more, targeted, leftOut = 'Left out: none',
+  pass = 1) {
   const begun = call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
     ...stepFiles(w));
   assert.equal(begun.status, 0, begun.out);
-  assert.equal(begun.lines.at(-1), `Run ${id} as pass 1: start its agent, then run step end.`);
+  assert.equal(begun.lines.at(-1), `Run ${id} as pass ${pass}: start its agent, then run step ` +
+    'end.');
   writeFile(w, file, code);
   for (const [name, text] of more) writeFile(w, name, text);
   const written = report(w, 'software-developer', writerReport([file, ...more.map((one) =>
@@ -1009,6 +1013,15 @@ function repository(w, folder) {
   git(top, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'One');
 }
 
+// commandOf returns the command that pattern finds in the section of the skill with that title.
+function commandOf(title, pattern) {
+  const found = pattern.exec(section(WORKFLOW, title));
+  assert.ok(found, `"${title}" lists no ${pattern}`);
+  return found[1];
+}
+
+const RESET = commandOf('A step that fails', /Run `(git reset [^`]+)`/);
+
 // repositoryOf returns whether the path file of the commit at the head of w is a repository.
 const repositoryOf = (w, file) => git(w.repo, w.env, 'ls-tree', 'HEAD', '--', file)
   .startsWith('160000 ');
@@ -1055,39 +1068,42 @@ test('after one step done and one step failed, the session does "The submission"
 
 test('after a step that fails, the session takes out what the check of the push finds', () => {
   const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
-  const failed = section(WORKFLOW, 'A step that fails');
-  const command = (pattern) => {
-    const found = pattern.exec(failed);
-    assert.ok(found, `"A step that fails" lists no ${pattern}`);
-    return found[1];
+  const restore = commandOf('A step that fails', /run\s+`(git checkout [^`]+)`/);
+  const scope = commandOf('A step that fails', /checks\.cjs (scope --plan[^`]+)`/).split(' ');
+  const unmake = commandOf('The end', /run\s+`(rm -rf [^`]+)`/);
+  const passes = (w, command) => {
+    const ran = shell(w, command);
+    assert.equal(ran.status, 0, ran.stderr);
   };
-  const reset = command(/Run `(git reset [^`]+)`/);
-  const restore = command(/run\s+`(git checkout [^`]+)`/);
-  const scope = command(/checks\.cjs (scope --plan[^`]+)`/).split(' ');
   // Each case leaves something in the checkout, with a line of scope --plan on its commit,
   // and whether scope --plan prints a line for it before a commit has it.
   const cases = [
     ['a nested repository in a planned folder', (w) => repository(w, 'tests/nested'),
       /Rewrite commit [0-9a-f]{12} without the repository "tests\/nested"/, 0,
-      (w) => fs.rmSync(path.join(w.repo, 'tests/nested'), { recursive: true })],
+      (w) => passes(w, unmake.replace('<path>', 'tests/nested')),
+      (w) => assert.match(git(w.repo, w.env, 'ls-tree', '-r', 'HEAD', '--', 'tests/nested'),
+        /^100644 blob \w+\ttests\/nested\/a\.txt$/)],
+    ['a nested repository outside the plan', (w) => repository(w, 'notes/nested'),
+      /Rewrite commit [0-9a-f]{12} without the repository "notes\/nested"/, 1,
+      (w) => passes(w, 'rm -rf notes/nested')],
     ['a new path and a changed path outside the plan', (w) => {
       writeFile(w, 'notes/new.txt', 'new\n');
       writeFile(w, 'README.md', 'A changed line.\n');
     }, /Take "notes\/new\.txt" out of the commits since the base/, 1, (w, base) => {
       fs.rmSync(path.join(w.repo, 'notes/new.txt'));
-      const ran = shell(w, restore.replace('<base>', base).replace('<path>', 'README.md'));
-      assert.equal(ran.status, 0, ran.stderr);
+      passes(w, restore.replace('<base>', base).replace('<path>', 'README.md'));
     }],
     ['a key', (w) => writeFile(w, 'tests/key.txt', `one\n${key}\n`),
       /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 0,
-      (w) => writeFile(w, 'tests/key.txt', 'one\n')],
+      (w) => passes(w, "perl -ni -e 'print unless $. == 2' tests/key.txt"),
+      (w) => assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/key.txt'), 'one')],
     ['a commit of the failed step with a key', (w) => {
       writeFile(w, 'tests/key.txt', `one\n${key}\n`);
       assert.equal(commitChanges(w, 'Write the header').status, 0);
       writeFile(w, 'tests/key.txt', 'one\n');
     }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1, () => {}],
   ];
-  for (const [what, leave, line, before, takeOut] of cases) {
+  for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
     const call = session(w);
     lockFirst(w, call);
@@ -1111,8 +1127,7 @@ test('after a step that fails, the session takes out what the check of the push 
     const files = () => git(w.repo, w.env, 'ls-files', '--cached', '--others',
       '--exclude-standard').split('\n').filter((one) => !one.startsWith('.qory')).sort();
     const kept = files();
-    const ran = shell(w, reset.replace('<base>', base));
-    assert.equal(ran.status, 0, ran.stderr);
+    passes(w, RESET.replace('<base>', base));
     assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), done, what);
     assert.deepEqual(files().map((one) => one.replace(/\/$/, '')), kept, what);
     takeOut(w, base);
@@ -1125,7 +1140,111 @@ test('after a step that fails, the session takes out what the check of the push 
     assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/header.test.cjs'), HEADER_TEST.trim(),
       what);
     assert.equal(call('end', w.artifacts, '--inputs', buildInputs(w)).status, 0, what);
+    then(w);
   }
+});
+
+test('the reset after a step that fails uses the last row, not an older one of the step', () => {
+  const w = work();
+  const first = session(w);
+  lockFirst(w, first);
+  const start = git(w.repo, w.env, 'rev-parse', 'HEAD');
+  assert.equal(qory(w, first, 'artifact', 'pull').status, 0);
+  assert.equal(first('resume').status, 0);
+  const lost = doneStep(w, first, 'deliverable:d-1', 'src/orders.cjs', LINES, [], LOCKED_1);
+  failStep(w, first, 'deliverable:d-2', D2_RED, TARGETED_2);
+  // The next run starts without the commit of d-1, so it builds d-1 again, and d-2 fails again.
+  git(w.repo, w.env, 'reset', '-q', '--hard', start);
+  git(w.repo, w.env, 'clean', '-q', '-f', '-d');
+  const call = session(w);
+  assert.equal(qory(w, call, 'artifact', 'pull').status, 0);
+  assert.equal(call('resume').status, 0);
+  const done = doneStep(w, call, 'deliverable:d-1', 'src/orders.cjs', `${LINES}// Again.\n`, [],
+    LOCKED_1, undefined, 2);
+  failStep(w, call, 'deliverable:d-2', D2_RED, TARGETED_2);
+  const { steps } = JSON.parse(read(w.artifacts, '.reports/build-ledger.json'));
+  assert.deepEqual(steps.filter((one) => one.id === 'deliverable:d-2')
+    .map((one) => [one.state, one.base]), [['failed', lost], ['failed', done]]);
+  assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 0);
+  const ran = shell(w, RESET.replace('<base>', steps.at(-1).base));
+  assert.equal(ran.status, 0, ran.stderr);
+  assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), done);
+  assert.notEqual(done, lost);
+  assert.equal(fs.existsSync(path.join(w.repo, 'tests/header.test.cjs')), true);
+});
+
+test('the session sets a submodule back, the ones in it and one whose folder is missing', () => {
+  inOrder(section(WORKFLOW, 'The end'), 'No commit of the run can contain a new repository ' +
+    'folder, or a new commit or changed files of a submodule', 'A commit that deletes a ' +
+    'submodule inside the Files of a deliverable passes.',
+    '- A new repository folder whose files are inside the Files of a deliverable: run ' +
+    '`rm -rf <path>/.git`.', '- A new repository folder whose files are outside them: remove ' +
+    'the folder.', '- A submodule outside the Files whose folder is missing: run ' +
+    '`git checkout HEAD -- <path>`.', '- Another changed submodule: set it back');
+  const restore = commandOf('The end', /run `(git checkout HEAD [^`]+)`/);
+  // added adds a submodule with a submodule deep to w at folder, and returns the calls of the
+  // end check and of scope --plan for a run that starts there.
+  const added = (w, folder) => {
+    const inner = fresh('inner');
+    const sub = fresh('sub');
+    const local = ['-c', 'protocol.file.allow=always', '-c', 'commit.gpgsign=false'];
+    for (const [top, from, name] of [[inner], [sub, inner, 'deep'], [w.repo, sub, folder]]) {
+      if (top !== w.repo) git(top, w.env, 'init', '-q');
+      fs.writeFileSync(path.join(top, 'f.txt'), 'f\n');
+      if (from) git(top, w.env, ...local, 'submodule', 'add', '-q', from, name);
+      git(top, w.env, 'add', '-A');
+      git(top, w.env, ...local, 'commit', '-q', '-m', 'One');
+    }
+    git(w.repo, w.env, ...local, 'submodule', 'update', '-q', '--init', '--recursive');
+    const call = session(w);
+    const inputs = buildInputs(w, { start_commits: [{ path: w.repo,
+      commit: git(w.repo, w.env, 'rev-parse', 'HEAD') }] });
+    return { end: () => call('end', w.artifacts, '--inputs', inputs).status,
+      plan: () => call('scope', '--plan', '--inputs', inputs).status };
+  };
+  const commit = (w, folder) => {
+    git(path.join(w.repo, folder), w.env, 'add', '-A');
+    git(path.join(w.repo, folder), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Two');
+  };
+  const dirty = (w) => {
+    writeFile(w, 'lib/sub/deep/f.txt', 'g\n');
+    writeFile(w, 'lib/sub/deep/new.txt', 'new\n');
+  };
+  const back = (w) => setBack(w, 'lib/sub');
+  const missing = (w) => fs.rmSync(path.join(w.repo, 'lib/sub'), { recursive: true });
+  const fetch = (w) => assert.equal(shell(w, restore.replace('<path>', 'lib/sub')).status, 0);
+  const cases = [
+    ['changed files in deep', dirty, back],
+    ['a new commit in deep', (w) => { dirty(w); commit(w, 'lib/sub/deep'); }, back],
+    ['a new commit in both, with changed files', (w) => {
+      dirty(w);
+      commit(w, 'lib/sub/deep');
+      commit(w, 'lib/sub');
+      dirty(w);
+      writeFile(w, 'lib/sub/deep/f.txt', 'h\n');
+    }, back],
+    ['a missing folder', missing, fetch],
+    ['a deletion in the index', (w) => {
+      missing(w);
+      git(w.repo, w.env, 'add', '-A');
+    }, fetch],
+  ];
+  for (const [what, leave, undo] of cases) {
+    const w = work();
+    const { end, plan } = added(w, 'lib/sub');
+    assert.deepEqual([plan(), end()], [0, 0], what);
+    leave(w);
+    assert.deepEqual([plan(), end()], [1, 1], what);
+    undo(w);
+    assert.deepEqual([plan(), end()], [0, 0], what);
+  }
+  // A commit that deletes a submodule inside the Files passes.
+  const w = work();
+  const { end, plan } = added(w, 'tests/sub');
+  fs.rmSync(path.join(w.repo, 'tests/sub'), { recursive: true });
+  assert.equal(commitChanges(w, 'Remove the submodule').status, 0);
+  assert.equal(repositoryOf(w, 'tests/sub'), false);
+  assert.deepEqual([plan(), end()], [0, 0]);
 });
 
 test('no hook and no signing key of the checkout stops the commit of the session', () => {

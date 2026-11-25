@@ -206,16 +206,17 @@ submission", do no later step, and end as "Points" of `running-a-workflow` lists
 it skips "The submission" although the run has commits; count from `qory.start_commits`
 once qory writes it. -->
 
-Otherwise commit the files of the failed step with steps 1 to 4. `<base>` is the commit that
-the failed step's row in `<folder>/.reports/build-ledger.json` lists as `base`, on which the
-step started.
+Otherwise commit the files of the failed step with steps 1 to 4. `<base>` is the `base` of
+the last row of `steps` in `<folder>/.reports/build-ledger.json`, the commit on which the
+failed step started.
 
 1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost. The commits of
    the done steps stay, and a commit that the failed step made leaves the branch.
 2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of the
    step printed. A commit with one of them fails the scope check of qory's push, and then
    qory pushes no commit of the run, those of the done steps included.
-   - A key: remove it from the file.
+   - A key: remove its line with a shell command that does not contain the key. `freeze` and
+     `scope` print the number of the line; with more than one line, start at the last.
    - A new repository folder or a changed submodule: do what "The end" lists for it.
    - A path outside the Files of every deliverable, or a file that `freeze` cannot scan: run
      `git checkout <base> -- <path>`, or remove the path when `<base>` does not have it.
@@ -352,15 +353,24 @@ When a merge or a cherry-pick is in progress, run `git reset -q` first: a commit
 exits with 128 until the merge ends, `git reset -q` ends it and keeps each file, and
 `--abort` drops your changes to the merged files.
 
-No commit of the run can contain a new repository folder or a changed submodule: the scope
-check of qory's push scans no file of one for keys, so it exits with 1, and qory pushes no
-commit of the run. Before the two commands, remove a new repository folder, and set a
-changed submodule back to the commit that the checkout lists:
+No commit of the run can contain a new repository folder, or a new commit or changed files
+of a submodule: the scope check of qory's push scans no file of one for keys, so it exits
+with 1, and qory pushes no commit of the run. A commit that deletes a submodule inside the
+Files of a deliverable passes. Before the two commands:
+
+- A new repository folder whose files are inside the Files of a deliverable: run
+  `rm -rf <path>/.git`. The commit then has its files, and the scope check scans them.
+- A new repository folder whose files are outside them: remove the folder.
+- A submodule outside the Files whose folder is missing: run `git checkout HEAD -- <path>`.
+- Another changed submodule: set it back to the commit that the checkout lists, and each
+  submodule in it, with these commands:
 
 ```
 git reset -q -- <path>
 git -C <path> checkout --force --detach "$(git rev-parse HEAD:<path>)"
 git -C <path> clean -ffd
+git -C <path> submodule foreach --recursive \
+  'git checkout --force --detach "$sha1" && git clean -ffd'
 ```
 
 When this session ends without `points.json`, the end check stops the end while a checkout
