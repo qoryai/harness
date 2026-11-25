@@ -861,18 +861,41 @@ test('feedback open lists a question about a scenario that only a ripple point o
     const lines = open(root(data, question), [GD1]).lines;
     return [group.output, group.waiting, lines.filter((line) => /^(Waiting|Words)/.test(line))];
   };
-  // A group of only ripple points: the words are those of the note.
-  assert.deepEqual(waitsOf(CASE, on('scenario-1')), ['demo-scenarios', ['q1'],
-    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]]);
+  // A group of only ripple points: the words are those of p2, the change of ac-2 that made it.
+  const onAc2 = ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(P2.quote)}`];
+  assert.deepEqual(waitsOf(CASE, on('scenario-1')), ['demo-scenarios', ['q1'], onAc2]);
+  // A question about the criterion of the ripple point, or about the group with no item.
+  assert.deepEqual(waitsOf(CASE, { id: 'q1', state: 'open', about: { type:
+    'acceptance-criteria', name: 'main', item: 'ac-2' } })[2], onAc2);
+  assert.deepEqual(waitsOf(CASE, { id: 'q1', state: 'open', about: { type: 'demo-scenarios',
+    name: 'main' } })[2], onAc2);
+  // An answered question, or a question about a scenario that no point of the group has, makes
+  // no group wait and prints no line.
+  for (const question of [{ ...on('scenario-1'), state: 'answered' }, on('scenario-3'),
+    { ...on('ac-2'), about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } }]) {
+    assert.deepEqual(waitsOf(CASE, question), ['demo-scenarios', undefined, []]);
+  }
   // A mixed group: a question about the scenario of the ripple point, or of the note's point.
   const mixed = changed((d) => {
     d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
       item: 'scenario-2' });
   });
-  assert.deepEqual(waitsOf(mixed, on('scenario-1'))[2],
-    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]);
+  assert.deepEqual(waitsOf(mixed, on('scenario-1'))[2], onAc2);
   assert.deepEqual(waitsOf(mixed, on('scenario-2'))[2],
     ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the row limit')}`]);
+  // An added Demo criterion has no point with its id: the words are those of the point of the
+  // source that adds a criterion.
+  const added = { sources: [S1], points: [P1, { ...P2, quote: 'Raise the row limit to 100.',
+    item: undefined }] };
+  const demo = edit(CRITERIA, ['"check": "Tests"}\n', '"check": "Tests"},\n    {"id": "ac-5", ' +
+    '"text": "The reply shows the hours in bold.", "check": "Demo: Read the bold hours"}\n']);
+  const store5 = () => scenarioStore({ feedback: [{ data: added }], 'acceptance-criteria': [
+    { data: CRITERIA }, { ...linked, data: demo }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about: { type: 'acceptance-criteria', name: 'main',
+      item: 'ac-5' } }] } }] });
+  assert.deepEqual(open(store5(), [GD1]).lines.filter((line) => /^(Waiting|Words)/.test(line)),
+    ['Waiting for an answer: ac-5, q1',
+      `Words of ac-5: ${wordsOf('Raise the row limit to 100.')}`]);
 });
 
 // The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a

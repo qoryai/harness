@@ -37,10 +37,29 @@ module.exports = (lib) => {
     return work ? 1 : 0;
   }
 
+  // quoteOf returns the words of the person for point of group: its quote, or, for a ripple
+  // point, the quote of the criterion change of the source of the group on that criterion.
+  // shortcut: an added criterion has no point with its id, so its ripple point takes the quote
+  // of the first point of the source with no item, and the text of the source when there is
+  // none; replace when a ripple point records the point that made it.
+  function quoteOf(group, point, data) {
+    if (typeof point.quote === 'string') return point.quote;
+    const changes = data.points.filter((one) => one.sort === 'criterion-change' &&
+      one.source === group.decision && one.output === 'acceptance-criteria');
+    const made = changes.find((one) => one.item === point.id) ||
+      changes.find((one) => one.item === undefined);
+    if (made) return made.quote;
+    const source = data.sources.find((one) => one.id === group.decision);
+    return source ? source.text : '';
+  }
+
   // groupQuestions returns { point, question, words } for each open question that a group of
   // criterion changes waits for and no `question` point has, such as one that a writer of the
   // group raised: point is the point of the group that the question is about, and words those
-  // of its quote, or, for a ripple point, those of the source of the group.
+  // of quoteOf.
+  // shortcut: a question has no source, so when the groups of two sources have the item of
+  // its about, it is listed once, under the point of the older source; record the source of
+  // the question when a run shows two.
   function groupQuestions(context, data, questions, asked) {
     const known = new Set(asked.map(({ point }) => point.question));
     const out = new Map();
@@ -48,10 +67,9 @@ module.exports = (lib) => {
       for (const id of group.waiting || []) {
         const found = questions.find((one) => one.id === id);
         const point = found && !known.has(id) && !out.has(id) && aboutPoint(group, found);
-        if (!point) continue;
-        const source = data.sources.find((one) => one.id === group.decision);
-        const text = typeof point.quote === 'string' ? point.quote : source && source.text;
-        out.set(id, { point, question: id, words: wordsOf(text || '') });
+        if (point) {
+          out.set(id, { point, question: id, words: wordsOf(quoteOf(group, point, data)) });
+        }
       }
     }
     return [...out.values()];

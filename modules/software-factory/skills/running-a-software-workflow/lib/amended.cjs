@@ -49,14 +49,21 @@ module.exports = (lib) => {
       .questions.filter(isObject);
   }
 
-  // aboutPoint returns the first point of group that question is about, or undefined: a point
-  // whose item, a ripple point's included, is the about's item in the output of the group, or
-  // a point of the feedback whose id is the about's item in the feedback.
+  // aboutPoint returns the first point of group that question is about, or undefined: with no
+  // item in the about, the first point of a group of that output; else a point whose item, a
+  // ripple point's included, is the about's item in the output of the group, a point of the
+  // feedback whose id is the about's item in the feedback, or a ripple point whose criterion
+  // is the about's item in the acceptance criteria.
   function aboutPoint(group, question) {
-    if (!isObject(question.about) || typeof question.about.item !== 'string') return undefined;
+    if (!isObject(question.about)) return undefined;
     const { type, item } = question.about;
-    return group.points.find((point) => (type === group.output ? point.item === item
-      : type === 'feedback' && typeof point.quote === 'string' && point.id === item));
+    if (item === undefined) return type === group.output ? group.points[0] : undefined;
+    if (typeof item !== 'string') return undefined;
+    const ripple = (point) => typeof point.quote !== 'string';
+    return group.points.find((point) => (type === group.output && point.item === item) ||
+      (type === 'feedback' && !ripple(point) && point.id === item) ||
+      (type === 'acceptance-criteria' && group.output === 'demo-scenarios' && ripple(point) &&
+        point.id === item));
   }
 
   // waitingOn returns the ids of the questions with no answer that group waits for: the
