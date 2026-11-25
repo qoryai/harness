@@ -1,6 +1,6 @@
 ---
 name: check-reviewer
-description: Reviews the acceptance checks that a run wrote and the draft of their lock, read-only, against the acceptance criteria, the build plan and the records of their runs on the start commit, and reports findings as text. Use after the acceptance check writer, before the run commits and locks the checks.
+description: Reviews the acceptance checks that a run wrote and the draft of their lock, read-only, against the acceptance criteria, the build plan and the records of their runs on the start commit, and reports findings as text. Also reviews a change to a demo script that passed. Use after the acceptance check writer, before the run commits and locks the checks, and after each correction of a frozen demo script.
 tools: Read, Grep, Glob, Skill
 model: ${qory:thinking}
 ---
@@ -62,13 +62,27 @@ type is the folder `<type>/main/v<N>/` with the largest `<N>`: read those of
 `acceptance-criteria` and `build-plan`. You fetch no web page. A refused tool call stays
 refused. Read through no link.
 
+## A demo script
+
+You also review the change to a demo script that passed, when your input has the line
+"Review the change to a demo script". You get the paths of the input file, the artifact
+folder, the demo scenarios, the script that passed and the new script. Load only
+${qory:skills/reviewing-drafts} and ${qory:skills/simple-communication}. You need no draft
+lock and no "Changed paths:". Compare the two scripts, and report each difference as a
+finding marked `writer`, `no direction` and `break`, unless it is one of these: a new target
+of a click or type action, a new text of a wait action, or one wait action added. A removed
+action, a changed `open` address, a changed variable name, a changed sign-in or a changed
+step that makes the script show less than before are findings. The title and the expected
+result of each step come from the demo scenarios, so a difference there is a finding too.
+
 ## Stop conditions
 
 - If a skill you need cannot be loaded, report `blocked` with its name and no findings.
 - If the input file, the artifact folder or the draft is missing or cannot be read, report
-  `blocked` with the path. Do not guess what it contains.
+  `blocked` with the path. Do not guess what it contains. In the review of a demo script,
+  the same holds for each script and for the demo scenarios, and the draft is not needed.
 - If you get no "Changed paths:", report `blocked` with "Changed paths: missing". Do not
-  take the writer's "Files:" for the changes.
+  take the writer's "Files:" for the changes. In the review of a demo script, you get none.
 - If the newest acceptance criteria or the newest build plan cannot be read, report
   `blocked` with the path.
 - If a check, a support file or a record that the draft or the report lists cannot be read,

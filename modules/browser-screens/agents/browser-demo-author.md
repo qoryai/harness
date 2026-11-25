@@ -36,7 +36,8 @@ Each action is one of these five, with the keys that its form lists and no other
   item uses for the same value. A password, key or token never goes into `text`.
 - `{"do": "press", "key": "<key>"}`, such as `Enter` or `Control+a`.
 - `{"do": "wait", "text": "<the words that show on the screen>"}`, with `"timeout_ms"` of
-  at most 60000 when the page needs longer than 5 seconds.
+  at most 60000 when the page needs longer than 5 seconds. All waits of a script add up
+  to at most 415 seconds, and a wait with no `"timeout_ms"` counts 5 seconds.
 
 A target is a CSS selector, or `text=<the visible words>` for the innermost element that
 shows those words. Take each target from the code of the finished screens that you read: an
@@ -80,8 +81,10 @@ actions file. Read the build plan for the line `App address:` and the commands, 
 in the working folder for the targets, and the demo scripts of the work item that the
 artifact folder contains for the names of the variables. When you start again, you also get
 each line that the checks script printed for your file and your last report: fix those lines
-only. Read what the pull wrote, never the memory of an earlier session. A refused tool call
-stays refused. Read through no link, and fetch no web page.
+only. For a correction of a script that passed, you also get the path of that script: keep
+its actions, and change only the actions that those lines name. Read what the pull wrote,
+never the memory of an earlier session. A refused tool call stays refused. Read through no
+link, and fetch no web page.
 
 Write the file once, as your last step before the report.
 

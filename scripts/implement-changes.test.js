@@ -269,15 +269,21 @@ test('the session scripts the demos after the last deliverable and before the fi
     inOrder(order, 'each deliverable that is not built', 'then do "Demo scripts"',
       'then each finding as the step `fix:<id>`');
     const demos = section(WORKFLOW, 'Demo scripts');
-    contains(demos, 'Run `<skill folder>/checks.cjs demo check`.');
-    contains(demos, 'With 0 and a line that starts with "No demo script to write", skip the ' +
-      'rest of this section.');
-    contains(demos, 'With 1, the approved demo scenarios have a scenario, and the harness has ' +
-      'no skill `scripting-demos`. Start no agent, and end as "Points" of `running-a-workflow` ' +
-      'lists, with one `run_again` point. Its text is "The demo scenarios need a module that ' +
-      'scripts browser screens, which the stack of this workspace lacks, so the run wrote no ' +
-      'demo script." and its `fix` is "Add the module browser-screens to the stack, then run ' +
-      'another round."');
+    contains(demos, 'Run `<skill folder>/checks.cjs demo check --inputs <inputs>`.');
+    contains(demos, 'With 0 and a last line that starts with "No demo script to write", skip ' +
+      'the rest of this section.');
+    contains(demos, 'With 1 and the first line "Add the module browser-screens to the stack, ' +
+      'then run another round.", the approved demo scenarios have a scenario, and the harness ' +
+      'has no skill `scripting-demos`. Start no agent, and end as "Points" of ' +
+      '`running-a-workflow` lists, with one `run_again` point. Its text is "The demo ' +
+      'scenarios need a module that scripts browser screens, which the stack of this ' +
+      'workspace lacks, so the run wrote no demo script." and its `fix` is "Add the module ' +
+      'browser-screens to the stack, then run another round."');
+    contains(demos, 'With 1 and another first line, a script that exists breaks a rule: the ' +
+      'skill `scripting-demos` corrects it.');
+    contains(demos, 'With 0 and a last line that starts with "Review the change to the demo ' +
+      'script", a draft changes a script that passed: the skill `scripting-demos` has the ' +
+      'change reviewed.');
     contains(demos, 'Load the skill `scripting-demos` by its name');
     // The skill and the role are named in plain words: a ${qory:...} reference would fail the
     // compose of a stack with no module that ships them, and a stack has no optional role.
