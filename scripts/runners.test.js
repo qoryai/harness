@@ -1040,8 +1040,8 @@ for (const text of QORY_LINES) {
   });
 }
 
-for (const [text, shown] of PATTERNS) {
-  test(`scope and freeze: the pattern ${shown} in .git/info/exclude is red`, () => {
+for (const [at, [text, shown]] of PATTERNS.entries()) {
+  test(`scope and freeze: pattern ${at + 1}, ${shown}, in .git/info/exclude is red`, () => {
     const dir = checkout();
     const start = sh(dir, 'rev-parse', 'HEAD');
     exclude(dir, `${text}\n`);
@@ -1647,8 +1647,8 @@ test('run: the line that qory writes to .git/info/exclude is no finding', () => 
   }
 });
 
-for (const [text, shown] of PATTERNS) {
-  test(`run: the pattern ${shown} in .git/info/exclude is red`, () => {
+for (const [at, [text, shown]] of PATTERNS.entries()) {
+  test(`run: pattern ${at + 1}, ${shown}, in .git/info/exclude is red`, () => {
     const dir = checkout();
     exclude(dir, `${text}\n`);
     const got = call(dir, ['run', 'targeted', 'tests/a.test.js']);
