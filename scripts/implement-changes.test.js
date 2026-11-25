@@ -1049,6 +1049,10 @@ test('the session commits its changes with no git identity set, and nothing of .
       track(w, 'Ignore .qory');
       writeFile(w, '.qory/x.json', '{}\n');
     }],
+    ['a folder that .git/info/exclude lists', 1, (w) => {
+      fs.appendFileSync(path.join(w.repo, '.git/info/exclude'), '/.qory\n');
+      writeFile(w, '.qory/x.json', '{}\n');
+    }],
     ['an ignored link', 1, (w) => {
       writeFile(w, '.gitignore', 'reports/\n.qory\n');
       git(w.repo, w.env, 'add', '.gitignore');
@@ -1404,14 +1408,18 @@ test('the end check finds no change for a session that makes no commit, or with 
     assert.equal(end('--inputs', buildInputs(w)).status, 0);
     writeFile(w, 'reports/junit.xml', '<testsuite/>\n');
     writeFile(w, '.qory/outbox/x.json', '{}\n');
+    // A .gitignore file that ignores itself, as pytest writes it.
+    writeFile(w, '.pytest_cache/.gitignore', '*\n');
     assert.equal(end('--inputs', buildInputs(w)).status, 0);
-    // With an untracked file: a review, a reviewer and a hook session, a session with no
-    // pull-request output, and one with no inputs file.
+    // With an untracked file: a review, a reviewer and a hook session, a session of another
+    // output, one with no output, and one with no inputs file.
     writeFile(w, 'notes/new.txt', 'new\n');
     for (const extra of [{ review: {} }, { review_session: {} }, { hook_session: {} }]) {
       const ended = end('--inputs', buildInputs(w, extra));
       assert.equal(ended.status, 0, `${JSON.stringify(extra)}: ${ended.out}`);
     }
+    assert.equal(end('--inputs', buildInputs(w, { outputs: [{ type: 'verification',
+      required: false, schema: {} }] })).status, 0);
     assert.equal(end('--inputs', w.inputs).status, 0);
     assert.equal(end().status, 0);
     // A stack of core alone has no end check of a module.
@@ -1477,6 +1485,102 @@ test('the point counts each check with changes since a check passed, also after 
     assert.ok(texts.some((text) => text.startsWith('The Build session ended 2 times with ')),
       texts.join('\n'));
   });
+
+test('the point counts at most the failed checks since a check passed', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+  const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+  const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+  const count = path.join(w.artifacts, '.reports', 'uncommitted.json');
+  // A check that passes writes no count, with no file and after a check with changes.
+  assert.equal(end(), 0);
+  assert.equal(fs.existsSync(count), false);
+  change();
+  assert.equal(end(), 1);
+  const before = read(count);
+  undo();
+  assert.equal(end(), 0);
+  assert.equal(read(count), before);
+  // Then a report alone at the first check, and changes at the second and the third.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  assert.equal(end(), 1);
+  change();
+  assert.equal(end(), 1);
+  // A count above the failed checks, such as one that a crash left, counts as those checks.
+  fs.writeFileSync(count, JSON.stringify({ count: 40 }));
+  assert.equal(end(), 0);
+  const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+  assert.ok(texts.some((text) => text.startsWith('The Build session ended 3 times with ')),
+    texts.join('\n'));
+});
+
+test('the point counts the one check with changes after an earlier count and a report', () => {
+  const w = work();
+  const call = session(w);
+  const inputs = buildInputs(w);
+  const end = () => call('end', w.artifacts, '--inputs', inputs).status;
+  const change = () => writeFile(w, 'notes/new.txt', 'new\n');
+  const undo = () => fs.rmSync(path.join(w.repo, 'notes/new.txt'));
+  change();
+  assert.equal(end(), 1);
+  assert.equal(end(), 1);
+  undo();
+  assert.equal(end(), 0);
+  // A report alone at the first two checks, and changes at the third.
+  report(w, 'software-developer', 'What you read:\n- none\n\ndone\n');
+  assert.equal(end(), 1);
+  assert.equal(end(), 1);
+  change();
+  assert.equal(end(), 0);
+  const texts = JSON.parse(read(w.artifacts, 'points.json')).map((one) => one.text);
+  assert.ok(texts.some((text) => text.startsWith('The Build session ended 1 time with ')),
+    texts.join('\n'));
+});
+
+test('the end check lists a checkout once, whatever paths of it the session has', () => {
+  const w = work();
+  const call = session(w);
+  const link = path.join(fresh('links'), 'repo');
+  fs.symlinkSync(w.repo, link);
+  const starts = [w.repo, `${w.repo}/`, path.join(w.repo, 'src'), link].map((one) => ({
+    path: one, commit: w.start }));
+  writeFile(w, 'notes/new.txt', 'new\n');
+  const ended = call('end', w.artifacts, '--inputs', buildInputs(w, { start_commits: starts }));
+  assert.equal(ended.status, 1, ended.out + ended.err);
+  assert.deepEqual(ended.out.split('\n').filter(Boolean), [COMMIT_FIX,
+    '  Not committed: notes/new.txt (1 in all)']);
+});
+
+test('the end check lists a submodule whatever its ignore setting', () => {
+  for (const file of ['.gitmodules', '.git/config']) {
+    const w = work();
+    const sub = fresh('sub');
+    git(sub, w.env, 'init', '-q');
+    git(sub, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '--allow-empty', '-m', 'One');
+    git(w.repo, w.env, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', sub,
+      'lib/sub');
+    git(w.repo, w.env, 'config', '-f', file, 'submodule.lib/sub.ignore', 'all');
+    git(w.repo, w.env, 'add', '.gitmodules');
+    git(w.repo, w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'Add lib/sub');
+    const call = session(w);
+    const inputs = buildInputs(w);
+    const line = '  Not committed: lib/sub (1 in all)';
+    assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0, file);
+    // An untracked file in the submodule, then a commit of it.
+    writeFile(w, 'lib/sub/new.txt', 'new\n');
+    assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)), line, file);
+    git(path.join(w.repo, 'lib/sub'), w.env, 'add', '-A');
+    git(path.join(w.repo, 'lib/sub'), w.env, '-c', 'commit.gpgsign=false', 'commit', '-q', '-m',
+      'Two');
+    assert.equal(notCommitted(call('end', w.artifacts, '--inputs', inputs)), line, file);
+    // The commands of the skill commit the new commit of the submodule.
+    const done = commitChanges(w, 'Take the new commit of lib/sub');
+    assert.equal(done.status, 0, done.stderr);
+    assert.equal(call('end', w.artifacts, '--inputs', inputs).status, 0, file);
+  }
+});
 
 test('the end check reads each checkout, hides a key in a path, and skips a folder that git ' +
   'cannot read', () => {

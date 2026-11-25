@@ -209,9 +209,8 @@ once qory writes it. -->
 Otherwise, when the checkout has a change, commit it with the two commands of "The end":
 the files of the failed step go into that commit. Then do "The submission". When a case of
 "The submission" ends the run, end as that case lists. Otherwise write no `points.json`,
-run no verdict command, and do no later step.
-`review-changes` runs next and reports the open step as `blocking`, and the limit of 3
-rounds of Qory Apiary passes it to a member.
+run no verdict command, and do no later step. `review-changes` runs next and reports the
+open step as `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member.
 
 End with "The run stopped, because the checks still fail after 3 changes to <the step>."
 

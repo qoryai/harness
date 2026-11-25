@@ -48,14 +48,16 @@ module.exports = (lib) => {
     }
   }
 
-  // left returns the changed paths of the checkout at folder, sorted, or none when git fails.
+  // left returns { top, files } of the checkout at folder: its top folder and its changed
+  // paths, sorted, or null when git fails.
   function left(folder, env) {
     try {
       const work = git.checkout(Missing, { cwd: folder, env });
-      return work.changed.filter((file) => !work.ignores.has(file)).sort();
+      const files = work.changed.filter((file) => !work.ignores.has(file)).sort();
+      return { top: work.top, files };
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
-      return [];
+      return null;
     }
   }
 
@@ -106,20 +108,26 @@ module.exports = (lib) => {
     const seen = new Set();
     for (const one of got.qory.start_commits) {
       if (!isObject(one) || typeof one.path !== 'string' || !path.isAbsolute(one.path)) continue;
-      if (seen.has(one.path) || !writable(one.path)) continue;
-      seen.add(one.path);
-      const files = left(one.path, io.env);
-      if (files.length) found.push(files);
+      if (!writable(one.path)) continue;
+      // shortcut: a git call may take 120 s, with 5 or more per checkout, and end-gate.cjs stops
+      // the whole check after 170 s, so that the session ends unchecked; set one time limit for
+      // all the calls when a checkout needs longer.
+      const work = left(one.path, io.env);
+      if (!work || seen.has(work.top)) continue;
+      seen.add(work.top);
+      if (work.files.length) found.push(work.files);
     }
-    if (!found.length && io.failed) return [];
-    // The first check after one that passed starts the count again.
-    const count = (io.failed ? tries(io.root) : 0) + (found.length ? 1 : 0);
-    save(io.root, count);
+    // io.failed is 0 at the first check after one that passed, so the count starts again there.
+    // The file is written when its count differs, so that no later check adds an old count.
+    const before = tries(io.root);
+    const count = Math.min(before, io.failed) + (found.length ? 1 : 0);
+    if (count !== before) save(io.root, count);
+    if (!found.length) return [];
     // shortcut: with two checkouts, the check reports two findings with the same fix, and no
     // line shows the checkout of a path; add its folder when a session writes two checkouts.
     return found.map((files) => ({ line: `${FIX}\n${listed(files, io.env)}`,
       point: UNCOMMITTED, item: count }));
   }
 
-  return { end, UNCOMMITTED, MAX_PATHS };
+  return { end };
 };
