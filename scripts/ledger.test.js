@@ -902,7 +902,8 @@ test('ledger: an output file in an outbox folder under .qory is no edit of a ste
   const outbox = path.join(w.repo, '.qory', 'outbox', 'pull-request');
   fs.mkdirSync(outbox, { recursive: true });
   fs.writeFileSync(path.join(outbox, 'pull-request.json'), '{"steps":[]}');
-  assert.equal(call('step', 'end', 'plan', 'done').status, 0);
+  assert.equal(call('step', 'end', 'plan', 'done', '--report', report(call, 'build-planner-1',
+    'done\n')).status, 0);
   assert.equal(begin(call, w, 'checks').status, 0);
 });
 
@@ -915,7 +916,8 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
   assert.equal(begin(inSub, w, 'plan').status, 0);
   fs.mkdirSync(path.join(w.repo, '.qory', 'artifacts'), { recursive: true });
   fs.writeFileSync(path.join(w.repo, '.qory', 'artifacts', 'note.json'), '{}');
-  assert.equal(inSub('step', 'end', 'plan', 'done').status, 0);
+  assert.equal(inSub('step', 'end', 'plan', 'done', '--report', report(inSub, 'build-planner-1',
+    'done\n')).status, 0);
   assert.equal(begin(inSub, w, 'checks').status, 0);
   fs.writeFileSync(path.join(sub, 'new.txt'), 'An untracked file.\n');
   const untracked = inSub('step', 'end', 'checks', 'done');
@@ -936,29 +938,43 @@ test('ledger: step end done needs a clean checkout and a head that follows the b
     'head [0-9a-f]{12} does not follow it\\.$'));
 });
 
-// The steps whose file a reviewer reviews, with the arguments of a done step.
-const REVIEWED = [['plan', 'plan-reviewer', 'build-plan.md', []],
-  ['checks', 'check-reviewer', 'acceptance-lock.json', []],
-  ...['script:scenario-1', 'script:scenario-1#2'].map((id) => [id, 'check-reviewer',
-    '.demo/scenario-1.json', ['--script-sha256', H]])];
+// The steps whose file a reviewer reviews, and the flags of a done step.
+const REVIEWED = [['plan', 'plan-reviewer', 'build-plan.md'],
+  ['checks', 'check-reviewer', 'acceptance-lock.json'],
+  ['script:scenario-1', 'check-reviewer', '.demo/scenario-1.json'],
+  ['script:scenario-1#2', 'check-reviewer', '.demo/scenario-1.json']];
+// flagsOf returns them; those of a script step have the SHA-256 of its file, when it has one.
+function flagsOf(call, id) {
+  if (!id.startsWith('script:')) {
+    return ['--report', report(call, 'build-planner-1', 'done\n')];
+  }
+  const file = path.join(call.artifacts, '.demo', 'scenario-1.json');
+  return ['--script-sha256', fs.existsSync(file) && fs.statSync(file).isFile()
+    ? sha(fs.readFileSync(file)) : H];
+}
+const MISSING = (id) => (id.startsWith('script:')
+  ? 'Give --script-sha256 to end a script step as done.'
+  : `Give --report with the writer's last report to end ${id} as done.`);
 const finding = (severity, proof) => ({ severity, quote: 'The plan.', problem: 'It breaks a rule.',
   fix: 'It keeps the rule.', proof, point: 'The plan leaves out the export.' });
 
 test('ledger: step end done needs a passing report of the reviewer for the file', () => {
-  for (const [id, reviewer, name, flags] of REVIEWED) {
+  for (const [id, reviewer, name] of REVIEWED) {
     const w = work();
     const call = resumed(w);
     assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
     const before = JSON.stringify(stored(w).ledger);
     const start = `Start ${reviewer} on ${name}, then run step end ${id} done again.`;
     const stopped = (...lines) => {
-      const result = call('step', 'end', id, 'done', ...flags);
+      const result = call('step', 'end', id, 'done', ...flagsOf(call, id));
       assert.equal(result.status, 1, result.out);
       assert.deepEqual(result.lines,
         [...lines, `Checked the step ${id}: the ledger is unchanged.`]);
       assert.equal(JSON.stringify(stored(w).ledger), before, id);
     };
-    const gone = [start, `  ${name} of the artifact folder is missing or no regular file.`];
+    const gone = [`Write ${name} in the artifact folder, then end the step again.`,
+      `  ${path.join(call.artifacts, name)} is missing, a link or no regular file of at most ` +
+        '262144 bytes.'];
     stopped(...gone);
     const { file, reported } = reviewedFile(call, id);
     const at = `.step-reports/${reviewer}/${path.basename(reported)}`;
@@ -970,6 +986,23 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
     fs.symlinkSync(`${file}.real`, file);
     stopped(...gone);
     fs.rmSync(file);
+    // A file of more bytes, and a folder at the path.
+    fs.writeFileSync(file, 'x'.repeat(262145));
+    stopped(...gone);
+    fs.rmSync(file);
+    fs.mkdirSync(file);
+    stopped(...gone);
+    fs.rmdirSync(file);
+    // A link in a folder of the path, as a folder that an agent replaced.
+    if (path.dirname(name) !== '.') {
+      const dir = path.dirname(file);
+      fs.renameSync(dir, `${dir}.real`);
+      fs.writeFileSync(path.join(`${dir}.real`, path.basename(file)), text);
+      fs.symlinkSync(`${dir}.real`, dir);
+      stopped(...gone);
+      fs.rmSync(dir);
+      fs.renameSync(`${dir}.real`, dir);
+    }
     // An edit after the review, such as one sentence of a plan: the report is of another SHA-256.
     fs.writeFileSync(file, '{"a":1}');
     stopped(start, `  Reviewer ${reviewer} wrote no report.`,
@@ -999,9 +1032,10 @@ test('ledger: step end done needs a passing report of the reviewer for the file'
     fs.writeFileSync(reported, JSON.stringify({ reviewer, findings: [low,
       finding('blocking', 'failing input: "Export each order."')] }));
     stopped(`Fix the blocking findings on ${name}, then start ${reviewer} again.`,
-      `  1 blocking finding in ${at}, such as: The plan leaves out the export.`);
+      '  1 blocking finding in the report, such as: The plan leaves out the export.',
+      `  The report of this file is ${at}.`);
     fs.writeFileSync(reported, JSON.stringify({ reviewer, findings: [low] }));
-    const ended = call('step', 'end', id, 'done', ...flags);
+    const ended = call('step', 'end', id, 'done', ...flagsOf(call, id));
     assert.equal(ended.status, 0, ended.out);
     assert.equal(stored(w).ledger.steps.at(-1).state, 'done');
   }
@@ -1028,7 +1062,7 @@ test('ledger: the report of the checks is named by the lock and its files, not b
       failed_with: 1 }], support: [{ path: 'tests/orders.cjs' }] };
   const put = (data) => fs.writeFileSync(lock, typeof data === 'string' ? data
     : JSON.stringify(data));
-  const end = () => call('step', 'end', 'checks', 'done');
+  const end = () => call('step', 'end', 'checks', 'done', ...flagsOf(call, 'checks'));
   // reportOf returns the report file that step end prints, with no report of the draft.
   const reportOf = () => {
     const result = end();
@@ -1069,7 +1103,7 @@ test('ledger: the report of the checks is named by the lock and its files, not b
       'Checked the step checks: the ledger is unchanged.']);
   };
   fs.rmSync(support);
-  stopped('Write "tests/orders.cjs" before you lock it.',
+  stopped('Write "tests/orders.cjs", then end the step again.',
     '  The working folder has no file "tests/orders.cjs".');
   fs.symlinkSync(check, support);
   stopped('Replace the link in "tests/orders.cjs" with the file it points to.',
@@ -1079,35 +1113,62 @@ test('ledger: the report of the checks is named by the lock and its files, not b
   put({ ...locked, support: [{ path: '../away.cjs' }] });
   stopped('Give "../away.cjs" a path inside the working folder.',
     '  The path "../away.cjs" ends outside that folder.');
-  // A draft that is no JSON exits 3.
+  // A draft that is no JSON.
   put('{');
-  assert.equal(end().status, 3);
+  stopped('Write acceptance-lock.json as valid JSON.',
+    '  acceptance-lock.json does not parse.');
   put(locked);
   const ended = end();
   assert.equal(ended.status, 0, ended.out);
 });
 
-test('ledger: step end of a script prints its report file with no --script-sha256', () => {
-  const w = work();
-  const call = resumed(w);
-  const id = 'script:scenario-1';
-  assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
-  const { file, reported } = reviewedFile(call, id);
-  const clean = fs.readFileSync(reported);
-  fs.rmSync(reported);
-  const result = call('step', 'end', id, 'done');
-  assert.equal(result.status, 1, result.out);
-  assert.deepEqual(result.lines, ['Give --script-sha256 to end a script step as done.',
-    `Start check-reviewer on .demo/scenario-1.json, then run step end ${id} done again.`,
-    '  Reviewer check-reviewer wrote no report.', '  The report of this file is ' +
-      `.step-reports/check-reviewer/${sha(fs.readFileSync(file))}.json.`,
+test('ledger: step end with no flag prints the report file and records nothing', () => {
+  for (const [id, reviewer, name] of REVIEWED) {
+    const w = work();
+    const call = resumed(w);
+    assert.equal(call('step', 'begin', id, 'implement-changes', ...w.inputs).status, 0);
+    const before = JSON.stringify(stored(w).ledger);
+    const { reported } = reviewedFile(call, id);
+    const clean = fs.readFileSync(reported);
+    const printed = (...lines) => {
+      const result = call('step', 'end', id, 'done');
+      assert.equal(result.status, 1, result.out);
+      assert.deepEqual(result.lines, [...lines,
+        `  The report of this file is .step-reports/${reviewer}/${path.basename(reported)}.`,
+        `Checked the step ${id}: the ledger is unchanged.`]);
+      assert.equal(JSON.stringify(stored(w).ledger), before, id);
+    };
+    // No report, an invalid one, a blocking one, and a passing one of an unchanged file.
+    const start = `Start ${reviewer} on ${name}, then run step end ${id} done again.`;
+    fs.rmSync(reported);
+    printed(MISSING(id), start, `  Reviewer ${reviewer} wrote no report.`);
+    fs.writeFileSync(reported, 'clean');
+    printed(MISSING(id), start, `  Reviewer ${reviewer} wrote a report that is not one JSON ` +
+      'object: it is no JSON.');
+    reviewedFile(call, id, { findings: [finding('blocking', 'failing input: "Export."')] });
+    printed(MISSING(id), `Fix the blocking findings on ${name}, then start ${reviewer} again.`,
+      '  1 blocking finding in the report, such as: The plan leaves out the export.');
+    fs.writeFileSync(reported, clean);
+    printed(MISSING(id));
+    assert.equal(call('step', 'end', id, 'done', ...flagsOf(call, id)).status, 0, id);
+  }
+});
+
+test('ledger: a script step ends done only with the SHA-256 of its file', () => {
+  for (const id of ['script:scenario-1', 'script:scenario-1#2']) {
+    const w = work();
+    const call = resumed(w);
+    assert.equal(begin(call, w, id).status, 0);
+    const before = JSON.stringify(stored(w).ledger);
+    const other = call('step', 'end', id, 'done', '--script-sha256', H);
+    assert.equal(other.status, 1, other.out);
+    assert.deepEqual(other.lines, ['Run demo run scenario-1 again, and give --script-sha256 the ' +
+      'SHA-256 it prints.', `  .demo/scenario-1.json has the SHA-256 ${sha('{}\n')}, not ${H}.`,
     `Checked the step ${id}: the ledger is unchanged.`]);
-  // With the report, the step still needs the SHA-256 of the script.
-  fs.writeFileSync(reported, clean);
-  const none = call('step', 'end', id, 'done');
-  assert.equal(none.status, 1, none.out);
-  assert.equal(none.lines[0], 'Give --script-sha256 to end a script step as done.');
-  assert.equal(call('step', 'end', id, 'done', '--script-sha256', H).status, 0);
+    assert.equal(JSON.stringify(stored(w).ledger), before);
+    assert.equal(call('step', 'end', id, 'done', '--script-sha256', sha('{}\n')).status, 0);
+    assert.equal(stored(w).ledger.steps.at(-1).script_sha256, sha('{}\n'));
+  }
 });
 
 test('ledger: a failed step and a step of another kind end with no review', () => {
@@ -1282,25 +1343,21 @@ test('ledger: step begin and step end need resume first', () => {
   }
 });
 
-test('ledger: a script step ends done only with its hash, and a long report is refused', () => {
+test('ledger: a script step records its hash and its push, and no long report', () => {
   const w = work();
   const call = resumed(w);
   assert.equal(begin(call, w, 'script:scenario-1').status, 0);
-  const wrong = call('step', 'end', 'script:scenario-1', 'done');
-  assert.equal(wrong.status, 1, wrong.out);
-  assert.deepEqual(wrong.lines, ['Give --script-sha256 to end a script step as done.',
-    'Checked the step script:scenario-1: the ledger is unchanged.']);
   const long = report(call, 'browser-demo-author-1', `${'é'.repeat(4097)}\n`);
-  const cut = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H, '--report', long);
+  const script = ['script:scenario-1', 'done', '--script-sha256', sha('{}\n')];
+  const cut = call('step', 'end', ...script, '--report', long);
   assert.equal(cut.status, 1, cut.out);
   assert.equal(cut.lines[0], 'Cut the report "browser-demo-author-1.md" to 8192 bytes as written ' +
     'in the ledger.');
   assert.equal(cut.lines[1], '  "browser-demo-author-1.md" has 8196 bytes in 4098 characters.');
-  const ended = call('step', 'end', 'script:scenario-1', 'done', '--script-sha256', H,
-    '--pushed', 'demo-script/scenario-1/2');
+  const ended = call('step', 'end', ...script, '--pushed', 'demo-script/scenario-1/2');
   assert.equal(ended.status, 0, ended.out);
   const row = stored(w).ledger.steps[0];
-  assert.equal(row.script_sha256, H);
+  assert.equal(row.script_sha256, sha('{}\n'));
   assert.deepEqual(row.pushed, [{ type: 'demo-script', name: 'scenario-1', version: 2 }]);
   // A failed step is recorded with no report when its report is too long or cannot be read.
   assert.equal(begin(call, w, 'plan').status, 0);

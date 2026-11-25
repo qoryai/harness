@@ -101,16 +101,23 @@ version; do this only for a script that this session wrote and still has as a fi
      that the draft changes a script that passed, whether the author wrote it or it is a
      copy of the pushed file; for the first script there is no such line. Run
      `<skill folder>/checks.cjs step end <step> done` for the path of the report file, as
-     "The build ledger" of `running-a-software-workflow` lists. Then start
-     ${qory:agents/check-reviewer} in the foreground, as "Starting agents" of
-     `running-a-workflow` lists, with the input file's path, `<folder>`, the run's number,
-     the notes, the path of `<scenarios>`, the path `<folder>/.demo/<id>.json` of the new
-     script, and the path of the report file. When `<step>` is `script:<id>`, add the line
-     "Review the first demo script" and `<id>`. For a correction, add the line "Review the
-     change to a demo script" and the path of the script that passed. Write its report to
-     `<folder>/.reports/check-reviewer-<n>.md`, and check it, as "Check each report" lists.
-     With `changes-needed`, do "Start the author again", with each finding quoted. With
-     `blocked`, run `step end <step> failed`, and end as "Failures" lists. Step 10 needs
+     "The build ledger" of `running-a-software-workflow` lists. Run
+     `<skill folder>/checks.cjs starts <run> <name> 3`, as "Count the starts" of
+     `running-a-workflow` lists, where `<name>` is
+     `implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for that
+     correction, so that each script and each correction has 3 starts. With 1, run `step end
+     <step> failed`, and end as "Failures" lists. Then start ${qory:agents/check-reviewer}
+     in the foreground, as "Starting agents" of `running-a-workflow` lists, with the input
+     file's path, `<folder>`, the run's number, the notes, the path of `<scenarios>`, the
+     path `<folder>/.demo/<id>.json` of the new script, and the path of the report file.
+     When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`.
+     For a correction, add the line "Review the change to a demo script" and the path of the
+     script that passed. Write its text report to `<folder>/.reports/check-reviewer-<n>.md`,
+     and check it, as "Check each report" lists. With `blocked`, run `step end <step>
+     failed`, and end as "Failures" lists. Then run the same call of `step end` again for
+     the report file, as "The build ledger" lists, and do no step 6 to 9 while it prints a
+     line that starts with "Start check-reviewer" or "Fix the blocking findings". With
+     `changes-needed`, do "Start the author again", with each finding quoted. Step 10 needs
      the review of the script as it is, so review a script that changes after its review
      again.
 6. Run `<skill folder>/checks.cjs check demo-script <folder>/.demo/<id>.json --inputs
@@ -135,7 +142,10 @@ version; do this only for a script that this session wrote and still has as a fi
    passed: keep the sha256. With 1, the first line has the fix for the failed action: do
    "Start the author again", with that line quoted. With 3, run `step end <step> failed`,
    and end as "Failures" lists for the checks script.
-9. Push it, as "Push only what changed" of `running-a-workflow` lists:
+9. Run `<skill folder>/checks.cjs step end <step> done` once more. With a line that starts
+   with "Start check-reviewer" or "Fix the blocking findings", go back to the review of
+   step 5. Otherwise push the script, as "Push only what changed" of `running-a-workflow`
+   lists:
 
    ```
    <qory> artifact push demo-script --name <id> <folder>/.demo/<id>.json
@@ -148,7 +158,8 @@ version; do this only for a script that this session wrote and still has as a fi
     sha256 of step 8, `--report` with the path of the last report of the demo author, and
     one `--attempt browser-demo-author,demo-author,balanced` for each start of the demo
     author, as "The build ledger" of `running-a-software-workflow` lists. This row is the
-    freeze of the script.
+    freeze of the script. With a line that starts with "Run demo run", the sha256 is not
+    that of `.demo/<id>.json`: do steps 8 to 10 again, once.
 
 ## Start the author again
 

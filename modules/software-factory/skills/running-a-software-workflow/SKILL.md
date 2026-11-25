@@ -87,14 +87,24 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      commands keep the step's files: in a stash, and in the reflog of git.
    - With any other line and exit 1, start no agent, and end as "Failures" lists.
 3. The steps `plan`, `checks` and each step of a demo script, `script:scenario-1` and
-   `script:scenario-1#2`, end `done` only with a valid report of their reviewer for the
-   file as it is, with no blocking finding. Before a start of that reviewer, when the file
-   changed since its last review or had none, run `checks.cjs step end <id> done` with no
-   flag. It exits with 1, and a line "The report of this file is <path>." has the path:
-   give the reviewer `<folder>/<path>` as the report file. Do nothing on the other lines of
-   that call. When the file did not change, give the path of its last review, and run no
-   `step end`. With no such line, end as "Failures" lists, unless the skill of your
-   workflow lists the line it printed.
+   `script:scenario-1#2`, end `done` only with a valid report of their reviewer for the file
+   as it is, with no blocking finding. Run `checks.cjs step end <id> done` with no flag
+   before each start of that reviewer, also when the file did not change, and after each
+   review, before you push, lock or run the file. This call exits with 1 and records
+   nothing. Do nothing on a line that these cases do not list:
+   - Before a start, a line "The report of this file is <path>." has the path: give the
+     reviewer `<folder>/<path>` as the report file. With no such line, end as "Failures"
+     lists, unless the skill of your workflow lists the line it printed.
+   - After a review whose last word is not `blocked`, a line that starts with "Start" and
+     the reviewer's name means that the report file is missing or breaks its format, which
+     the line after it states. Start the same reviewer again with the input it got, the path
+     of its text report and those lines, and tell it to write only its report file, with the
+     findings of that text report. That start does not count toward the reviewer's start
+     limit, so run no `starts` before it. Then run the call again. When the line is still
+     there after two such starts, run `step end <id> failed`, and end as "Failures" lists.
+   - After a review, a line that starts with "Fix the blocking findings" means that the
+     report file has a blocking finding: push, lock and run nothing. The file needs a fix of
+     its writer and a new review, as your workflow lists for a finding marked `break`.
 4. After the step, run `checks.cjs step end <id> done`, or `failed` when the step failed.
    Add `--report <file>` with the agent's last report under `.reports`, one
    `--attempt <agent>,<role>,<tier>` per agent start, one

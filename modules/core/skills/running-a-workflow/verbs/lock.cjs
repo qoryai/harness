@@ -6,8 +6,8 @@
 // SHA-256 as 64 lower-case hexadecimal digits, and problem, when set, is the line, or a
 // list of 1 to 5 lines, of a file that the type refuses. folder, which a type may leave
 // out, returns the line, or the lines, that refuse dir as the working folder, or null.
-// env is the environment of the call, and verb is `lock` or `lock --verify`, as a line of
-// the type shows it.
+// env is the environment of the call, and verb is `lock`, `lock --verify` or `step end`, as a
+// line of the type shows it.
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
 // checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
@@ -50,8 +50,9 @@ function lockType(io) {
 }
 
 // workingFolder returns the real path of the working directory of io, the working folder:
-// qory starts each session there, for verb, `lock` or `lock --verify`. When def.lock.folder
-// refuses it, it exits 3 with that line, or with those lines when it returns a list.
+// qory starts each session there, for verb, `lock`, `lock --verify` or `step end`. When
+// def.lock.folder refuses it, it exits 3 with that line, or with those lines when it returns
+// a list.
 // The verify that binds runs in a later run, before any agent of it starts, so this check
 // warns early and does not have to stop an agent that changed the folder.
 function workingFolder(io, def, verb) {
@@ -96,8 +97,8 @@ function printFindings(io, findings, again, last) {
 const PROBLEM_LINES = 5;
 
 // filesOf returns the listed files of data, a version of def, or null when it has no list,
-// for verb, `lock` or `lock --verify`. A problem that is not a list of 1 to PROBLEM_LINES
-// lines is a defect of def: it exits 3.
+// for verb, `lock`, `lock --verify` or `step end`. A problem that is not a list of 1 to
+// PROBLEM_LINES lines is a defect of def: it exits 3.
 function filesOf(io, def, data, verb) {
   const files = def.lock.files(data, io.env || {}, verb);
   if (!Array.isArray(files) || !files.every((file) => isObject(file) &&
@@ -157,23 +158,47 @@ function place(root, file) {
   return { full };
 }
 
-// hashOf returns the SHA-256 of the file full, or null when full is no regular file. It opens
-// full without following a link, and with O_NONBLOCK, so that the open of a FIFO put in
-// place of the file after place read it returns at once.
-function hashOf(full) {
+// eachChunk calls take with the bytes of the file full, at most CHUNK at a time, until take
+// returns false. It returns false when full is no regular file. It opens full without
+// following a link, and with O_NONBLOCK, so that the open of a FIFO put in place of the file
+// after place read it returns at once.
+function eachChunk(full, take) {
   const fd = fs.openSync(full, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0) |
     (fs.constants.O_NONBLOCK || 0));
   try {
-    if (!fs.fstatSync(fd).isFile()) return null;
-    const hash = crypto.createHash('sha256');
+    if (!fs.fstatSync(fd).isFile()) return false;
     const buffer = Buffer.alloc(CHUNK);
     for (let read = fs.readSync(fd, buffer, 0, CHUNK, null); read > 0;
       read = fs.readSync(fd, buffer, 0, CHUNK, null)) {
-      hash.update(buffer.subarray(0, read));
+      if (take(buffer.subarray(0, read)) === false) break;
     }
-    return hash.digest('hex');
+    return true;
   } finally {
     fs.closeSync(fd);
+  }
+}
+
+// hashOf returns the SHA-256 of the file full, or null when full is no regular file.
+function hashOf(full) {
+  const hash = crypto.createHash('sha256');
+  return eachChunk(full, (bytes) => { hash.update(bytes); }) ? hash.digest('hex') : null;
+}
+
+// fileBytes returns the bytes of the file at name, a path from the folder root, or null when a
+// part of the path is a link, or when it is no regular file of at most most bytes that can be
+// read.
+function fileBytes(root, name, most) {
+  const { full } = place(root, { folder: '', path: name });
+  const chunks = [];
+  let size = 0;
+  try {
+    return full && eachChunk(full, (bytes) => {
+      size += bytes.length;
+      chunks.push(Buffer.from(bytes));
+      return size <= most;
+    }) && size <= most ? Buffer.concat(chunks) : null;
+  } catch {
+    return null;
   }
 }
 
@@ -256,13 +281,14 @@ function pull(io, type, number, verb = 'verify') {
 
 // fill sets entry.sha256 of each listed file of data, a version of def, from the working folder
 // of io, and returns { files, problems }: files as filesOf returns them, and problems as hashes
-// does. verb is the command that a line shows, and again the step of a line that runs it again.
+// does. verb is `lock` or `step end`, as a line shows it, and again the step of a line that
+// runs it again.
 function fill(io, def, data, verb, again) {
   const files = filesOf(io, def, data, verb);
   if (!files) return { files, problems: [] };
   const { found, problems } = hashes(workingFolder(io, def, verb), files, {
-    missing: (file) => `Write ${briefPath(file)} before you lock it.\nThe working folder has ` +
-      `no file ${shownPath(file)}.`,
+    missing: (file) => `Write ${briefPath(file)}${verb === 'lock' ? ' before you lock it'
+      : `, then ${again}`}.\nThe working folder has no file ${shownPath(file)}.`,
     unreadable: (file) => `Make ${briefPath(file)} readable, then ${again}.\n` +
       `${shownPath(file)} cannot be read.`,
   });
@@ -509,5 +535,5 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull, fill, fileBytes },
 };

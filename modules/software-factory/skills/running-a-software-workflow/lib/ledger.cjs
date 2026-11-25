@@ -22,7 +22,7 @@ const path = require('node:path');
 const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, isObject, quote, reviewerFindings, schema, sha256 } = lib;
+  const { MAX_BYTES, Missing, isObject, quote, reviewerFindings, schema, sha256 } = lib;
 
   const TYPE = 'build-ledger';
   const LOADED = schema.load(SCHEMAS, TYPE);
@@ -47,6 +47,7 @@ module.exports = (lib) => {
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
 
   const LOCK = 'acceptance-lock.json';
+  const REPORT_LINE = (file) => `The report of this file is ${file}.`;
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);
@@ -169,15 +170,6 @@ module.exports = (lib) => {
     return script ? { reviewer: 'check-reviewer', file: `.demo/${script[1]}.json` } : null;
   }
 
-  // bytesOf returns the bytes of file, or null when it is no regular file that can be read.
-  function bytesOf(file) {
-    try {
-      return fs.lstatSync(file).isFile() ? fs.readFileSync(file) : null;
-    } catch {
-      return null;
-    }
-  }
-
   // sorted returns value, a value of JSON, with the members of each object in the order of
   // their names.
   function sorted(value) {
@@ -188,47 +180,60 @@ module.exports = (lib) => {
 
   // lockSha returns { sha, problems } of the lock of text: the SHA-256 of its content with no
   // commit and with the sha256 of each listed file from the working folder, so that it is the
-  // same before and after freeze and lock, and the findings of the files with no hash.
+  // same before and after freeze and lock, and the findings of a text or a file with no hash.
   function lockSha(io, text) {
     const { lockType, fill } = lib.lockReader;
-    const data = lib.parseJson(text, LOCK);
+    let data;
+    try {
+      data = lib.parseJson(text, LOCK);
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      return { sha: null, problems: [error.message] };
+    }
     const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
     if (isObject(data)) delete data.commit;
     return { sha: sha256(JSON.stringify(sorted(data))), problems };
   }
 
-  // unpassed returns the findings of the file of row with no report of its reviewer for the
-  // SHA-256 of the file, or of lockSha for the checks, an invalid report or a blocking finding.
-  // root is the artifact folder.
-  // shortcut: the main session can write the report with a script, and any agent can write it on
-  // Gemini CLI, Cursor and Copilot CLI; replace when qory runs these reviewers as sessions.
+  // unpassed returns { findings, report, sha } of row: sha is the SHA-256 of its file, report the
+  // path of its report from root, the artifact folder, each null with no such file, and findings
+  // are those of a file with no valid report of its reviewer, or with a blocking finding.
   function unpassed(io, row, root) {
+    // shortcut: any agent with a shell can write the report with a script, as for .reports, and
+    // on Gemini CLI, Cursor and Copilot CLI any agent can; replace when qory runs these
+    // reviewers as sessions.
     const found = reviewed(row.id);
-    if (!found) return [];
+    if (!found) return { findings: [], report: null, sha: null };
     const { reviewer, file } = found;
-    const start = `Start ${reviewer} on ${file}, then run step end ${row.id} done again.`;
-    const bytes = bytesOf(path.join(root, file));
+    const bytes = lib.lockReader.fileBytes(root, file, MAX_BYTES);
     if (bytes === null) {
-      return [`${start}\n${file} of the artifact folder is missing or no regular file.`];
+      return { report: null, sha: null, findings: [`Write ${file} in the artifact folder, then ` +
+        `end the step again.\n${path.join(root, file)} is missing, a link or no regular file ` +
+        `of at most ${MAX_BYTES} bytes.`] };
     }
     const { sha, problems } = row.kind === 'checks' ? lockSha(io, bytes.toString('utf8'))
       : { sha: sha256(bytes), problems: [] };
-    if (problems.length) return problems.map((one) => [].concat(one).join('\n'));
+    if (problems.length) {
+      return { report: null, sha: null,
+        findings: problems.map((one) => [].concat(one).join('\n')) };
+    }
     const report = `.step-reports/${reviewer}/${sha}.json`;
     const blocking = reviewerFindings(path.join(root, report), reviewer)
       .filter((one) => one.severity === 'blocking');
+    if (!blocking.length) return { findings: [], report, sha };
     // A finding with no proof is the reader's: the report is missing or invalid.
-    if (blocking.length && blocking[0].proof === null) {
-      return [`${start}\n${blocking[0].point}\nThe report of this file is ${report}.`];
-    }
-    return blocking.length ? [`Fix the blocking findings on ${file}, then start ${reviewer} ` +
-      `again.\n${lib.plural(blocking.length, 'blocking finding')} in ${report}, such as: ` +
-      blocking[0].point] : [];
+    const line = blocking[0].proof === null
+      ? `Start ${reviewer} on ${file}, then run step end ${row.id} done again.\n` +
+        blocking[0].point
+      : `Fix the blocking findings on ${file}, then start ${reviewer} again.\n` +
+        `${lib.plural(blocking.length, 'blocking finding')} in the report, such as: ` +
+        blocking[0].point;
+    return { report, sha, findings: [`${line}\n${REPORT_LINE(report)}`] };
   }
 
   // finish returns the commit of a done row, or the findings of edits made outside the step, of
-  // a list `Left out:` in the report that leftOut cannot read, and of a file that its reviewer
-  // did not pass. A failed row gets no commit and no finding.
+  // a list `Left out:` in the report that leftOut cannot read, of a file that its reviewer did
+  // not pass, and of a flag that is missing. A failed row gets no commit and no finding.
   function finish(io, { ledger, place, state, report, root, values }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
@@ -249,11 +254,27 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
-    // The call that prints the path of the report has no SHA-256 yet, so this is a finding.
-    if (row.kind === 'script' && values.script_sha256 === undefined) {
-      findings.push('Give --script-sha256 to end a script step as done.');
+    const review = unpassed(io, row, root);
+    // The call for the path of the report has no result of the step yet, so it records nothing.
+    let missing = null;
+    if (row.kind === 'script') {
+      const given = values.script_sha256;
+      const { file } = reviewed(row.id);
+      if (given === undefined) {
+        missing = 'Give --script-sha256 to end a script step as done.';
+      } else if (review.sha !== null && given !== review.sha) {
+        findings.push(`Run demo run ${path.basename(file, '.json')} again, and give ` +
+          `--script-sha256 the SHA-256 it prints.\n${file} has the SHA-256 ${review.sha}, not ` +
+          `${given}.`);
+      }
+    } else if (reviewed(row.id) && report === null) {
+      missing = `Give --report with the writer's last report to end ${row.id} as done.`;
     }
-    findings.push(...unpassed(io, row, root));
+    if (missing) {
+      findings.push(review.findings.length || !review.report ? missing
+        : `${missing}\n${REPORT_LINE(review.report)}`);
+    }
+    findings.push(...review.findings);
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 

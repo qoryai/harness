@@ -89,7 +89,24 @@ test('each change of the plan is reviewed again, also after the last review', ()
   assert.ok(order.includes('6. Run `<skill folder>/checks.cjs step end plan done` for the path ' +
     'of the report file'));
   assert.ok(order.includes('After each start of the planner, whatever its reason, do steps 5 ' +
-    'and 6 again'));
+    'and 6 again, also when the plan did not change'));
+  assert.ok(order.includes('After each review, run the same call again for the report that the ' +
+    'reviewer wrote, as "The build ledger" lists, and do no step 7 while it prints a line that ' +
+    'starts with "Start plan-reviewer" or "Fix the blocking findings".'));
+  // The rule of each reviewed step, for the call with no flag before and after a review.
+  const ledger = section(skill('running-a-software-workflow'), 'The build ledger')
+    .replace(/\s+/g, ' ');
+  for (const part of ['Run `checks.cjs step end <id> done` with no flag before each start of ' +
+    'that reviewer, also when the file did not change, and after each review, before you push, ' +
+    'lock or run the file. This call exits with 1 and records nothing.',
+  'Start the same reviewer again with the input it got, the path of its text report and those ' +
+    'lines, and tell it to write only its report file, with the findings of that text report. ' +
+    'That start does not count toward the reviewer\'s start limit, so run no `starts` before it.',
+  'When the line is still there after two such starts, run `step end <id> failed`',
+  'a line that starts with "Fix the blocking findings" means that the report file has a ' +
+    'blocking finding: push, lock and run nothing.']) {
+    assert.ok(ledger.includes(part), part);
+  }
   assert.ok(order.includes('After the last review, start the planner no more, not for a ' +
     'sentence either.'));
   // The rules of every workflow make the same exception for a file that a report is needed for.
@@ -104,7 +121,7 @@ test('the example of a report file passes the reader of findings round', () => {
   const text = read(CORE, 'skills/reviewing-drafts/SKILL.md');
   const report = JSON.parse(fenced(section(text, 'The report file')));
   const { reportProblem } = require(
-    path.join(CORE, 'skills/running-a-workflow/verbs/findings.cjs'));
+    path.join(CORE, 'skills/running-a-workflow/lib/findings.cjs'));
   assert.equal(reportProblem(report, 'plan-reviewer'), null);
   for (const proof of ['failing check: ', 'failing input: ', 'broken rule: ']) {
     assert.ok(text.includes(`\`${proof}\``), proof);

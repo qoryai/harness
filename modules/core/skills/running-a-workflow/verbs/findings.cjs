@@ -260,7 +260,7 @@ function round(io, { reports, names, suite }) {
 }
 
 module.exports = {
-  reviewerFindings, reportProblem,
+  reviewerFindings,
   verbs: {
     findings: {
       usage: ['findings open <file>',

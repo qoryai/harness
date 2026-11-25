@@ -943,7 +943,7 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
     '7. Before the first run of a script in this session, run ' +
       '`<skill folder>/checks.cjs preflight --inputs <inputs>` once',
     '8. Run `<skill folder>/checks.cjs demo run <id> --inputs <inputs>`',
-    '9. Push it, as "Push only what changed"',
+    '9. Run `<skill folder>/checks.cjs step end <step> done` once more',
     '10. Run `<skill folder>/checks.cjs step end <step> done --script-sha256 <sha256>`');
   inText(SCRIPTING, 'With 1 and a first line that starts with "Keep the script of"',
     'When a line of the finding starts with',
@@ -963,10 +963,22 @@ test('scripting-demos: the steps of a scenario in order, with the freeze and the
       'that the draft changes a script that passed, whether the author wrote it or it is a ' +
       'copy of the pushed file; for the first script there is no such line',
     '`<skill folder>/checks.cjs step end <step> done` for the path of the report file',
+    '`<skill folder>/checks.cjs starts <run> <name> 3`, as "Count the starts"',
+    '`implement-changes-<n>-check-reviewer-<id>`, with `-2` or `-3` after it for that ' +
+      'correction, so that each script and each correction has 3 starts',
     'When `<step>` is `script:<id>`, add the line "Review the first demo script" and `<id>`',
     'For a correction, add the line "Review the change to a demo script" and the path of the ' +
       'script that passed', 'With `changes-needed`, do "Start the author again"',
     'review a script that changes after its review again');
+  // The report file is read after each review, before the run and the push of the script.
+  inText(SCRIPTING, 'With `blocked`, run `step end <step> failed`, and end as "Failures" lists. ' +
+    'Then run the same call of `step end` again for the report file, as "The build ledger" ' +
+    'lists, and do no step 6 to 9 while it prints a line that starts with "Start check-reviewer" ' +
+    'or "Fix the blocking findings".', '8. Run `<skill folder>/checks.cjs demo run <id>',
+    '9. Run `<skill folder>/checks.cjs step end <step> done` once more.',
+    'go back to the review of step 5. Otherwise push the script',
+    'With a line that starts with "Run demo run", the sha256 is not that of `.demo/<id>.json`: ' +
+      'do steps 8 to 10 again, once.');
   // The limit of the sign-in check with no build plan is stated.
   inText(SCRIPTING, 'only when the build plan is readable and has the line `App address:`',
     'With no such plan, it compares nothing');
@@ -995,6 +1007,6 @@ test('check-reviewer: a branch for the first demo script of a scenario', () => {
     'Report each of these as a finding marked `writer`, `no direction` and `break`',
     'the actions of a step do not do what its Action in the scenario describes',
     'What the viewer sees', 'the starting state of the scenario',
-    'no file of the working folder has the target of a click or type action',
-    'a password, key or token', 'differs from the demo scenarios', '## Stop conditions');
+    'no code of the working folder can produce the target of a click or type action',
+    'a password, key or token', '## Stop conditions');
 });

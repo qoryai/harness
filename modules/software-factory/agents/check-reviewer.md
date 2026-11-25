@@ -92,9 +92,8 @@ Report each of these as a finding marked `writer`, `no direction` and `break`:
 - the screen after the actions of a step cannot show what the scenario lists under What the
   viewer sees;
 - the setup does not sign in and reach the starting state of the scenario, or it does more;
-- no file of the working folder has the target of a click or type action;
-- the text of a type action is a password, key or token;
-- the title or the expected result of a step differs from the demo scenarios.
+- no code of the working folder can produce the target of a click or type action;
+- the text of a type action is a password, key or token.
 
 ## Stop conditions
 

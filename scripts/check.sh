@@ -244,8 +244,9 @@ rule_sections() {
 	[ -z "$OUT" ]
 }
 
-# The line that lets a reviewer list Write, for its one report file: a reviewer of a change,
-# which qory starts as the main agent of its session, or check-reviewer or plan-reviewer.
+# The line that lets a reviewer list Write, for its one report file: a reviewer of a change or
+# of Verify, which qory starts as the main agent of its session, or check-reviewer or
+# plan-reviewer.
 REVIEWER_EXCEPTION='Tool exception: Write, because it writes the one report file of a review round.'
 
 # rule_tools DIR: rule 2, an agent has a tools key, because an agent with none gets every

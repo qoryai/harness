@@ -50,10 +50,12 @@ not load the rules it needs, so it pushed no build plan."
    "The build ledger" lists. Start ${qory:agents/plan-reviewer} with the input file's path,
    the artifact folder, the run's number, the notes, the code explorer's report, unchanged,
    the path of the report file, and the lines under "Checks:" that "Check before each
-   review" lists. Decide on each report as "Findings" lists. After each start of the
-   planner, whatever its reason, do steps 5 and 6 again: step 8 needs the review of the
-   plan as you push it. After the last review, start the planner no more, not for a
-   sentence either.
+   review" lists. After each review, run the same call again for the report that the
+   reviewer wrote, as "The build ledger" lists, and do no step 7 while it prints a line that
+   starts with "Start plan-reviewer" or "Fix the blocking findings". Decide on each report
+   as "Findings" lists. After each start of the planner, whatever its reason, do steps 5 and
+   6 again, also when the plan did not change: step 8 needs the review of the plan as you
+   push it. After the last review, start the planner no more, not for a sentence either.
 7. Push the build plan only when it changed, as "Push only what changed" lists:
 
    ```
