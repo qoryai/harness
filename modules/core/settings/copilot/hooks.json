@@ -4,14 +4,14 @@
     "preToolUse": [
       {
         "type": "command",
-        "bash": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-copilot.cjs\"",
+        "bash": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/reports-guard-copilot.cjs\"",
         "timeoutSec": 10
       }
     ],
     "agentStop": [
       {
         "type": "command",
-        "bash": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-copilot.cjs\"",
+        "bash": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/end-gate-copilot.cjs\"",
         "timeoutSec": 180
       }
     ]

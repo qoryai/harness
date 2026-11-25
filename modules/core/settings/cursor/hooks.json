@@ -3,21 +3,21 @@
   "hooks": {
     "preToolUse": [
       {
-        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.cjs\"",
+        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.cjs\"",
         "matcher": "Write|Delete",
         "timeout": 10
       }
     ],
     "beforeShellExecution": [
       {
-        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.cjs\"",
+        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/reports-guard-cursor.cjs\"",
         "matcher": "[.][Rr]|[.][Ee][Nn][Vv]|[*?\\[{$`'\"\\\\~]|\\beval\\b",
         "timeout": 10
       }
     ],
     "stop": [
       {
-        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-cursor.cjs\"",
+        "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/end-gate-cursor.cjs\"",
         "timeout": 180
       }
     ]

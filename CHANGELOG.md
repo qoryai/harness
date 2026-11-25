@@ -2311,11 +2311,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 - A hook process loads no preload from the environment of its session or from a `.env` file.
   Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`. The path is
-  absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude Code,
-  Codex, Gemini CLI, Cursor and Copilot CLI. A shell reads `BASH_ENV` before `env` runs, so
-  each hook of Gemini CLI also sets `env` to `{ "BASH_ENV": "", "ENV": "" }`. The setting
-  `advanced.excludedEnvVars` of Gemini CLI lists the four names, `BASH_ENV` and `ENV`.
+  `/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH`.
+  The path is absolute, so that no `env` earlier in `PATH` replaces it. This holds on Claude
+  Code, Codex, Gemini CLI, Cursor and Copilot CLI. bash reads some variables before `env`
+  runs: it runs the file in `BASH_ENV` or `ENV`, `SHELLOPTS=xtrace` runs a `$(...)` in
+  `PS4`, and on Linux `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` load a library into
+  bash and `env`. So the `env` field of each hook of Gemini CLI sets `BASH_ENV`, `ENV`,
+  `SHELLOPTS`, `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` to `""`.
+  The setting `advanced.excludedEnvVars` of Gemini CLI lists `NODE_OPTIONS`, `NODE_PATH`,
+  `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`.
   Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
   guard of all five runtimes also denies a write to a file named `.env` and a shell command
   with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a

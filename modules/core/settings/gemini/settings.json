@@ -33,8 +33,17 @@
           {
             "name": "reports-guard",
             "type": "command",
-            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
-            "env": { "BASH_ENV": "", "ENV": "" },
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/reports-guard-gemini.cjs\"",
+            "env": {
+              "BASH_ENV": "",
+              "ENV": "",
+              "SHELLOPTS": "",
+              "BASHOPTS": "",
+              "PS4": "",
+              "LD_PRELOAD": "",
+              "LD_AUDIT": "",
+              "LD_LIBRARY_PATH": ""
+            },
             "timeout": 10000
           }
         ]
@@ -46,8 +55,17 @@
           {
             "name": "end-gate",
             "type": "command",
-            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
-            "env": { "BASH_ENV": "", "ENV": "" },
+            "command": "/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH node \"$QORY_HARNESS_HOME/hooks/end-gate-gemini.cjs\"",
+            "env": {
+              "BASH_ENV": "",
+              "ENV": "",
+              "SHELLOPTS": "",
+              "BASHOPTS": "",
+              "PS4": "",
+              "LD_PRELOAD": "",
+              "LD_AUDIT": "",
+              "LD_LIBRARY_PATH": ""
+            },
             "timeout": 180000
           }
         ]

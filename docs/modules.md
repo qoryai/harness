@@ -1857,25 +1857,38 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
-Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
-then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
-`PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
-`DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
-the ones that Linux reads.
+`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT -u LD_LIBRARY_PATH`, on
+Claude Code, Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a
+`.env` file sets then loads no preload, and no library from another folder, into `node`. The
+path is absolute, so that no `env` earlier in `PATH` replaces it. On macOS with System
+Integrity Protection on, `/usr/bin/env` also drops `DYLD_INSERT_LIBRARIES` and
+`DYLD_LIBRARY_PATH` before it starts its command; that was checked on Darwin 25.6 with both
+set. The list has no `DYLD_` name, and the `LD_` names are the ones that Linux reads.
 
-A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
-cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
-up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
-before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
-script before a hook command. So `settings/gemini/settings.json` does two things:
+A shell reads some variables before it runs the first word of its command, so
+`/usr/bin/env -u` cannot clear them:
 
-- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
-  field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
-  is read from the source of 0.68.0.
+- bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
+- `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
+  bash expands `PS4` before each command, so a `$(...)` in `PS4` runs.
+- On Linux, the loader reads `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` when bash
+  starts, and again when `/usr/bin/env` starts, so a library in them loads before `env`
+  clears them.
+
+Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the environment of Gemini
+CLI. Gemini CLI loads one `.env` file into that environment. It walks up from the working
+folder to the home folder, and in each folder it takes `.gemini/.env` before `.env`. On a
+real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its script before a hook
+command. So `settings/gemini/settings.json` does two things:
+
+- It sets `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT` and
+  `LD_LIBRARY_PATH` to `""` in `env` of each hook. Gemini CLI 0.68.0 adds that field to the
+  environment of the hook after the other variables. bash reads no file for an empty
+  `BASH_ENV`, and turns on no option for an empty `SHELLOPTS` or `BASHOPTS`. With bash
+  5.3.15 on macOS, `SHELLOPTS=xtrace` and a `$(...)` in `PS4` ran the command, and with both
+  set to `""` it did not run. The empty `LD_` names were not tested on Linux. The hooks
+  reference of Gemini CLI does not list the field `env`; it is read from the source of
+  0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
