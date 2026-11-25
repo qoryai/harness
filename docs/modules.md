@@ -2522,13 +2522,15 @@ when it was pushed, and a push store has the newest lock only, not the lock befo
 version that the rule compares. `build-plan`, `verification` and `walkthrough` read
 `acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
 apply one rule, and a check and a push give the same result for the same facts, with one
-exception: while `acceptance-lock` is withdrawn, a push store lacks the lock before the
-version, so a push fails closed where a check that pulled that lock passes. A version that
-fails the rule is never the target, and the finding shows the reason: a criterion
-that the version changes with no answered question about it, or a lock or the questions that
-the store lacks. For a store that lacks them, a check has the pull as its first line (`Run
-\`qory artifact pull acceptance-lock --version <N>\`, then check again.`, or `qory artifact
-pull questions`), and a push, which cannot pull, has the usual first line and the reason.
+exception: a push store has the newest lock only, so a push fails closed whenever the lock
+before the version is not the newest lock (for example while `acceptance-lock` is withdrawn,
+or when a later lock locks an older version), where a check that pulled that lock passes.
+A version that fails the rule is never the target, and the finding shows the reason: a
+criterion that the version changes with no answered question about it, or a lock or the
+questions that the store lacks. For a store that lacks them, a check has the pull as its
+first line (`Run \`qory artifact pull acceptance-lock --version <N>\`, then check again.`,
+or `qory artifact pull questions`), and a push, which cannot pull, has the usual first line
+and the reason.
 The newest lock opens the version that it locks only while `acceptance-lock` is not
 withdrawn, and only when the lock is live (no cancelled run wrote it, and it is no
 withdrawal), the store has its document, and it locks that version: a later version that the

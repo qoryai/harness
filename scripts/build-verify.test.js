@@ -1917,7 +1917,7 @@ test('acceptance-lock: a lock in index.json that the store does not have exits 3
   passes(push(older(), 'acceptance-lock', lockFile(LOCK_2)), 'acceptance-lock');
 });
 
-test('acceptance-lock: a withdrawn lock gives the line of the version before it, for that one', () => {
+test('acceptance-lock: while the lock is withdrawn, only the newest lock that counts has the line before the withdrawal', () => {
   // Lock 1 and lock 2 count, and version 3 is the withdrawal. Lock 2 is the version before
   // the withdrawal; lock 1 is only a lock that the store lacks.
   const make = (...gone) => () => {
@@ -3268,6 +3268,87 @@ test('build-plan, verification, walkthrough: a check names the lock before the v
     const pulled = make();
     version(pulled, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
     passes(check(pulled, type, file), type);
+  }
+});
+
+test('build-plan, verification, walkthrough: a version with no time that parses has a reason', () => {
+  // Version 2 has no time that parses, so no lock is before it and the question rule has
+  // nothing to compare: the version never counts, and the reason is never empty.
+  const make = () => {
+    const folder = answerStore('an_1', { question: false });
+    indexed(folder, (index) => {
+      const entry = index.artifacts.find((one) => one.type === 'acceptance-criteria')
+        .versions.find((one) => one.number === 2);
+      entry.at = 'garbage';
+    });
+    return folder;
+  };
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) {
+      exactly(mode(make(), type, file), 'Ask a member to write the change in a request for ' +
+        `changes.\nThen push ${what} again: the run stored version 2 after the approved ` +
+        'version 1.');
+    }
+  }
+});
+
+test('build-plan, verification, walkthrough: a note from before the lock gets no pull line', () => {
+  // Lock 1 is not in the store, and version 2 is linked to a note from before lock 1: the
+  // reason is the time of the note, which no pull fixes, so the first line asks a member.
+  const make = () => {
+    const folder = answerStore('an_1');
+    indexed(folder, (index) => {
+      index.artifacts.find((one) => one.type === 'acceptance-criteria').versions
+        .find((one) => one.number === 2).decision_at = '2026-11-15T08:00:00Z';
+    });
+    fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+    return folder;
+  };
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) {
+      exactly(mode(make(), type, file), 'Ask a member to write the change in a request for ' +
+        `changes.\nThen push ${what} again: Version 2 is linked to a note from ` +
+        '2026-11-15T08:00:00Z, and acceptance-lock version 1 is from 2026-11-15T09:00:00Z.');
+    }
+  }
+});
+
+test('build-plan, verification, walkthrough: a push fails closed where a check that pulled the lock passes', () => {
+  // Lock 1 locks version 1, a person stores version 2, a run stores version 3 linked to an
+  // answer after version 2, and lock 2 locks version 2. The rule compares version 3 with lock
+  // 1, which the push store (lock 2 only) lacks.
+  const make = () => {
+    const folder = inVerify();
+    const second = criteriaDoc((list) => { criterionOf(list, 'ac-3').text += ' Daily.'; });
+    const third = criteriaDoc((list) => {
+      criterionOf(list, 'ac-3').text += ' Daily.';
+      criterionOf(list, 'ac-4').text += ' Within a day.';
+    });
+    version(folder, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
+    listed(folder, 'acceptance-lock', 1, 'av_lock1', { at: LOCKED });
+    version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json', second);
+    listed(folder, 'acceptance-criteria', 2, 'av_ac2', { writer: PERSON,
+      at: '2026-11-15T10:00:00Z' });
+    version(folder, 'acceptance-criteria', 'main', 3, 'acceptance-criteria.json', third);
+    listed(folder, 'acceptance-criteria', 3, 'av_ac3', { at: LATER, decision: 'an_1',
+      decision_at: LATER });
+    const lock = lockOf(LOCK_DOC, 2);
+    lock.criteria.sha256 = hashesOf(second);
+    version(folder, 'acceptance-lock', 'main', 2, 'acceptance-lock.json', lock);
+    listed(folder, 'acceptance-lock', 2, 'av_lock2', { at: LATEST });
+    const answers = ['ac-3', 'ac-4'].map((item) => ({ id: `q-${item}`, question: 'Which?',
+      about: { type: 'acceptance-criteria', name: 'main', item }, state: 'answered',
+      answer: { option: 'A', by: PERSON, at: '2026-11-15T11:30:00Z' } }));
+    version(folder, 'questions', 'main', 1, 'questions.json', { questions: answers });
+    listed(folder, 'questions', 1, 'av_q1', { at: LATEST });
+    return folder;
+  };
+  for (const [type, file, what] of READERS) {
+    passes(check(make(), type, file), type);
+    exactly(push(make(), type, file), 'Ask a member to write the change in a request for ' +
+      `changes.\nThen push ${what} again: Version 3 is linked to an answer, and ` +
+      'acceptance-lock version 1 is not in the store, so the check cannot bind it to a ' +
+      'criterion.');
   }
 });
 
