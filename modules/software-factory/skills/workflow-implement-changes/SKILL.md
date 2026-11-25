@@ -1,6 +1,6 @@
 ---
 name: workflow-implement-changes
-description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of a review and of Verify, each as one step of the build ledger. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the last deliverable, the skill scripting-demos writes the demo script of each approved demo scenario that has none, when the stack has it. After the steps, the submission writer writes the text of the change, and report-build writes the build report, which the session checks and pushes. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
+description: Orchestrate the code change of one ticket in a Build run: build each planned change that is not built, then fix each open finding of the work item, of every stage, and each finding of Verify, each as one step of the build ledger, and reply to each. Each step starts the developer at most twice and the debugger once, runs the scope check and the checks of code after each start, and commits the step when every check is green. After the last deliverable, the skill scripting-demos writes the demo script of each approved demo scenario that has none, when the stack has it. After the steps, the submission writer writes the text of the change, and report-build writes the build report, which the session checks and pushes. A change that needs a change to the build plan ends with a question to a member. Use in a headless run of the workflow implement-changes.
 ---
 
 # Implement changes
@@ -51,8 +51,8 @@ start.
 4. Do "A step" for each step, in this order: each deliverable that is not built, in the
    order of the build plan, as the step `deliverable:<id>`, such as `deliverable:d-2`; then
    do "Demo scripts"; then each finding as the step `fix:<id>`, such as `fix:f3`: the
-   `blocking` findings of the review in the order that `findings open` prints them, then the
-   findings of Verify, then the `non-blocking` findings of the review. When a step ends as
+   `blocking` open findings in the order that `findings open` prints them, then the
+   findings of Verify, then the `non-blocking` open findings. When a step ends as
    "A step that fails" or "A stop on the build plan" lists, do no later step.
 5. Do "The end".
 
@@ -73,12 +73,12 @@ Read each fact with the file tool of your runtime or a read form of `run-artifac
 - **Check paths:** a Check cell is a check path when it is a relative path with no space and
   no `.` or `..` part, whose file name has an extension, such as `tests/export.test.ts`;
   `n/a`, `none`, `-`, `TBD` and a scenario id are none.
-- **Findings of the review:** qory writes `<in>/open-findings.json`, read-only, from the
-  report of the last round of review. Run `findings open <in>/open-findings.json`, as "Open
-  findings of a review" of `running-a-workflow` lists. Each line
-  `Fix first: <id> (<severity>, <file>:<line>): <point>` is one finding, with that id. With
-  more than 200, read the rest from the file. When the file does not exist, the review left
-  no finding.
+- **Open findings:** qory writes `<in>/open-findings.json`, read-only, with each open
+  finding of the work item, of every stage, Verify's included, and the replies to each. Run
+  `findings open <in>/open-findings.json`, as "Open findings of a review" of
+  `running-a-workflow` lists. Each line that starts with `Fix first: <id>` is one open
+  finding, with that id. With more than 200, read the rest from the file. When the file
+  does not exist, no finding is open.
 - **Findings of Verify:** for each entry of `inputs` that step 1 took, find the entry of
   `artifacts` in `<folder>/index.json` whose `type` is the entry's `type` and whose
   `versions` have the version's `id`. Read
@@ -87,8 +87,8 @@ Read each fact with the file tool of your runtime or a read form of `run-artifac
   finding: its `text`, and its `fix` when it has one. Each row of `matrix` in the
   verification whose `state` is `not_met` is one finding: "<criterion> is not met:
   <evidence>", with the `criterion` in upper case, such as `AC-3`. Give these findings the
-  ids `f<N>`, from one more than the highest number of the review's ids, or from `f1` with
-  none, first the points, then the rows. Each counts as `blocking`.
+  ids `f<N>`, from one more than the highest number of the ids in `open-findings.json`, or
+  from `f1` with none, first the points, then the rows. Each counts as `blocking`.
 
 ## Removed demo scenarios
 
@@ -166,10 +166,11 @@ stay, and qory pushes them.
    2. Start the agent with the input file's path, the artifact folder, the path of the build
       plan, the run's number, the notes, the line "Further repositories: yes" or "no" as
       "Further repositories" lists it, the step's id, and the row of the deliverable or the
-      finding, quoted: for a finding of the review, its `Fix first:` line and the path of
-      `open-findings.json`, and for a finding of Verify, its text. From the second attempt
-      on, also pass every line of each red call of the attempt before, quoted, and the last
-      report of each earlier attempt of the step.
+      finding, quoted: for an open finding, its `Fix first:` line, its `replies` and
+      `disputed` from the file, and the path of `open-findings.json`, and for a finding of
+      Verify, its text. From the second attempt on, also pass every line of each
+      red call of the attempt before, quoted, and the last report of each earlier attempt of
+      the step.
    3. Write its report to `<folder>/.reports/<agent>-<n>.md` and check it, as "Check each
       report" of `running-a-workflow` lists. A report with the line `Blocked: needs a change
       to the build plan:` ends the step as "A stop on the build plan" lists. Any other
@@ -336,12 +337,12 @@ and qory's submit step stops on a submission with no commit; skip it by
 ## The end
 
 When every step ended done or replayed, do "The submission", then "The end" of
-`running-a-workflow`. In place of
-its line of the pushed versions, end with "The change is ready for review: the run built
-<k> planned changes and fixed <m> findings." `<k>` counts the steps `deliverable:` and
-`<m>` the steps `fix:` that this session ended done. Write "1 planned change" and "1
-finding" for one. With no such step, end with "The change is ready for review: each planned
-change was built before this run, and no finding is open."
+`running-a-workflow`. In place of its line of the pushed versions, end with "The change is
+ready for review: <k> planned changes built, <m> findings fixed, <d> disputed." `<k>` counts
+the steps `deliverable:` that this session ended done, and `<m>` and `<d>` the steps `fix:`
+that it ended done whose report has the line `Reply: fixed:` or `Reply: disputed:`. Write "1
+planned change" and "1 finding" for one. With no such step, end with "The change is ready
+for review: each planned change was built before this run, and no finding is open."
 
 Commit every change before you end. In each checkout with a change, run these two commands,
 with what changed as the message:
