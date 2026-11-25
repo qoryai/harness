@@ -1611,3 +1611,44 @@ test('a removed criterion planned as Tests needs no check, and a check of it is 
     assert.equal(result.lines[1], '  Criteria version 1 does not plan ac-2 as Tests.');
   }
 });
+
+// ---- The ids that two criteria files add, change, remove and keep --------------------------
+
+// criteriaText returns an acceptance-criteria.json with entries, each [id, text, check, removed].
+const criteriaText = (entries) => JSON.stringify({ summary: 'S.',
+  criteria: entries.map(([id, text, check, removed]) => ({ id, text, check,
+    ...(removed ? { removed: { reason: 'No longer needed.' } } : {}) })) });
+
+test('criteriaDiff lists the added, changed, removed and unchanged ids', () => {
+  const before = criteriaText([
+    ['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests'], ['ac-3', 'Three.', 'Demo: Three'],
+    ['ac-4', 'Four.', 'Tests'], ['ac-5', 'Five.', 'Tests', true], ['ac-6', 'Six.', 'Tests'],
+  ]);
+  const after = criteriaText([
+    ['ac-1', 'One.', 'Tests'], ['ac-2', 'Two, changed.', 'Tests'],
+    ['ac-3', 'Three.', 'Tests'], ['ac-4', 'Four.', 'Tests', true],
+    ['ac-5', 'Five.', 'Tests', true], ['ac-7', 'Seven.', 'Tests'],
+  ]);
+  assert.deepEqual(LIB.criteriaDiff(before, after), {
+    added: ['ac-7'], changed: ['ac-2', 'ac-3'], removed: ['ac-4', 'ac-6'], unchanged: ['ac-1'],
+  });
+});
+
+test('criteriaDiff of equal files has only unchanged ids, in the order of the file', () => {
+  const text = criteriaText([['ac-2', 'Two.', 'Tests'], ['ac-1', 'One.', 'Tests'],
+    ['ac-3', 'Three.', 'Tests', true]]);
+  assert.deepEqual(LIB.criteriaDiff(text, text),
+    { added: [], changed: [], removed: [], unchanged: ['ac-2', 'ac-1'] });
+  // A file that differs only in its summary and in its spacing has the same ids.
+  const spaced = JSON.stringify(JSON.parse(text), null, 2).replace('"S."', '"Another summary."');
+  assert.deepEqual(LIB.criteriaDiff(text, spaced), LIB.criteriaDiff(text, text));
+});
+
+test('criteriaDiff counts the criteria of an empty file as added, or as removed', () => {
+  const text = criteriaText([['ac-1', 'One.', 'Tests'], ['ac-2', 'Two.', 'Tests']]);
+  const empty = criteriaText([]);
+  assert.deepEqual(LIB.criteriaDiff(empty, text),
+    { added: ['ac-1', 'ac-2'], changed: [], removed: [], unchanged: [] });
+  assert.deepEqual(LIB.criteriaDiff(text, empty),
+    { added: [], changed: [], removed: ['ac-1', 'ac-2'], unchanged: [] });
+});
