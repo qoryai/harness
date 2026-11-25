@@ -336,7 +336,8 @@ module.exports = (lib) => {
   // null when the store has no such file, no pull returned it (context.pulled), or it is no
   // JSON object.
   function lockDoc(context, number) {
-    if (context.has && !context.has('acceptance-lock', 'main', number)) return null;
+    if (context.has && (!context.has('acceptance-lock', 'main', number) ||
+      !context.listed('acceptance-lock', 'main', number, 'acceptance-lock.json'))) return null;
     const file = path.join(context.store, 'acceptance-lock', 'main', `v${number}`,
       'acceptance-lock.json');
     try {
@@ -552,7 +553,10 @@ module.exports = (lib) => {
   // criteriaFile returns the path of acceptance-criteria.json of criteria version number in
   // the store, or null when the store has no such file or no pull returned it (context.pulled).
   function criteriaFile(context, number) {
-    if (context.has && !context.has('acceptance-criteria', 'main', number)) return null;
+    if (context.has && (!context.has('acceptance-criteria', 'main', number) ||
+      !context.listed('acceptance-criteria', 'main', number, 'acceptance-criteria.json'))) {
+      return null;
+    }
     const file = path.join(context.store, 'acceptance-criteria', 'main', `v${number}`,
       'acceptance-criteria.json');
     return fs.existsSync(file) ? file : null;

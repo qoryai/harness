@@ -352,13 +352,15 @@ const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hou
 // member answered a question about, after the lock. `recorded` puts the hash of each criterion
 // of the locked version in the lock, as `criteria.sha256`, which the question rule compares.
 // v3Linked false leaves version 3 with no link; lock2 adds a newer lock that locks version 2.
-// v3By is the kind of the writer of version 3, `run` or `person`.
+// v3By is the kind of the writer of version 3, `run` or `person`. unlisted is a list of types, or
+// of type/number, whose entries in index.json list the file notes.json only: the file of the type stays in its
+// folder, as a file that an agent wrote there.
 // answers2 adds a version 2 of the questions that a cancelled run wrote, with those answers;
 // questionsWithdrawn adds a withdrawal of the questions as version 2.
 function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', approved = 1,
   locked = 1, unhashed = [], support = [], hashFrom = null, v3 = null, answers = null,
   link = null, recorded = false, v3Linked = true, lock2 = false, answers2 = null,
-  questionsWithdrawn = false, v3By = 'run',
+  questionsWithdrawn = false, v3By = 'run', unlisted = [],
   checks = [['ac-4', CHECK_PATH], ['ac-1', OTHER_PATH]] } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
@@ -429,6 +431,13 @@ function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', appr
       cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-17T09:00:00Z',
       approvals: [], files: [put('acceptance-lock', 2, 'acceptance-lock.json',
         JSON.stringify(second, null, 2))] });
+  }
+  for (const one of index.artifacts) {
+    for (const entry of one.versions.filter((each) => unlisted.includes(one.type) ||
+      unlisted.includes(`${one.type}/${each.number}`))) {
+      entry.files = [{ filename: 'notes.json', content_type: 'application/json', size: 1,
+        sha256: sha('x') }];
+    }
   }
   fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index, null, 2));
   return root;
@@ -655,6 +664,26 @@ test('the guard reads no answers that index.json does not list, in a folder that
   plant(withdrawn, 'questions/x/v1/questions.json', BOTH_ANSWERED);
   firstLine(withdrawn.call(writeOf(withdrawn.a)), LOCKED_START);
   firstLine(withdrawn.call(writeOf(withdrawn.b)), LOCKED_START);
+});
+
+const LOCKED2_START = LOCKED_START.replace('version 1', 'version 2');
+
+test('the guard reads no file of a pulled version that index.json does not list for it', () => {
+  // Version 3 is written by a run, linked to an answer, and changes ac-1 and ac-4. Its answers
+  // are in the questions of version 1, which come after lock 1. Lock 2 locks version 2 and is the
+  // newest lock, so version 3 is compared with lock 1. With every file listed, both checks lift.
+  const options = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4', 'ac-1'],
+    lock2: true };
+  const listed = liftCase(options);
+  assert.equal(listed.call(writeOf(listed.a)), null);
+  assert.equal(listed.call(writeOf(listed.b)), null);
+  // The entry of one version lists notes.json only, and its main file is in the folder, as an
+  // agent can write it: questions 1, lock 1 and criteria 3. Nothing lifts.
+  for (const type of ['questions/1', 'acceptance-lock/1', 'acceptance-criteria/3']) {
+    const planted = liftCase({ ...options, unlisted: [type] });
+    firstLine(planted.call(writeOf(planted.a)), LOCKED2_START);
+    firstLine(planted.call(writeOf(planted.b)), LOCKED2_START);
+  }
 });
 
 test('the guard pulls the version of the questions that index.json counts, not the newest', () => {

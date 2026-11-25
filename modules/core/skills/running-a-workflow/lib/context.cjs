@@ -218,16 +218,27 @@ class Context {
     return !this.pulled || this.pulled.has(`${type}/${name}/${number}`);
   }
 
+  // listed reports whether a read may use the file of version number of name of type: always,
+  // or with this.pulled, only when the entry of that version in index.json lists the file name.
+  listed(type, name, number, file) {
+    if (!this.pulled) return true;
+    const artifact = (this.index ? this.index.artifacts : []).find((one) => one.type === type &&
+      (one.name || 'main') === name);
+    const version = artifact && artifact.versions.find((one) => one.number === number);
+    return Boolean(version && Array.isArray(version.files) &&
+      version.files.some((one) => one && one.filename === file));
+  }
+
   // newestPulled returns what newest returns when this.pulled is set: the newest version of
   // main that counts in index.json, read only when a pull returned it; null when index.json has
-  // no such version. A version that no pull returned exits 3 with the pull line. A folder or a
-  // name on disk that index.json does not list, or that no pull returned, is no version.
+  // no such version. A version that no pull returned exits 3 with the pull line. A folder, a
+  // name or a file on disk that index.json does not list, or that no pull returned, is no version.
   newestPulled(type, name) {
     const top = this.counted(type, 'main');
     if (top === null) return null;
     if (!this.has(type, 'main', top)) throw lacks(type, top);
     const file = path.join(this.store, type, 'main', `v${top}`, name);
-    if (!fs.existsSync(file)) {
+    if (!this.listed(type, 'main', top, name) || !fs.existsSync(file)) {
       throw new Missing(`Pull the artifacts again.\n${type}/main/v${top} has no ${name}.`);
     }
     return { number: top,
