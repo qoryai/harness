@@ -5095,6 +5095,14 @@ every other agent and the main session stay denied. The guard reads `changes.jso
 following links. The guard has no source for the name of the workflow, so it keys on the
 agent.
 
+The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
+has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The
+guard calls `lock.writable({ root, number, agent, checks, resolve, fold })` for a call of an
+agent, and lifts the files that it returns. `lock.refused({ command })` returns the start of
+the reason for a shell command of an agent that runs `checks.cjs changes`. When the type has no
+such function, when the function throws, or when `lock.writable` returns no list, the guard
+lifts nothing, and every locked file stays locked; the same cases refuse no command.
+
 ## The process template, process.yaml
 
 A module that `exports.modules` lists and that has a `process.yaml` at its folder root is

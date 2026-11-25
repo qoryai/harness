@@ -9,6 +9,7 @@ const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
+  const changeRecord = require('../lib/change-record.cjs');
   const {
     Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
     criterionHashes, CRITERIA_HASHES, hashOf, isObject, jsonFile, liveIn, linked, linkProblem,
@@ -182,8 +183,8 @@ module.exports = (lib) => {
     // list, else the reason that it does not. A new lock follows every lock, so the reason
     // compares the version with the newest lock of list.
     // shortcut: the reason shows the newest lock; the target of a reader is the lock before
-    // the version (lockBefore of lib/build.cjs). Replace it when a lock check must refuse a
-    // version older than the newest lock with the pull of that other lock.
+    // the version (lockBefore of lib/build.cjs). Replace it when a lock check must fail on a
+    // version older than the newest lock and needs the pull of that other lock.
     function linkedWhy(version, list) {
       return linkProblem(context, version, newestOf(list), latest(list));
     }
@@ -525,9 +526,9 @@ module.exports = (lib) => {
         : `QORY_RUN_REPOSITORIES is "${env.QORY_RUN_REPOSITORIES}".`]);
     }
     const out = [];
-    const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`]),
-      ...(data.support || []).map((entry, at) => [entry, `support file ${at + 1}`])];
-    for (const [entry, which] of entries) {
+    const entries = [...data.checks.map((entry, at) => [entry, `check ${at + 1}`, true]),
+      ...(data.support || []).map((entry, at) => [entry, `support file ${at + 1}`, false])];
+    for (const [entry, which, check] of entries) {
       if (!isObject(entry) || typeof entry.path !== 'string' ||
         !['string', 'undefined'].includes(typeof entry.repository)) return null;
       let spelled = entry.repository;
@@ -545,8 +546,11 @@ module.exports = (lib) => {
         }
       }
       const folder = spelled === undefined ? '' : `${FURTHER}/${spelled}`;
-      out.push(problem ? { folder, path: entry.path, entry, problem }
-        : { folder, path: entry.path, entry });
+      // record is what `writable` reads of a check: the id of its criterion. A support file
+      // has none.
+      const record = check ? { criterion: entry.criterion } : undefined;
+      out.push({ folder, path: entry.path, entry, ...(record ? { record } : {}),
+        ...(problem ? { problem } : {}) });
     }
     return out;
   }
@@ -601,12 +605,54 @@ module.exports = (lib) => {
       'folder.', `${why}, and ${verb} ran in ${dir}.`];
   }
 
+  // The agent that writes the checks of a lock in change mode.
+  const WRITER = 'acceptance-check-writer';
+
+  // writable returns the files of checks that the agent may write while the lock holds them: a
+  // list of the `file` of entries of checks, each { file, criterion } as lockedFiles makes it
+  // (`criterion` is the id of the criterion of the check, and a support file has none). All of
+  // these must hold for a file: the agent is the writer of the checks; the record of the verb
+  // changes in the working folder root is of mode `changes` and was made from the lock of
+  // `number`; the file is a path of that record; and each entry at that file is a check of a
+  // criterion that the record lists as changed. A support file and every other file stay
+  // locked. resolve returns the real path of a path of the record, and fold the form of a path
+  // that the guard compares.
+  // shortcut: the guard has no source for the name of the workflow, so this keys on the agent:
+  // the writer of the checks starts only in write-acceptance-checks; replace it when the input
+  // of a call has the workflow.
+  function writable({ root, number, agent, checks, resolve, fold }) {
+    if (agent !== WRITER || !Array.isArray(checks)) return [];
+    const record = changeRecord.read(root);
+    if (!record || record.mode !== 'changes' || record.lock !== number) return [];
+    const text = (list) => (Array.isArray(list) ? list.filter((one) => typeof one === 'string')
+      : []);
+    const changed = new Set(text(record.changed));
+    const named = new Set(text(record.paths).map((one) => fold(resolve(one))));
+    return [...new Set(checks.map((one) => one.file))].filter((file) => named.has(fold(file)) &&
+      checks.filter((one) => fold(one.file) === fold(file))
+        .every((one) => typeof one.criterion === 'string' && changed.has(one.criterion)));
+  }
+
+  // The word of the verb that writes the record, in a shell command of an agent.
+  // shortcut: this reads the text of the command, so a command that builds the verb from parts
+  // is not found; replace it when the verb itself exits 3 for a call from an agent.
+  const CHANGES_VERB = /checks\.cjs["']?\s+["']?changes(?![\w-])/;
+
+  // refused returns the start of the reason that the guard gives for a shell command of an
+  // agent that runs the verb changes, which only the main session runs, else null.
+  function refused({ command }) {
+    return CHANGES_VERB.test(String(command))
+      ? 'Run checks.cjs changes in the main session, not in an agent.\n' +
+        'The verb writes .qory/build/changes.json, which lifts the lock of a changed check. '
+      : null;
+  }
+
   return {
     type: 'acceptance-lock',
     main: FILE,
     words: 'acceptance lock',
     reviewer: null,
     check: acceptanceLock,
-    lock: { files: lockedFiles, folder: lockFolder, fill: fillCriteria },
+    lock: { files: lockedFiles, folder: lockFolder, fill: fillCriteria, writable, refused },
   };
 };

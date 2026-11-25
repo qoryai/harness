@@ -574,14 +574,9 @@ function caseless(dir) {
   return one !== null && one === disk.realpath(dir);
 }
 
-// lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
-// real paths of the files it lists under root, the working folder, number is the version of
-// the lock, and checks lists each file as { file, criterion }, with criterion the id that the
-// lock lists for the check at that file, or null for a support file. It returns { files: [] }
-// when no type of the registry has a lock, or no version of it counts, and { type, problem }
-// when the lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run, it
-// pulls the lock.
-function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts }) {
+// lockSetup returns { base, io, lockType, readLock }: the reader of the lock of checks.cjs, and
+// the io that it takes, for root, the working folder.
+function lockSetup({ root, env, script = process.argv[1], plugin, artifacts }) {
   const home = path.resolve(path.dirname(script), '..');
   const dir = path.join(home, 'modules', 'core', 'skills', 'running-a-workflow');
   const base = require(path.join(dir, 'lib', 'base.cjs'));
@@ -595,6 +590,18 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
     if (!registry) registry = loadRegistry(io.plugin);
     return registry;
   };
+  return { base, io, lockType, readLock };
+}
+
+// lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
+// real paths of the files it lists under root, the working folder, number is the version of
+// the lock, and checks lists each file as { ...record, file }, with the record that the type of
+// the lock gives for the file, or none. It returns { files: [] } when no type of the registry
+// has a lock, or no version of it counts, and { type, problem } when the lock of type cannot be
+// read. It reads the lock with checks.cjs's reader: in a run, it pulls the lock.
+function lockedFiles(args) {
+  const { root } = args;
+  const { base, io, lockType, readLock } = lockSetup(args);
   let def;
   try {
     def = lockType(io);
@@ -610,9 +617,8 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
         : { files: [] };
     }
     const listed = lock.files.filter((one) => !one.problem).map((one) => ({
-      file: real(path.resolve(root, one.folder || '.', one.path)),
-      criterion: Array.isArray(lock.data.checks) && lock.data.checks.includes(one.entry)
-        ? one.entry.criterion : null }));
+      ...(one.record !== null && typeof one.record === 'object' ? one.record : {}),
+      file: real(path.resolve(root, one.folder || '.', one.path)) }));
     return { what: lock.what, files: listed.map((one) => one.file), number: lock.number,
       checks: listed };
   } catch (error) {
@@ -621,60 +627,52 @@ function lockedFiles({ root, env, script = process.argv[1], plugin, artifacts })
   }
 }
 
-// The record of `checks.cjs changes` below the working folder, which only that verb writes:
-// the BUILT rule denies a call that writes below .qory/build/.
-const CHANGES = path.join(BUILD, 'changes.json');
-// The word of the verb that writes the record, in a shell command of an agent.
-// shortcut: the guard reads the text of the command, so a command that builds the verb from
-// parts is not found; replace it when the verb itself exits 3 for a call from an agent.
-const CHANGES_VERB = /checks\.cjs["']?\s+["']?changes(?![\w-])/;
-const CHANGES_MAIN = 'Run checks.cjs changes in the main session, not in an agent.\n' +
-  'The verb writes .qory/build/changes.json, which lifts the lock of a changed check. ';
-// The most bytes of the record that the guard reads.
-const CHANGES_BYTES = 1024 * 1024;
-
-// changesOf returns the parsed record of changes below root, or null when there is none, a
-// link stands on its way or in its place, or it is no JSON object of at most CHANGES_BYTES.
-function changesOf(root) {
-  let at = root;
-  for (const part of CHANGES.split(path.sep)) {
-    at = path.join(at, part);
-    const stat = disk.lstat(at);
-    if (!stat || stat.isSymbolicLink()) return null;
+// lockTypeOf returns the type of the registry that has the lock, or null when there is none or
+// the registry cannot be read. The type may have `lock.writable` and `lock.refused`, which the
+// guard calls below.
+function lockTypeOf(args) {
+  try {
+    const { io, lockType } = lockSetup(args);
+    return lockType(io);
+  } catch {
+    return null;
   }
-  const stat = disk.lstat(at);
-  if (!stat.isFile() || stat.size > CHANGES_BYTES) return null;
-  const record = read(at, () => JSON.parse(fs.readFileSync(at, 'utf8')), null);
-  return record !== null && typeof record === 'object' && !Array.isArray(record) ? record : null;
 }
 
-// liftedLock returns lock without the check files that the writer of the checks may rewrite in
-// change mode, else lock. A file is lifted only when all of these hold: the call is from an
-// agent that is the acceptance-check-writer; the record of changes below root is of mode
-// changes and was made from the lock that counts, by its number; the file is a path of the
-// record; and each entry of the lock at that file is a check of a criterion that the record
-// lists as changed. A support file and every other check file stay locked.
-// shortcut: the guard has no source for the name of the workflow, so it keys on the agent: the
-// acceptance-check-writer starts only in write-acceptance-checks, and the lift also needs the
-// file in changes.json and the lock that file was made from; replace it when the input of a
-// call has the workflow.
-function liftedLock(lock, { root, input, env, runtime, fold }) {
+// liftedLock returns lock without the files that the type of the lock lets the agent write, else
+// lock. The type decides in `lock.writable`, with the agent's name, the version of the lock and
+// the records of its files; it returns the files of the lock that the agent may write. Every
+// other file stays locked, also when the type has no `lock.writable`, when it throws, or when
+// it returns anything but a list of text. name is the name of the agent of the call, or null
+// for the main session.
+function liftedLock(lock, { root, name, fold, type }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
-    !Number.isInteger(lock.number)) return lock;
-  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
-  if (!agent || reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) !==
-    'acceptance-check-writer') return lock;
-  const record = changesOf(root);
-  const text = (list) => (Array.isArray(list) ? list.filter((one) => typeof one === 'string')
-    : []);
-  if (!record || record.mode !== 'changes' || record.lock !== lock.number) return lock;
-  const changed = new Set(text(record.changed));
-  const named = new Set(text(record.paths).map((one) => fold(real(path.resolve(root, one)))));
-  const free = lock.files.filter((file) => named.has(fold(file)) &&
-    lock.checks.filter((one) => fold(one.file) === fold(file))
-      .every((one) => one.criterion !== null && changed.has(one.criterion)));
-  const lifted = new Set(free.map(fold));
+    !Number.isInteger(lock.number) || name === null || !type) return lock;
+  const writable = type.lock && type.lock.writable;
+  if (typeof writable !== 'function') return lock;
+  let free;
+  try {
+    free = writable({ root, number: lock.number, agent: name, checks: lock.checks, fold,
+      resolve: (file) => real(path.resolve(root, file)) });
+  } catch {
+    return lock;
+  }
+  if (!Array.isArray(free)) return lock;
+  const lifted = new Set(free.filter((one) => typeof one === 'string').map(fold));
   return { ...lock, files: lock.files.filter((file) => !lifted.has(fold(file))) };
+}
+
+// refusedShell returns the start of the reason that the type of the lock gives for a shell
+// command of an agent, else null. It is null when the type has no `lock.refused` or throws.
+function refusedShell(type, command) {
+  const refused = type && type.lock && type.lock.refused;
+  if (typeof refused !== 'function') return null;
+  try {
+    const start = refused({ command });
+    return typeof start === 'string' && start !== '' ? start : null;
+  } catch {
+    return null;
+  }
 }
 
 // The names of the shells whose -c text the guard reads.
@@ -2100,7 +2098,8 @@ function names(full, cwds, root) {
 // tool_name, tool_input, cwd and, in an agent's call, agent_id; cwd only resolves the paths
 // of the call. root is the working folder of the run, as rootOf of step-limit.cjs finds it;
 // with no root, decide denies each write and shell command. locked returns the files of the
-// lock, as lockedFiles does; it runs only for a write below root. runFolder is the artifact
+// lock, as lockedFiles does; it runs only for a write below root. lockKind returns the type of
+// the lock, as lockTypeOf does. runFolder is the artifact
 // folder of a run, as end-gate.cjs has it, unless the caller sets another. A call that needs more
 // work than a budget allows, to deadline, a time in ms, is denied.
 function decide(args) {
@@ -2115,8 +2114,8 @@ function decide(args) {
 }
 
 // decideCall returns the answer of decide, and spends from spend.
-function decideCall({ input, env = process.env, script = process.argv[1], locked, root: start,
-  spend, runFolder, runtime }) {
+function decideCall({ input, env = process.env, script = process.argv[1], locked, lockKind,
+  root: start, spend, runFolder, runtime }) {
   if (!env.QORY_RUN_ID) return null;
   const call = kindOf(input.tool_name, input.tool_input);
   const session = reviewSession(env);
@@ -2165,24 +2164,30 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const nocase = caseless(root);
   const fold = (full) => (nocase ? full.toLowerCase() : full);
   const inside = (full, dir) => under(fold(full), fold(dir));
+  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
+  let typed;
+  const typeOf = () => {
+    if (typed === undefined) typed = (lockKind || lockTypeOf)({ root, env, script });
+    return typed;
+  };
   let lock = null;
   const lockOf = () => {
     if (lock === null) {
-      lock = liftedLock((locked || ((args) => lockedFiles(args)))({ root, env, script }),
-        { root, input, env, runtime, fold });
+      lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
+      lock = liftedLock(lock, { root, fold, type: agent ? typeOf() : null,
+        name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
     }
     return lock;
   };
   const walked = call.paths.map((one) => walkPath(joined(cwd, one)));
   const paths = walked.map((one) => one.real);
   const home = steps.homeBelow(env.QORY_HARNESS_HOME, root);
-  const agent = typeof input.agent_id === 'string' && input.agent_id !== '';
   const reviewer = agent && /-reviewer$/.test(String(input.agent_type));
   const artifacts = artifactFolder(root, env, runFolder);
   const kept = keptFiles(env, session, nocase, root, artifacts);
-  if (call.kind === 'shell' && agent && CHANGES_VERB.test(String(call.command))) {
-    return `${CHANGES_MAIN}The command is ${reviewShown(call.command)}.`;
-  }
+  const refusedStart = call.kind === 'shell' && agent ? refusedShell(typeOf(), call.command)
+    : null;
+  if (refusedStart !== null) return `${refusedStart}The command is ${reviewShown(call.command)}.`;
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = (name) => [...new Set([artifactFolder(root, env, runFolder),
       path.join(root, '.qory', 'artifacts')].filter(Boolean)

@@ -389,6 +389,45 @@ test('the guard keeps a path locked when another check or a support file is ther
   firstLine(denied((file) => [{ file, criterion: null }]), start);
 });
 
+test('the guard keeps a check locked when the type of the lock has no lift, or its lift fails', () => {
+  const start = 'Leave the locked file as it is: acceptance-lock version 2 locks it.';
+  const write = (lockKind) => {
+    const one = changeCase();
+    return firstLine(decide({ input: { ...claude('Write', { file_path: one.file, content: 'x' },
+      WRITER), cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir, lockKind,
+    locked: () => ({ what: 'acceptance-lock version 2', files: [one.file], number: 2,
+      checks: [{ file: one.file, criterion: 'ac-4' }] }) }), start);
+  };
+  const lifting = (writable) => () => ({ lock: { writable } });
+  // A type with no lock, with no lift, or with a lift that is no function lifts nothing.
+  write(() => null);
+  write(lifting(undefined));
+  write(lifting('all'));
+  // A lift that throws, or returns no list, lifts nothing, and the guard still denies.
+  write(lifting(() => { throw new Error('broken'); }));
+  write(lifting(() => 'all'));
+  write(lifting(() => [42, null]));
+  // A lift that names the file lifts it, so the denial above comes from the lift alone.
+  const one = changeCase();
+  assert.equal(decide({ input: { ...claude('Write', { file_path: one.file, content: 'x' },
+    WRITER), cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir,
+  lockKind: lifting(({ checks }) => checks.map((check) => check.file)),
+  locked: () => ({ what: 'acceptance-lock version 2', files: [one.file], number: 2,
+    checks: [{ file: one.file, criterion: 'ac-4' }] }) }), null);
+});
+
+test('the guard denies the verb changes to an agent only through the type of the lock', () => {
+  const { dir } = changeCase();
+  const verb = path.join(HOOKS, '..', 'skills', 'running-a-workflow', 'checks.cjs');
+  const command = `node ${verb} changes`;
+  const run = (lockKind) => decide({ input: { ...claude('Bash', { command }, WRITER),
+    cwd: dir }, env: RUN, runtime: 'claude', root: dir, lockKind, locked: () => ({ files: [] }) });
+  assert.equal(run(() => null), null);
+  assert.equal(run(() => ({ lock: { refused: () => { throw new Error('broken'); } } })), null);
+  assert.equal(run(() => ({ lock: { refused: () => 7 } })), null);
+  firstLine(run(() => ({ lock: { refused: () => 'Stop. ' } })), 'Stop.');
+});
+
 test('on Codex the guard lifts a changed check for the role acceptance-check-writer only', () => {
   const home = next('home');
   fs.mkdirSync(path.join(home, 'codex', 'agents'), { recursive: true });

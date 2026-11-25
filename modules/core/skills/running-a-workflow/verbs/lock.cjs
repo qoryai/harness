@@ -1,11 +1,13 @@
 // lock and lock --verify: the lock of listed files. A type of the registry has a lock
 // when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb),
-// fill(data, folder) }; fill is optional.
+// fill(data, folder), writable(args), refused(args) }; fill, writable and refused are
+// optional. The tool guard calls writable and refused, which hooks/tool-guard.cjs documents.
 // files returns the files that a version of the type lists, each { folder, path, entry,
-// problem }, or null when the version has no such list. folder is '' or a folder under
+// record, problem }, or null when the version has no such list. folder is '' or a folder under
 // the working folder, path is the file's path below it, entry.sha256 is the file's
 // SHA-256 as 64 lower-case hexadecimal digits, and problem, when set, is the line, or a
-// list of 1 to 5 lines, of a file that the type refuses. folder, which a type may leave
+// list of 1 to 5 lines, of a file that the type refuses. record, when set, is an object that
+// the tool guard passes to writable for the file. folder, which a type may leave
 // out, returns the line, or the lines, that refuse dir as the working folder, or null.
 // env is the environment of the call, and verb is `lock`, `lock --verify` or `step end`, as a
 // line of the type shows it.
