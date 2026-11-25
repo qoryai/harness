@@ -660,7 +660,7 @@ test('feedback amended: a draft over 256 KB fails with the fix first, and a deep
   assert.equal(long.status, 1, long.out + long.err);
   assert.deepEqual(long.lines, ['Cut acceptance-criteria.json to at most 256 KB.',
     `  acceptance-criteria.json has ${most + 1} bytes.`,
-    'Checked nothing of acceptance-criteria.json.']);
+    'No part of acceptance-criteria.json was checked.']);
   // A draft of 256 KB is read: it changes no criterion and the white space after them.
   assert.deepEqual(findingsOf(onCase(padded(most))),
     ['Change ac-2 in acceptance-criteria.json, or add --same p2.',

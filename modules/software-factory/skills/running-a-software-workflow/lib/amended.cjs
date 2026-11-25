@@ -306,7 +306,7 @@ module.exports = (lib) => {
     const size = fs.statSync(real).size;
     if (size > MAX_BYTES) {
       return { findings: [`Cut ${file} to at most ${MAX_BYTES / 1024} KB.\n${file} has ` +
-        `${size} bytes.`], last: `Checked nothing of ${file}.` };
+        `${size} bytes.`], last: `No part of ${file} was checked.` };
     }
     const draftText = readFile(real, file);
     const read = output === 'acceptance-criteria' ? jsonParts : markdownParts;
