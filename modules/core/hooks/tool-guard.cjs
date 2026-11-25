@@ -996,8 +996,8 @@ function segments(command, cwd = process.cwd(), keep = () => true) {
     const out = [];
     for (let at = 0; at < pieces.length; at += 2) {
       const after = pieces[at + 1] || '';
-      const cut = /^[(`]/.test(after) || (/[<>]\s*$/.test(pieces[at]) && after[0] === '&' &&
-        !/^\s*[\d-]+\s*$/.test(pieces[at + 2]));
+      const cut = /^[(`]/.test(after) || (/[<>]\s*$/.test(pieces[at]) &&
+        !/^\s*[\d-]+(?:\s+\d*[<>]+\s*[^\s'"\\<>$]+)*\s*$/.test(pieces[at + 2]));
       out.push({ text: pieces[at], before: pieces[at - 1] || '', after, cut, index,
         ...commandWords(pieces[at].trim().split(/\s+/).filter(Boolean).flatMap(braces)) });
     }
@@ -1820,17 +1820,20 @@ function contentsInto(words) {
 // only after options with no value, since it is a value in -S -t and a file in -- -t.
 function movesInto(text, words, dest, sources) {
   if (sources.includes(dest)) return false;
-  const first = words.findIndex((word, at) => at > 0 && !/^-[^-tTS]+$/.test(word));
+  const first = words.findIndex((word, at) => at > 0 &&
+    !/^(?:-[^-tTS]+|--(?!su|t|no-t)[a-z-]+)$/.test(word));
   const given = /^(?:-t|--target-directory(?:=.*)?)$/s.test(words[first] || '');
-  return !words.some((word, at) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word) &&
-    !(given && at === first)) && (given || (sources.length > 0 && !FED.test(text)));
+  return given || (sources.length > 0 && !FED.test(text) &&
+    !words.some((word) => /^(?:-[^-]*[tT]|--(?:no-)?t)/.test(word)));
 }
 
 // unredirected returns words, as written, with no redirect and no file of one, as in 2>x or > x.
-// A word with a quote or a backslash stays, since a split can have left out a part of it.
+// A word with a quote or a backslash stays, unless the file is one whole quoted word, since a
+// split can have left out a part of it.
 function unredirected(words) {
-  return words.filter((word, at) => /['"\\]/.test(word) || (!/^(?:\d*|&)[<>]/.test(word) &&
-    !(at > 0 && /^(?:\d*|&)[<>]+[&|]?$/.test(words[at - 1]))));
+  const odd = (word) => /['"\\]/.test(word.replace(/^(\d*[<>]+)?(["'])[^"'\\]*\2$/, ''));
+  return words.filter((word, at) => odd(word) || (!/^\d*[<>]/.test(word) &&
+    !(at > 0 && /^\d*[<>]+$/.test(words[at - 1]))));
 }
 
 // pathHits reports whether a simple command that writes changes full, as its words read once
@@ -1870,10 +1873,10 @@ function pathHits(segment, full, folder, how, step = false) {
   // -T or --no-target-directory copies the contents of its source into that folder.
   const tool = path.basename(words[0]);
   const copies = LAST_WRITTEN.has(tool);
-  const args = step && tool === 'mv' ? unredirected(segment.words) : segment.words;
-  const { dest, sources } = copies || (step && tool === 'mv') ? copyParts(args) : {};
-  const moves = !copies && sources !== undefined && !segment.cut &&
-    movesInto(segment.text, plainWords(args), dest, sources);
+  const moving = step && tool === 'mv';
+  const args = moving ? unredirected(segment.words) : segment.words;
+  const { dest, sources } = copies || moving ? copyParts(args) : {};
+  const moves = moving && !segment.cut && movesInto(segment.text, plainWords(args), dest, sources);
   if (copies || moves) {
     const into = contentsInto(words);
     const named = (first) => into || sources.some((source) => vague(source) ||

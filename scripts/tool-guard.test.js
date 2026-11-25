@@ -5500,12 +5500,14 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `install -m 644 "$f" ${above}`, `ln -s "$f" ${above}/`, `rsync -a src/ ${above}/`,
     `rsync -a "$f" ${above}`, `find src -exec cp -R {} ${above} \\;`,
     `find src -exec mv -t ${above} {} +`, `mv -f -t ${above} a`, `mv -S .b a ${above}`,
-    `mv a ${above}/../step-abov*`,
+    `mv a ${above}/../step-abov*`, `mv --verbose --target-directory=${above} a`,
+    `mv --no-clobber -t ${above} a`, `mv --strip-trailing-slashes -t ${above} a`,
     // A redirect is no word of the move.
     `mv a ${above} 2>/dev/null`, `mv a ${above} 2> /dev/null || true`,
     `mv a ${above} > /dev/null 2>&1`, `mv a ${above} &>/dev/null`, `mv a ${above} </dev/null`,
     `mv a ${above} 2>&1 | tail -3`, `mv a ${above} > log.txt`, `mv 2>/dev/null a ${above}`,
-    `mv a ${artifacts} 2>/dev/null`,
+    `mv a ${artifacts} 2>/dev/null`, `mv a ${above} 2>&1 >/dev/null`, `mv a ${above} 2>"$log"`,
+    `mv a ${above} 2> "err.log"`, `mv a ${above} > 'x.log'`, `mv a ${above} 2>&1 > /dev/null`,
     // A file of another name moves into the artifact folder, as a copy of it does.
     `mv a ${artifacts}`, `mv a.md b.md ${artifacts}/`, `cp a ${artifacts}`]) {
     assert.equal(call(command), null, command);
@@ -5522,7 +5524,7 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     `mv 2>/dev/null ${artifacts} /x`, `mv ${artifacts} /x > ${above}/l`,
     `mv a ${above} > ${artifacts}`, `mv a ${artifacts} '>' /x`, `mv ${artifacts} > /x`,
     // The guard splits these commands, so the words after the split are not in the move.
-    `mv a ${artifacts} 2>&1 /x`, `mv a ${artifacts} <&3 /x`,
+    `mv a ${artifacts} 2>&1 /x`, `mv a ${artifacts} <&3 /x`, `mv ${artifacts} 2>&1 /x`,
     `mv a ${artifacts} > "a;b" /x`, `mv a ${artifacts} <(echo) /x`, `mv a ${artifacts} \`ls\``,
     `mv a ${artifacts} >\\; /x`,
     `mv -T a ${artifacts}`, `mv a ${artifacts} -S .b`, `sh -c 'mv ${artifacts} /x'`,
@@ -5533,6 +5535,12 @@ test('a copy or a move into a folder above the artifact folder passes', () => {
     firstLine(call(command), STEP_KEPT);
   }
   assert.ok(call(`mv a ${artifacts} 2>"&1" /x`));
+  // These moves are denied, since the guard reads if or while as the command, and the words of
+  // a comment or of a quoted file with a space as paths of the move.
+  for (const command of [`if mv a ${above}; then echo x; fi`, `while mv a ${above}; do :; done`,
+    `mv a ${above} # a note`, `mv a ${above} > "a b"`]) {
+    firstLine(call(command), STEP_KEPT);
+  }
   // The destination of a move still counts for .qory/build/.
   firstLine(call('mv src/a .'), 'Leave .qory/build/ as it is');
 });
