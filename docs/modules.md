@@ -4309,6 +4309,22 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   track](#the-proof-of-the-fast-track)). It exits 0 for a proof that passes, and for a
   proposal on the standard track, 1 with one finding per fault, 2 for wrong arguments, and
   3 for a missing input, such as a pulled artifact folder with no proposal.
+- `revert-attempt --base <commit>`: on a checkout with no change, makes one commit whose tree is
+  the tree of the base, a full commit id, with HEAD as its parent, as `qory`, and moves HEAD,
+  the index and the files to it, so that nothing is left uncommitted and a push needs no force.
+  Each tracked file that the base lacks is removed, and an untracked ignored file that the base
+  lacks stays. It exits 0 with the new commit on the last line, and 0 with the line "Nothing to
+  revert" and no commit when HEAD has the tree of the base already, so a rerun after a crash
+  goes on. It exits 2 for a `--base` that is no full commit id, and 3, with the fix first, when
+  the checkout has a change that is not committed (also a change to any tracked file under
+  `.qory`, which the other check runners leave out), has no commit, has a rebase in progress, or
+  already has a path that the base adds: an untracked or ignored file, link or folder with such
+  an entry, or a nested repository, found by the file system, whatever its case or normalisation
+  rules; when a path that HEAD and the base have different is a submodule on either side, so a
+  revert across a submodule stops; and when the base is no commit of the checkout. The check for
+  changes comes before the check of the tree, so a change in the checkout never counts as a done
+  revert. It checks no ancestry. A clean filter set in the repository can hide a change from the
+  check for changes.
 - `preflight [--inputs <path>] [--artifacts <folder>]`: before the first demo of the app,
   checks the parts of the dev container that a demo of the app needs, and for each missing
   part writes a point `run_again` with its `fix` to `points.json` of the artifact folder of

@@ -1,6 +1,6 @@
 ---
 name: running-checks
-description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change or check the dev container before the first demo of the app, in the main session of a Build or Verify workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove and preflight of the checks script, when each runs, what counts as red, and the time limits.
+description: Load before you run a check of code or a locked check, check the write scope of a step, freeze a step, read the diff of a change, probe a planted fault, prove the commits of a fast-track change, revert an attempt or check the dev container before the first demo of the app, in the main session of a Build or Verify workflow or in an agent that changes or reviews code. Contains the verbs run, scope, freeze, diff, probe, prove, revert-attempt and preflight of the checks script, when each runs, what counts as red, and the time limits.
 ---
 
 # Running checks
@@ -25,6 +25,7 @@ script as the section "Checks" of `running-a-workflow` describes, with these for
 <skill folder>/checks.cjs probe <patch> targeted <path> [--inputs <path>]
     [--artifacts <folder>]
 <skill folder>/checks.cjs prove [--inputs <path>] [--base <commit>] [--artifacts <folder>]
+<skill folder>/checks.cjs revert-attempt --base <commit>
 <skill folder>/checks.cjs preflight [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.cjs film <id> [--inputs <path>] [--artifacts <folder>]
 <skill folder>/checks.cjs demo run <id> [--inputs <path>] [--artifacts <folder>]
@@ -445,3 +446,21 @@ parsers are in `/opt/qory/parsers/node_modules` of qory's agent image; without t
 Each finding starts with the fix, such as "Take "<path>" out of the commits since the
 base", and the lines after it give the cause. Take the path out of the commits as the
 section "Scope" describes for `scope`, then run `prove` again.
+
+## The revert of an attempt
+
+`revert-attempt --base <commit>` makes one commit whose tree is the tree of `<commit>`, the
+commit where the work branch was cut, and moves HEAD to it. The commit has HEAD as its only
+parent, so the push needs no force. The index and the files match the new commit, so nothing is
+left uncommitted: each tracked file that `<commit>` lacks is removed, and an untracked ignored
+file that `<commit>` lacks stays. It exits 0 with the new commit on its last line. When HEAD has
+the tree of `<commit>` already and the checkout is clean, it makes no commit and exits 0 with the
+line "Nothing to revert", so a rerun after a crash goes on. It exits 3, with the fix on the first
+line, when the checkout has a change that is not committed (commit or undo it first; this
+includes any tracked file under `.qory`), when the branch has no commit, when a rebase is in
+progress (end it first), when the checkout already has a path that `<commit>` adds (an untracked
+or ignored file, link or folder with such an entry, or a nested repository: take it out of the
+checkout, since the revert would overwrite it; the lookup uses the file system, so its case and
+normalisation rules apply), when a path that HEAD and `<commit>` have different is a submodule on
+either side (a revert across a submodule stops: report to a member), and when `<commit>` is no
+commit of the checkout. It exits 2 for a `--base` that is not a full commit id.
