@@ -4147,10 +4147,19 @@ function versionOf(dir, type, file, text) {
   write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
 }
 
-const ROUND = (round) => ({ round, reviewers: [{ reviewer: 'code-reviewer', findings: [
+// LEDGER returns open-findings.json as qory writes it: each of findings, open, of the reviewer
+// code-reviewer in the stage build, unless the finding sets its source or state.
+const LEDGER = (round, findings) => ({ round, findings: findings.map((one) => ({ stage: 'build',
+  source: { kind: 'reviewer', name: 'code-reviewer' }, state: 'open', quote: 'q', problem: 'p',
+  fix: 'f', proof: '', disputed: false, replies: [], ...one })) });
+
+// ROUND has two findings of code-reviewer, one of the suite check, and one that is closed.
+const ROUND = (round) => LEDGER(round, [
   { id: 'f1', severity: 'blocking', point: 'A | in the point', proof: 'Line 1\nLine 2' },
-  { id: 'f2', severity: 'non-blocking', point: 'A second point' }] }, { reviewer: 'test-reviewer', findings: [] },
-  { reviewer: 'full-suite', findings: [{ id: 'f3', severity: 'blocking', point: 'The full suite failed.' }] }] });
+  { id: 'f2', severity: 'non-blocking', point: 'A second point' },
+  { id: 'f3', severity: 'blocking', point: 'The full suite failed.', stage: 'review',
+    source: { kind: 'check', name: 'suite' } },
+  { id: 'f4', severity: 'blocking', point: 'A fixed point', state: 'fixed' }]);
 
 test('report-build: the latest round is rendered, and the earlier rounds are copied byte for byte from the previous version', () => {
   const { dir } = buildRepo();
@@ -4161,7 +4170,7 @@ test('report-build: the latest round is rendered, and the earlier rounds are cop
   assert.equal(got.status, 0, got.out + got.err);
   const text = reportOf(dir);
   const rounds = text.split('## Review rounds\n\n')[1].split('\n\n## Checks')[0];
-  assert.equal(rounds, `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer, test-reviewer.\n\n| Finding | Reviewer | Blocking | Proof |\n|---|---|---|---|\n| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |\n| f2: A second point | code-reviewer | no | none |\n| f3: The full suite failed. | full-suite | yes | none |\n\nThe result of the last round is in the review in Qory Apiary, not in this report.`);
+  assert.equal(rounds, `${earlier}\n\n### Round 2\n\nReviewers: code-reviewer.\n\n| Finding | Source | Blocking | Proof |\n|---|---|---|---|\n| f1: A \\| in the point | code-reviewer | yes | Line 1 Line 2 |\n| f2: A second point | code-reviewer | no | none |\n| f3: The full suite failed. | suite | yes | none |\n\nThe result of the last round is in the review in Qory Apiary, not in this report.`);
   assert.match(text, /Review rounds: 2\. Ready/);
   assert.match(text, /\| Returns \| 2 \|/);
   // A later session with no open-findings.json keeps every round of the previous version.
@@ -4255,32 +4264,36 @@ function reportFor(round, left) {
 }
 
 test('report-build: a backslash before a pipe is escaped, an empty proof is none, and a long proof is cut like a point', () => {
-  const round = { round: 1, reviewers: [{ reviewer: 'code-reviewer', findings: [
+  const round = LEDGER(1, [
     { id: 'f1', severity: 'blocking', point: 'a\\|b', proof: '   ' },
     { id: 'f2', severity: 'blocking', point: 'Second', proof: '' },
-    { id: 'f3', severity: 'blocking', point: 'Third', proof: 'x'.repeat(600) }] }] };
+    { id: 'f3', severity: 'blocking', point: 'Third', proof: 'x'.repeat(600) }]);
   const { text } = reportFor(round);
   assert.ok(text.includes('| f1: a\\\\\\|b | code-reviewer | yes | none |'), text);
   assert.ok(text.includes('| f2: Second | code-reviewer | yes | none |'));
   assert.ok(text.includes(`| f3: Third | code-reviewer | yes | ${'x'.repeat(497)}... |`));
 });
 
-test('report-build: a round with a commit shows the frozen commit, and a round with no finding shows None.', () => {
-  const frozen = 'ab'.repeat(20);
-  const { text } = reportFor({ round: 1, commit: frozen,
-    reviewers: [{ reviewer: 'code-reviewer', findings: [] }] });
-  assert.ok(text.includes(`### Round 1\n\nFrozen commit: ${frozen}. Reviewers: code-reviewer.\n\nNone.\n\nThe result`), text);
+test('report-build: a round with no open finding shows None., and criteria and scenarios name their kind', () => {
+  const { text } = reportFor(LEDGER(1, [{ id: 'f1', severity: 'blocking', point: 'Closed',
+    state: 'dismissed' }]));
+  assert.ok(text.includes('### Round 1\n\nNone.\n\nThe result'), text);
+  const kinds = reportFor(LEDGER(1, [
+    { id: 'f1', severity: 'blocking', point: 'Not met', source: { kind: 'criterion', name: 'AC-3' } },
+    { id: 'f2', severity: 'blocking', point: 'Failed', source: { kind: 'scenario', name: 'scenario-2' } },
+    { id: 'f3', severity: 'blocking', point: 'Hook', source: { kind: 'hook', name: 'lint-hook' } }])).text;
+  assert.ok(kinds.includes('| f1: Not met | criterion AC-3 | yes | none |\n| f2: Failed | scenario scenario-2 | yes | none |\n| f3: Hook | lint-hook | yes | none |'), kinds);
 });
 
 test('report-build: the closing line of an earlier version is left out of the earlier rounds', () => {
   const { dir } = buildRepo();
   const closing = 'The result of the last round is in the review in Qory Apiary, not in this report.';
   versionOf(dir, 'build-report', 'build-report.md', `## Summary\n\nx\n\n## Review rounds\n\n### Round 1\n\nOld round 1.\n\n${closing}\n\n## Counts\n\nx\n`);
-  const inputs = putRound({ round: 2, reviewers: [{ reviewer: 'code-reviewer', findings: [] }] });
+  const inputs = putRound(LEDGER(2, []));
   assert.equal(bcall(dir, ['report-build', '--inputs', inputs]).status, 0);
   const text = reportOf(dir);
   assert.equal(text.split(closing).length, 2);
-  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nReviewers: code-reviewer.\n\nNone.\n\n${closing}\n\n## Checks`), text);
+  assert.ok(text.includes(`### Round 1\n\nOld round 1.\n\n### Round 2\n\nNone.\n\n${closing}\n\n## Checks`), text);
 });
 
 test('report-build: a left-out item loses hidden characters and is cut like a point, so that check build-report passes', () => {

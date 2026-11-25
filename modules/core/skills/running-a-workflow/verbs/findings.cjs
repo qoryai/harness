@@ -1,17 +1,20 @@
-// findings open: the findings that the next session fixes first. qory writes the findings of
-// the latest round of review, blocking and non-blocking, to open-findings.json in the inputs
-// folder of the session. open prints one line per finding and exits 1 while there is one. It
-// reads the file and writes nothing.
+// findings open: the findings that the next session fixes first. qory writes the open findings
+// of every stage to open-findings.json in the inputs folder of the session. open prints one
+// line per open finding and exits 1 while there is one. It reads the file and writes nothing.
 //
-// findings round <reports> --reviewers <names> [--suite <file>]: the result of the round of a
-// review session. It reads <reports>/<name>.json of each reviewer of --reviewers, in the review
-// report format, and the result of the full suite at --suite, once each. A report that is
-// missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in another format or
-// of another reviewer is one blocking finding of that reviewer, such as "Reviewer <name> wrote
-// no report." A suite result that failed or did not run, by the rule that a skill adds to the
-// registry, or one that cannot be read, is one blocking finding of full-suite. With no --suite,
-// the round has no suite finding. It prints a line per finding, blocking ones first, with its
-// proof on the next line, and exits 1 while a finding is blocking, else 0. It writes no file.
+// findings round <reports> --reviewers <names> [--suite <file>] [--previous <file>]: the
+// findings that are open after the round of a review session. It reads <reports>/<name>.json
+// of each reviewer of --reviewers, in the review report format, the result of the full suite
+// at --suite, and the file of qory.review_session.previous_findings at --previous, once each.
+// A report that is missing, a link, no regular file, over 1 MiB, no UTF-8, no JSON object, in
+// another format, of another reviewer, or that repeats or closes an id that is not one of the
+// reviewer's findings in --previous, is one blocking finding of that reviewer, such as
+// "Reviewer <name> wrote no report." A suite result that failed or did not run, by the rule
+// that a skill adds to the registry, or one that cannot be read, is one blocking finding of
+// full-suite. Open after the round: the reviewer's open findings in --previous that its valid
+// report neither repeats nor closes, and the findings of the report. It prints a line per open
+// finding, blocking ones first, with its proof on the next line, and exits 1 while a finding
+// is blocking, else 0. The exit only reports: qory sends the verdict. It writes no file.
 'use strict';
 
 const fs = require('node:fs');
@@ -21,7 +24,7 @@ const {
   MAX_BYTES, MAX_FINDING_LINES, Missing, NAME, fullQuote, isObject, parseJson, plain,
   plainLine, plural, short,
 } = require('../lib/base.cjs');
-const { readOpen, reportProblem } = require('../lib/findings.cjs');
+const { readOpen, reportProblem, sourceText } = require('../lib/findings.cjs');
 
 // Each line that open prints for a finding starts with this.
 const FIX_FIRST = 'Fix first: ';
@@ -87,12 +90,15 @@ function open(io, file) {
     }
     data = parseJson(text, name);
   }
-  const { round, findings } = readOpen(data, name);
+  const read = readOpen(data, name);
+  const { round } = read;
+  const findings = read.findings.filter((one) => one.state === 'open');
   const ranked = [...findings.filter((one) => one.severity === 'blocking'),
     ...findings.filter((one) => one.severity !== 'blocking')];
   const lines = ranked.slice(0, MAX_FINDING_LINES).map((one) => {
     const where = one.file ? `, ${one.file}${one.line ? `:${one.line}` : ''}` : '';
-    return `${FIX_FIRST}${one.id} (${one.severity}${where}): ${one.point}`;
+    return `${FIX_FIRST}${one.id} (${one.severity}, from ${sourceText(one.source)}` +
+      `${one.disputed ? ', disputed' : ''}${where}): ${one.point}`;
   });
   if (ranked.length > lines.length) {
     lines.push(`${FIX_FIRST}${ranked.length - lines.length} more findings in ${fullQuote(full)}`);
@@ -116,17 +122,17 @@ const REPORT_BYTES = 1024 * 1024;
 const SUITE_BYTES = 4 * 1024 * 1024;
 
 // The fix that findings round prints for a wrong argument.
-const ROUND_FIX = 'Give findings round a report folder, --reviewers <names> once and ' +
-  '--suite <file> at most once.';
+const ROUND_FIX = 'Give findings round a report folder, --reviewers <names> once, --suite ' +
+  'and --previous at most once.';
 
-// roundArgs returns { reports, names, suite } of the arguments of findings round, or the fix
-// of a wrong argument as text. suite is null when the flag is missing.
+// roundArgs returns { reports, names, suite, previous } of the arguments of findings round, or
+// the fix of a wrong argument as text. suite and previous are null when the flag is missing.
 function roundArgs(rest) {
   const [reports, ...flags] = rest;
   const got = {};
   for (let at = 0; at < flags.length; at += 2) {
     const [flag, value] = [flags[at], flags[at + 1]];
-    if (!['--reviewers', '--suite'].includes(flag) || Object.hasOwn(got, flag) ||
+    if (!['--reviewers', '--suite', '--previous'].includes(flag) || Object.hasOwn(got, flag) ||
       value === undefined) {
       return ROUND_FIX;
     }
@@ -139,14 +145,58 @@ function roundArgs(rest) {
     return 'Give --reviewers each agent name once, joined by commas, and not full-suite.\n' +
       'A name has lower-case letters, digits and hyphens, from a letter or a digit.';
   }
-  return { reports, names, suite: got['--suite'] ?? null };
+  return { reports, names, suite: got['--suite'] ?? null, previous: got['--previous'] ?? null };
 }
 
-// reviewerFindings returns the findings of the report of name in the folder dir: those of
-// the report, or one blocking finding when the report is missing or invalid.
-function reviewerFindings(dir, name) {
+// The fix of a file of --previous that cannot be read.
+const PREVIOUS_FIX = 'Give --previous the file of qory.review_session.previous_findings.';
+
+// previousFindings returns the findings of the file of --previous, which qory writes for one
+// stage: a file with findings of two stages or more is in another form. It throws Missing
+// with PREVIOUS_FIX when the file cannot be read or is in another form.
+function previousFindings(io, file) {
+  const full = path.resolve(io.cwd, file);
+  const name = short(plain(path.basename(full)), 40);
+  let stat;
+  try {
+    stat = fs.lstatSync(full);
+  } catch {
+    stat = null;
+  }
+  if (!stat || !stat.isFile() || stat.size > MAX_BYTES) {
+    throw new Missing(`${PREVIOUS_FIX}\n${short(plain(full), 80)} is no regular file of at ` +
+      `most ${MAX_BYTES / 1024} KB.`);
+  }
+  let data;
+  try {
+    data = JSON.parse(readLimited(full, name, stat.size));
+  } catch (error) {
+    if (error instanceof Missing) throw error;
+    throw new Missing(`${PREVIOUS_FIX}\n${name} is no JSON.`);
+  }
+  const { findings } = readOpen(data, name, PREVIOUS_FIX);
+  const stages = new Set(findings.map((one) => one.stage));
+  if (stages.size > 1) {
+    throw new Missing(`${PREVIOUS_FIX}\n${name} has findings of ${stages.size} stages.`);
+  }
+  return findings;
+}
+
+// mineOf returns the findings of previous that the reviewer name raised.
+const mineOf = (previous, name) => previous.filter((one) => one.source.kind === 'reviewer' &&
+  one.source.name === name);
+
+// reviewerFindings returns { found, closed } for the report of name in the folder dir: found
+// is the open findings after the round, and closed counts the closes of a valid report. mine
+// is the reviewer's findings in --previous: those open stay open unless the report closes or
+// repeats them, and an invalid report adds one blocking finding and closes none.
+function reviewerFindings(dir, name, mine = []) {
   const file = path.join(dir, `${name}.json`);
-  const missing = (point) => [{ reviewer: name, severity: 'blocking', point, proof: null }];
+  const left = (ids) => mine.filter((one) => one.state === 'open' && !ids.includes(one.id))
+    .map((one) => ({ reviewer: name, id: one.id, severity: one.severity, point: one.point,
+      proof: one.proof, file: one.file, line: one.line, left: true }));
+  const missing = (point) => ({ found: [{ reviewer: name, id: null, severity: 'blocking', point,
+    proof: null }, ...left([])], closed: 0 });
   let stat;
   try {
     stat = fs.lstatSync(file);
@@ -184,7 +234,8 @@ function reviewerFindings(dir, name) {
   if (!isObject(data)) {
     return missing(`Reviewer ${name} wrote a report that is not one JSON object.`);
   }
-  const problem = reportProblem(data, name);
+  const problem = reportProblem(data, name, new Set(mine.map((one) => one.id)));
+  if (problem && problem.point) return missing(problem.point);
   if (typeof problem === 'string') {
     return missing(`Reviewer ${name} wrote a report that does not match the report format: ` +
       `${problem}.`);
@@ -193,9 +244,12 @@ function reviewerFindings(dir, name) {
     return missing(`Reviewer ${name} wrote a report for the reviewer ` +
       `${short(plain(problem.other), 64)}.`);
   }
-  return data.findings.map((one) => ({ reviewer: name, severity: one.severity,
-    point: plain(one.point), proof: plain(one.proof), fix: plain(one.fix),
+  const closes = (data.closes || []).map((one) => one.id);
+  const repeats = data.findings.filter((one) => one.id !== undefined).map((one) => one.id);
+  const reported = data.findings.map((one) => ({ reviewer: name, id: one.id ?? null,
+    severity: one.severity, point: plain(one.point), proof: plain(one.proof),
     file: one.file === undefined ? null : plain(one.file), line: one.line ?? null }));
+  return { found: [...reported, ...left([...closes, ...repeats])], closed: closes.length };
 }
 
 // suiteFindings returns the finding of the result of the full suite at file, read once, by
@@ -203,7 +257,8 @@ function reviewerFindings(dir, name) {
 // one blocking finding. With no rule, or a file that is missing or over SUITE_BYTES, the suite
 // has no result.
 function suiteFindings(file, state) {
-  const finding = (point) => [{ reviewer: SUITE, severity: 'blocking', point, proof: null }];
+  const finding = (point) => [{ reviewer: SUITE, id: null, severity: 'blocking', point,
+    proof: null }];
   let found = null;
   try {
     const stat = fs.lstatSync(file);
@@ -233,38 +288,42 @@ function reportFolder(dir) {
   }
 }
 
-// round prints the findings of the round and returns its exit.
-function round(io, { reports, names, suite }) {
+// round prints the findings that are open after the round and returns its exit.
+function round(io, { reports, names, suite, previous }) {
   const dir = path.resolve(io.cwd, reports);
   reportFolder(dir);
+  const earlier = previous === null ? [] : previousFindings(io, previous);
+  const each = names.map((name) => reviewerFindings(dir, name, mineOf(earlier, name)));
   const found = [...(suite === null ? []
     : suiteFindings(path.resolve(io.cwd, suite), io.registry().suite)),
-    ...names.flatMap((name) => reviewerFindings(dir, name))];
+    ...each.flatMap((one) => one.found)];
+  const closed = each.reduce((sum, one) => sum + one.closed, 0);
   const blocking = found.filter((one) => one.severity === 'blocking');
   const ranked = [...blocking, ...found.filter((one) => one.severity !== 'blocking')];
   const lines = ranked.slice(0, MAX_FINDING_LINES / 2).flatMap((one) => {
     const where = one.file ? `, ${one.file}${one.line ? `:${one.line}` : ''}` : '';
-    const head = `${one.severity === 'blocking' ? 'Blocking' : 'Non-blocking'} finding of ` +
-      `${one.reviewer}${where}: ${one.point}`;
+    const head = `${one.severity === 'blocking' ? 'Blocking' : 'Non-blocking'} finding ` +
+      `${one.id ? `${one.id} ` : ''}of ${one.reviewer}${where}` +
+      `${one.left ? ', open and not in its report' : ''}: ${one.point}`;
     return [plainLine(head), ...(one.proof ? [`  ${plainLine(`Proof: ${one.proof}`)}`] : [])];
   });
   if (ranked.length > MAX_FINDING_LINES / 2) {
     lines.push(`${ranked.length - MAX_FINDING_LINES / 2} more findings are not shown.`);
   }
-  const counts = `${blocking.length} blocking and ${found.length - blocking.length} ` +
-    'non-blocking findings';
   const last = `Checked ${plural(names.length, 'report')}${suite === null ? '' :
-    ' and the suite result'}: ${counts}` +
-    `${blocking.length ? '.' : '; no blocking finding is open.'}`;
+    ' and the suite result'}: ${blocking.length} blocking, ${found.length - blocking.length} ` +
+    `non-blocking open findings; ${closed} closed.`;
   io.out.write([...lines, last].join('\n') + '\n');
   return blocking.length ? 1 : 0;
 }
 
 module.exports = {
+  mineOf,
+  previousFindings,
   verbs: {
     findings: {
       usage: ['findings open <file>',
-        'findings round <reports> --reviewers <names> [--suite <file>]'],
+        'findings round <reports> --reviewers <names> [--suite <file>] [--previous <file>]'],
       args(io, what, rest) {
         if (what === 'round') {
           const got = roundArgs(rest);

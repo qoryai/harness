@@ -3,8 +3,9 @@
 // build-report renders them again and compares the text byte for byte. The records are the
 // build ledger, .reports/build-ledger.json of the artifact folder, the check records of
 // .reports/runs/, the newest acceptance lock, which records that each check failed on the
-// start commit, open-findings.json beside the inputs.json of the session, and the previous
-// version of build-report.md for the rounds before the latest.
+// start commit, open-findings.json beside the inputs.json of the session, with the open
+// findings of every stage, and the previous version of build-report.md for the rounds before
+// the latest.
 //
 // shortcut: no verb records the full suite, so the full-suite line is `unknown`; replace it
 // when a verb writes it.
@@ -28,7 +29,7 @@ const UNREAD =
 module.exports = (lib) => {
   const {
     MAX_BYTES, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson, plainText, readFile,
-    readOpen, schema, sections,
+    readOpen, schema, sections, sourceText,
   } = lib;
   const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
@@ -74,9 +75,9 @@ module.exports = (lib) => {
     });
   }
 
-  // readRound returns the latest round of the open-findings.json beside the inputs.json
-  // inputs, { round, commit, reviewers, findings }, or null when inputs or the file is
-  // missing.
+  // readRound returns the open findings of every stage that the session started with, from
+  // the open-findings.json beside the inputs.json inputs, { round, reviewers, findings }, or
+  // null when inputs or the file is missing. reviewers are the reviewers of those findings.
   function readRound(inputs) {
     if (!inputs) return null;
     const file = path.join(path.dirname(inputs), 'open-findings.json');
@@ -92,28 +93,24 @@ module.exports = (lib) => {
     }
     const data = parseJson(readFile(file, 'open-findings.json'), 'open-findings.json');
     const { round, findings } = readOpen(data, 'open-findings.json');
+    const open = findings.filter((one) => one.state === 'open');
     return {
-      round, findings,
-      commit: typeof data.commit === 'string' && git.COMMIT.test(data.commit) ? data.commit : null,
-      // qory writes the findings of a full suite that failed under the entry full-suite,
-      // which is no reviewer.
-      reviewers: [...new Set(data.reviewers.map((one) => one.reviewer))]
-        .filter((name) => name !== 'full-suite'),
+      round, findings: open,
+      reviewers: [...new Set(open.filter((one) => one.source.kind === 'reviewer')
+        .map((one) => one.source.name))],
     };
   }
 
   // roundText returns the lines of ### Round <N> of round, as readRound returns it.
   function roundText(round) {
     const out = [`### Round ${round.round}`, ''];
-    const facts = [];
-    if (round.commit) facts.push(`Frozen commit: ${round.commit}`);
-    if (round.reviewers.length) facts.push(`Reviewers: ${round.reviewers.join(', ')}`);
-    if (facts.length) out.push(`${facts.join('. ')}.`, '');
+    if (round.reviewers.length) out.push(`Reviewers: ${round.reviewers.join(', ')}.`, '');
     if (!round.findings.length) {
       out.push('None.');
     } else {
-      out.push(...table(['Finding', 'Reviewer', 'Blocking', 'Proof'], round.findings.map((one) =>
-        [`${one.id}: ${one.point}`, one.reviewer, one.severity === 'blocking' ? 'yes' : 'no',
+      out.push(...table(['Finding', 'Source', 'Blocking', 'Proof'], round.findings.map((one) =>
+        [`${one.id}: ${one.point}`, sourceText(one.source),
+          one.severity === 'blocking' ? 'yes' : 'no',
           one.proof === null || one.proof === '' ? 'none' : cut(one.proof, POINT_TEXT)])));
     }
     return out.join('\n');
