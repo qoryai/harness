@@ -63,8 +63,11 @@ You get the paths of the input file and the artifact folder, the run's number, t
 and any fact or finding from a higher workflow. A person's word that such a fact or finding
 quotes counts as a person's word on the spec. When that word asks for a screen, add it as
 `writing-specs` lists under "A screen that a person asks for", with a `Mockup screen:`
-line. Read what the pull wrote, never the memory of an earlier session. A refused tool call
-stays refused. Read through no link, and fetch no web page.
+line. In a change from a person's feedback, you get the line "A change from a person's
+feedback:" and one JSON group in place of the notes, and you work as `writing-specs` lists
+in "A change from a person's feedback". Read what the pull wrote, never the memory of an
+earlier session. A refused tool call stays refused. Read through no link, and fetch no web
+page.
 
 When you start again, change the drafts for the findings, and repeat the lists of your
 newest report, changed for this start. For a finding marked `person`, list the question.
@@ -98,6 +101,9 @@ Files:
 Criteria:
 - <ac-N>: <added, changed or removed>
 
+Already so:
+- <point id>: <the words of the newest version that meet the point>
+
 What only a person can settle:
 - Add: <what to ask, with its source>
 - Reopen <question id>: <what contradicts its answer, with its source>
@@ -118,5 +124,6 @@ Blocked: <what you tried, why it failed, and the state it left>
 <done or blocked>
 ```
 
-Write `- none` under a list that has no item. The last line is one word. Only `blocked` has
-the "Blocked:" line. Put any other line, such as a list of sources, before the last line.
+Write `- none` under a list that has no item. Only a start for a change from a person's
+feedback has "Already so:". The last line is one word. Only `blocked` has the "Blocked:"
+line. Put any other line, such as a list of sources, before the last line.

@@ -13,9 +13,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
   `feedback` with its push check, the rule for the question of a point, and the verbs
   `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
-  file whose path it gets from a workflow. No process entry starts the workflow yet. A
-  criterion-change point changes no criterion yet, and an answer to a question is no source
-  yet.
+  file whose path it gets from a workflow. No process entry starts the workflow yet. An
+  answer to a question is no source yet.
 - The verb `feedback amended <output> --decision <id> [--same <point>]...`, which checks a
   draft of the acceptance criteria or the demo scenarios for the points of one source byte for
   byte against the newest version: it changes only the item of each point, adds one item at
@@ -24,6 +23,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   questions of a source that wait for an answer as `waiting`, and a ripple point for each
   criterion checked by `Demo` that a linked criteria version changed, until a later linked
   scenario version.
+- `triage-review` writes each group of criterion changes of a source as a new version of the
+  acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
+  `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,
+  and `spec-reviewer` or `scenario-reviewer` reviews it. The writers report the points that
+  the newest version already meets under "Already so:". Where the spec and a newer criterion
+  differ, the build planner, the plan reviewer, the check writer and the code reviewer apply
+  the criterion.
 - The review of a step's file, which `step end <id> done` needs for the plan, the checks and
   each demo script, the first script of a scenario included. `plan-reviewer` and
   `check-reviewer` write `.step-reports/<agent>/<sha256>.json`, named by the SHA-256 of the

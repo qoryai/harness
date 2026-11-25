@@ -818,7 +818,8 @@ test('each text that the skill ends with passes the check of the text of a point
   const rules = pointRules(registry.loadRegistry(path.join(MODULES, 'core')));
   const fill = (text) => text.replace('<words>', wordsOf(P2.quote)).replace(/<kind>/g,
     'a text that the product shows').replace(/<(?:the )?(?:cause|built part|reason)[^>]*>/g,
-    'the toolbar has 4 buttons').replace('<criterion text>', 'A member exports the open list');
+    'the toolbar has 4 buttons').replace(/<criterion text>|<first sentence>/,
+    'A member exports the open list');
   const texts = [
     ['The run could not sort the feedback "<words>".'],
     ['The feedback "<words>" can be read 2 ways, and a user sees a different result for each.'],
@@ -828,6 +829,9 @@ test('each text that the skill ends with passes the check of the text of a point
     ['The feedback "<words>" changes the approved criteria, so a member decides it.'],
     ['The feedback "<words>" is not <kind>: <reason>.', 'Pick Switch to Standard to build this ' +
       'change on the Standard track, because the Fast track is only for <kind>.'],
+    ['The run could not write the change to AC-2, "<first sentence>", that you asked for.',
+      'Run Build again.'],
+    ['The run could not write the change to the <words> that you asked for.', 'Run Build again.'],
   ];
   for (const [text, fix] of texts) {
     for (const one of [text, fix].filter(Boolean)) {
@@ -841,6 +845,47 @@ test('each text that the skill ends with passes the check of the text of a point
   for (const line of ['The run sorted the feedback: <k> to fix in Build.',
     'The run found no new feedback, so it changed nothing.']) {
     assert.ok(flat(WORKFLOW).includes(line), line);
+  }
+});
+
+test('the skill writes each group as one linked version that feedback amended and a reviewer check', () => {
+  const changes = flat(WORKFLOW.slice(WORKFLOW.indexOf('## Criterion changes'),
+    WORKFLOW.indexOf('## Questions with no answer')));
+  for (const line of ['With a JSON line, do "Criterion changes" before step 10.',
+    'Skip a group with `waiting`',
+    '`<skill folder>/checks.cjs feedback amended <output> --decision <decision>`, with ' +
+      '`--same <id>` for each point on the writer\'s list "Already so:"',
+    'Start the writer at most twice for these findings.',
+    'with `triage-review-<n>-<reviewer>-<decision>` as `<name>`',
+    '`<qory> artifact push <output> <folder>/<file> --decision <decision>`, also when the file ' +
+      'has the same bytes as the newest version.',
+    'the line "A change from a person\'s feedback:" and the group\'s JSON line after it, ' +
+      'unchanged, and no other source or note.',
+    'run `<qory> artifact pull` and `feedback points` again.']) {
+    assert.ok((line.startsWith('With a JSON') ? flat(WORKFLOW) : changes).includes(line), line);
+  }
+  assert.ok(!WORKFLOW.includes('shortcut:'));
+  // amended runs before the review, and the review before the push.
+  const at = ['feedback amended', 'triage-review-<n>-<reviewer>', 'artifact push <output>']
+    .map((one) => changes.indexOf(one));
+  assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2], at.join(' '));
+  // Each writer and reviewer has the section that the start names, and the writers the list.
+  for (const [skill, title] of [['writing-specs', 'A change from a person\'s feedback'],
+    ['writing-demo-scenarios', 'A change from a person\'s feedback'],
+    ['checking-specs', 'Review of a change from a person\'s feedback'],
+    ['checking-demo-scenarios', 'Review of a change from a person\'s feedback']]) {
+    const text = read(`software-factory/skills/${skill}/SKILL.md`);
+    assert.ok(text.includes(`\n## ${title}\n`), skill);
+    assert.ok(flat(text).includes('"Already so:"'), skill);
+  }
+  for (const agent of ['spec-writer', 'scenario-writer', 'spec-reviewer', 'scenario-reviewer']) {
+    assert.ok(flat(read(`software-factory/agents/${agent}.md`)).includes('"A change from a ' +
+      'person\'s feedback:"'), agent);
+  }
+  for (const skill of ['planning-builds', 'checking-build-plans', 'writing-acceptance-checks',
+    'checking-code']) {
+    assert.ok(flat(read(`software-factory/skills/${skill}/SKILL.md`)).includes('Where the spec ' +
+      'and a newer criterion differ, the criterion applies'), skill);
   }
 });
 

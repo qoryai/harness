@@ -3437,13 +3437,19 @@ and one `answer` point per question. Otherwise it starts `feedback-triager`, whi
 source into points by `sorting-feedback`: a `fix` inside the approved criteria, a
 `criterion-change`, or a `question`. `check feedback` runs after it, at most 3 times. Then
 `questions-writer` writes one question per `question` point, and `reply-writer` adds the
-`reply` of each new point. The session pushes `feedback`, then `questions`, and ends with
-`escalate` and one `answer` point per open question, else with `passed`. A point outside the
-kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
-workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
-`process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
-no criterion; replace this when the workflow gets the step that writes the criteria. Until
-then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no
+`reply` of each new point. The session pushes `feedback`, then `questions`. Then, for each
+group that `feedback points` prints, it starts `spec-writer` or `scenario-writer` with that
+group alone, checks the draft with `feedback amended`, at most 3 times, starts `spec-reviewer`
+or `scenario-reviewer`, at most 3 times, and pushes one version linked to the source with
+`--decision`, also when its bytes are the same as the newest version. A group with `waiting`
+waits for its questions. A writer that needs a person adds a question and keeps an `answer`
+point; a change that the writers cannot write ends with `escalate` and a `run_again` point,
+and earlier pushes stay. The session ends with `escalate` and one `answer` point per open
+question, else with `passed`. A point outside the kind of the fast track ends with `escalate`
+and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
+and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
+yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
+`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer to a question is no
 source yet, so a run builds nothing from it; read it once each answer has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one

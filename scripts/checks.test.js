@@ -4063,6 +4063,22 @@ test('report: the last line is a word the agent may end with', () => {
   fails(report('What you read:\n- a\n\ndone\n', 'spec-reviewer'), /^End the report with one word, clean.* of spec-reviewer /);
 });
 
+// ALREADY is the list of a writer in a change from a person's feedback.
+const ALREADY = 'Already so:\n- p2: "A member exports up to 100 rows"\n\n';
+
+test('report: the writers list the points that the newest version meets under Already so', () => {
+  passes(report(WRITER_REPORT.replace('What only a person', `${ALREADY}What only a person`),
+    'spec-writer'));
+  const scenarios = 'What you read:\n- a\n\nFiles:\n- demo-scenarios.md\n\nScenarios:\n' +
+    '- scenario-1: changed; ac-2\n\nWhat only a person can settle:\n- none\n\nDecided:\n- none\n\n' +
+    'Review comments:\n- none\n\n';
+  passes(report(`${scenarios}${ALREADY}done\n`, 'scenario-writer'));
+  // The list is optional, and a report without it passes; a list with no item fails.
+  passes(report(`${scenarios}done\n`, 'scenario-writer'));
+  fails(report(WRITER_REPORT.replace('What only a person', 'Already so:\n\nWhat only a person'),
+    'spec-writer'), /Already so:/);
+});
+
 test('report: a report over about 2,000 tokens is refused, not counting "Files:"', () => {
   // The bytes of WRITER_REPORT that count: all but "Files:" and its one item.
   const counted = Buffer.byteLength(WRITER_REPORT) - Buffer.byteLength('Files:\n- spec.md\n');

@@ -1,6 +1,6 @@
 ---
 name: checking-demo-scenarios
-description: Load before you write demo scenarios, and before you review them. Contains what a version contains, the steps of a review, and the check list.
+description: Load before you write demo scenarios, and before you review them. Contains what a version contains, the steps of a review, the review of a change from a person's feedback, and the check list.
 ---
 
 # Checking demo scenarios
@@ -88,3 +88,14 @@ the ids in that version's note. Judge the rest of the check list.
 - No step contains a file name, a field name, a command, a technology or a plan, and no step
   shows an outcome that no criterion states.
 - Nothing in the file comes from no source, and no text contains an assumption.
+
+## Review of a change from a person's feedback
+
+When the run gives you the line "A change from a person's feedback:" and one JSON group,
+judge only the scenarios of its points:
+
+1. Read each point's `quote`. A scenario that does not show what the quote or the row after
+   states is a finding.
+2. Each point on the writer's list "Already so:" is met by the newest version as it is, in
+   the words that the list quotes. One that is not is a finding.
+3. Judge no other scenario, and leave the summary out of the review.
