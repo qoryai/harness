@@ -3363,7 +3363,7 @@ extension, such as `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scena
 none. It is the `isPath` of `lib/plan.cjs`, which `types/build-plan.cjs` uses too. Each
 Check cell of the plan that is a check path is a check, and the criteria of its row are
 planned as `Tests`. The agents start only when the JSON has a live criterion whose `check`
-is `Tests`, one with no `removed` member set to `true`. With none, the session runs no
+is `Tests`, one with no `removed` member (an object `{reason}`). With none, the session runs no
 ledger step, starts no agent, pushes nothing and ends `passed`, with "No criterion is
 planned as Tests, so the run wrote no acceptance checks." With no build plan, it ends with a
 `run_again` point whose fix is "Plan the build, so that a run pushes the build plan." With
