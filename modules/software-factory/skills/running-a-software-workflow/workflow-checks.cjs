@@ -34,7 +34,8 @@
 // which writes the draft verification.json of Verify from records, and the verb demo, which
 // checks that the harness has the skill scripting-demos and builds a demo script from the
 // actions of the demo author, and the verb film, which stores the film or the pictures of a
-// demo script and the pictures of pages.
+// demo script and the pictures of pages, and the verb feedback, which prints the notes that no
+// run sorted and the points that have not ended.
 'use strict';
 
 const fs = require('node:fs');
@@ -91,6 +92,7 @@ function workflowChecks(core) {
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
       ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
+      ...require('./verbs/feedback.cjs')(lib),
     },
     types: [
       require('./types/proposal.cjs')(lib),

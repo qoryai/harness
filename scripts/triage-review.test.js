@@ -102,6 +102,8 @@ function run(root, notes, argv) {
     process.env.PATH = before;
   }
 }
+const open = (root, notes) => run(root, notes, ['feedback', 'open']);
+const points = (root) => run(root, [], ['feedback', 'points']);
 function check(data, { notes = [GD1], types = {}, questions } = {}) {
   const root = store(types);
   write(path.join(root, 'feedback.json'), data);
@@ -312,4 +314,149 @@ test('each question point has a new question in the draft questions.json', () =>
     'Add the question q5 of point p3 to questions.json.');
   fails(check(ASKED, { notes, types: { questions: [{ data: { questions: [Q5] } }] } }),
     'Set the question of point p3 to an id that no question has.');
+});
+
+// ---- feedback open -----------------------------------------------------------------------------
+
+const sourcesIn = (result) => result.lines.filter((line) => line.startsWith('{'))
+  .map((line) => JSON.parse(line));
+
+test('feedback open prints each note that no version of feedback lists, once', () => {
+  const result = open(store(), [GD1]);
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [JSON.stringify(S1), 'Words of gd_1: The export has no header row',
+    'Open feedback: 1 source; 0 questions not asked; 0 questions with no answer. The next ids ' +
+      'are p1 and q1.']);
+  // Sorted: nothing is open.
+  const sorted = store({ feedback: [{ data: CASE }] });
+  const quiet = open(sorted, [GD1]);
+  assert.equal(quiet.status, 0);
+  assert.deepEqual(quiet.lines, ['Open feedback: 0 sources; 0 questions not asked; 0 questions ' +
+    'with no answer. The next ids are p3 and q1.']);
+  // A withdrawal of feedback drops no source.
+  const withdrawn = store({ feedback: [{ data: CASE }, { withdrawn: true }] });
+  assert.equal(open(withdrawn, [GD1]).status, 0);
+  // Only a new note is open beside the sorted one.
+  assert.deepEqual(sourcesIn(open(sorted, [GD1, GD2])).map((one) => one.id), ['gd_2']);
+});
+
+test('feedback open takes each kind of note that a person wrote, with its text', () => {
+  const notes = [GD1, note('gd_2', 'move', 'Moved\r\nback.\u0007'),
+    note('es_3', 'escalation', 'Try again.'), note('rc_4', 'answer', 'Run another round.'),
+    note(null, 'answer', 'Show the total.'), note(null, 'check', 'A gap.'),
+    note('gd_5', 'request_changes', '  '), note('gd_6', 'move', null),
+    note('an_7', 'answer', 'Keep 50.')];
+  const key = commentKey(AT, 'Show the total.');
+  assert.match(key, /^cm_[0-9a-f]{16}$/);
+  const found = sourcesIn(open(store(), notes));
+  assert.deepEqual(found, [S1, sourceOf('gd_2', 'note', 'Moved\nback.'),
+    sourceOf('es_3', 'note', 'Try again.'), sourceOf('rc_4', 'comment', 'Run another round.'),
+    sourceOf(key, 'comment', 'Show the total.')]);
+  // Each one passes as a source, and is open no more once sorted.
+  const data = { sources: found, points: [] };
+  passes(check(data, { notes }));
+  passes(push(data, { notes }));
+  assert.equal(open(store({ feedback: [{ data }] }), notes).status, 0);
+  // A comment that gets an id later is the same source.
+  const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'rc_8' } : one));
+  assert.equal(open(store({ feedback: [{ data }] }), later).status, 0);
+  // The key has to be the one of the time and text.
+  const other = clone(data);
+  other.sources[4].id = 'cm_0000000000000000';
+  fails(push(other, { notes: null }), 'Write source cm_0000000000000000 as `feedback open` prints it.');
+});
+
+test('a criterion change in a comment with no id is a question, and in one with an id a change', () => {
+  const key = commentKey(AT, 'Raise the limit to 100.');
+  const data = (id) => ({ sources: [sourceOf(id, 'comment', 'Raise the limit to 100.')],
+    points: [{ ...P2, id: 'p1', source: id, quote: 'Raise the limit to 100.' }] });
+  const comment = (id) => note(id, 'answer', 'Raise the limit to 100.');
+  fails(check(data(key), { notes: [comment(null)] }), 'Set the sort of point p1 to question.');
+  passes(check(data('rc_4'), { notes: [comment('rc_4')] }));
+});
+
+test('feedback open leaves out an answer to a question, and lists a question with no answer', () => {
+  const answered = { ...clone(Q5), id: 'q1', state: 'answered',
+    answer: { option: Q5.options[0].title, by: SAM, at: '2026-11-25T09:00:00.4Z' } };
+  const notes = [GD1, GD2, note(null, 'answer', Q5.options[0].title)];
+  const types = (...questions) => ({ feedback: [{ data: ASKED }],
+    questions: [{ data: { questions } }] });
+  // The question of p3 is not in the newest questions: a crash between the two pushes.
+  const missing = open(store(types(answered)), notes);
+  assert.equal(missing.status, 1);
+  assert.deepEqual(missing.lines, ['Not asked: p3, q5', 'Open feedback: 0 sources; 1 question not ' +
+    'asked; 0 questions with no answer. The next ids are p4 and q6.']);
+  const waiting = open(store(types(answered, Q5)), notes);
+  assert.equal(waiting.status, 0);
+  assert.deepEqual(waiting.lines, ['Waiting for an answer: p3, q5', 'Open feedback: 0 sources; 0 ' +
+    'questions not asked; 1 question with no answer. The next ids are p4 and q6.']);
+  const ended = open(store(types(answered, { ...Q5, state: 'answered',
+    answer: { note: 'Both.', by: SAM, at: AT } })), [GD1, GD2]);
+  assert.deepEqual([ended.status, ended.lines.length], [0, 1]);
+});
+
+test('feedback open exits 3 when the notes cannot be read', () => {
+  const result = open(store(), null);
+  assert.equal(result.status, 3);
+  assert.match(result.out + result.err, /^Run feedback open again\./);
+});
+
+// ---- feedback points ---------------------------------------------------------------------------
+
+const GROUP = { decision: 'gd_1', at: AT, output: 'acceptance-criteria',
+  points: [{ id: 'p2', quote: P2.quote, item: 'ac-2', change: P2.change }] };
+const FIX = 'Fix first: p1: Add a header row to the export.';
+const ledger = (...steps) => [{ data: { steps } }];
+
+test('feedback points prints each point that has not ended, and one group per source and output', () => {
+  const result = points(store({ feedback: [{ data: CASE }] }));
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines, [FIX, JSON.stringify(GROUP),
+    'Open points: 1 to fix; 1 group of criterion changes.']);
+  const none = points(store());
+  assert.deepEqual([none.status, none.lines],
+    [0, ['Open points: 0 to fix; 0 groups of criterion changes.']]);
+  // Two points of one source and output are one group; the oldest source comes first, and a
+  // new criterion has no item.
+  const data = changed((d) => {
+    d.sources.push(sourceOf('es_2', 'note', 'Add a total. Film it.', '2026-11-24T09:00:00Z'));
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit' },
+      { ...P2, id: 'p4', source: 'es_2', quote: 'Add a total.', item: undefined },
+      { ...P2, id: 'p5', source: 'es_2', quote: 'Film it.', output: 'demo-scenarios',
+        item: 'scenario-1' });
+  });
+  const groups = sourcesIn(points(store({ feedback: [{ data }] })));
+  assert.deepEqual(groups.map((one) => [one.decision, one.output, one.points.map((p) => p.id)]),
+    [['es_2', 'acceptance-criteria', ['p4']], ['es_2', 'demo-scenarios', ['p5']],
+      ['gd_1', 'acceptance-criteria', ['p2', 'p3']]]);
+  assert.equal('item' in groups[0].points[0], false);
+});
+
+test('a fix ends with a done row of the build ledger', () => {
+  const lines = (...steps) => points(store({ feedback: [{ data: CASE }],
+    'build-ledger': ledger(...steps) })).lines;
+  assert.ok(lines({ id: 'fix:p1', state: 'failed' }, { id: 'fix:p2', state: 'done' }).includes(FIX));
+  assert.ok(!lines({ id: 'fix:p1', state: 'failed' }, { id: 'fix:p1', state: 'done' }).includes(FIX));
+});
+
+test('a criterion change ends with a version that counts, of a run, with the id of its source', () => {
+  const ended = (...versions) => !points(store({ feedback: [{ data: CASE }],
+    'acceptance-criteria': [{ data: CRITERIA }, ...versions] })).out.includes('"decision"');
+  const version = { data: CRITERIA, decision: 'gd_1' };
+  assert.equal(ended(version), true);
+  // A later version with no link changes nothing.
+  assert.equal(ended(version, { data: CRITERIA }), true);
+  assert.equal(ended({ data: CRITERIA }), false);
+  assert.equal(ended({ ...version, cancelled: true }), false);
+  assert.equal(ended({ ...version, decision: 'gd_2' }), false);
+  assert.equal(ended({ ...version, writer: { kind: 'person', account: 'u_1' } }), false);
+  assert.equal(ended({ withdrawn: true, decision: 'gd_1' }), false);
+});
+
+test('feedback takes open or points alone', () => {
+  for (const argv of [['feedback'], ['feedback', 'close'], ['feedback', 'open', 'x']]) {
+    const result = run(store(), [], argv);
+    assert.equal(result.status, 2);
+    assert.match(result.err, /^Give feedback open or points\./);
+  }
 });
