@@ -854,7 +854,8 @@ machine paths refuses the home folder when it has two or more parts, such as `/h
 or is `/root`. A general folder such as `/tmp`, or no `HOME`, adds no refused folder. It
 writes only `.reports/starts.json` and its lock `.reports/starts.json.lock`,
 `.reports/local.json`, `.reports/results.json` and its lock `.reports/results.json.lock`,
-`.reports/end.json`, from `end`, `points.json`, which `end --offline` writes to its `--out`
+`.reports/end.json` and, in a Build write session, `.reports/uncommitted.json`, from `end`,
+`points.json`, which `end --offline` writes to its `--out`
 folder only, from `lock`, the draft of the lock, with the SHA-256 of each listed file, and,
 from the verbs `step` and `resume`, the files that the build ledger lists below. `check`
 and `push` exit 3 for a file that is a link, and `report` for a report whose real path is
@@ -874,11 +875,10 @@ lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`,
 the readers of the ids of a type that the questions check reads for the `item` of an
 `about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
 each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
-as lines of two lines, `verbs`, and `ledger`, the rules of the build ledger. Only `check`,
-`push`,
-`report`, `end`, `step`, `resume`, a verb of the registry and the usage read the registry;
-`starts`, `begin` and `fixes` never load it. A type that two skills add stops each verb
-that reads the registry with exit 3. A
+as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, and `end`, the
+check at the end of a session. Only `check`, `push`, `report`, `end`, `step`, `resume`, a
+verb of the registry and the usage read the registry; `starts`, `begin` and `fixes` never
+load it. A type that two skills add stops each verb that reads the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs of
@@ -887,9 +887,10 @@ the harness: the verb stops with an error that names the file and exit 3, and `e
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
 types of Build and Verify, the lines that start with `needs a change to criterion`, `needs a
 new criterion` or `needs a change to the spec`, the line `needs a change to the build plan:
-<the change>` of the writers of `implement-changes`, and the rules of the build ledger that
-the verbs `step` and `resume` apply. A stack without that module, such as `core`, checks
-`questions` and `review-comments`, and `report` accepts only `needs <type>`.
+<the change>` of the writers of `implement-changes`, the rules of the build ledger that the
+verbs `step` and `resume` apply, and the check at the end of a Build write session. A stack
+without that module, such as `core`, checks `questions` and `review-comments`, and `report`
+accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1288,6 +1289,28 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   left out.`, then the text of the point, cut to 200 characters as each line. `end
   --offline` cuts its points the same way. These commands use `/qory/qory`, or `qory` from
   `PATH` when `/qory/qory` does not exist.
+- The check of a module at the end of `checks.cjs end <folder>`: the member `end(io)` that a
+  `workflow-checks.cjs` adds to the registry, one at most. `end` calls it with its io and
+  `root`, the artifact folder, and `failed`, the count of failed checks before this one,
+  beside the checks of drafts, reports and outputs. An early return of `end`, such as the
+  end through a `points.json` that passes, and `end --offline` skip it. Each result is
+  `{line, point, item}`, as the other checks of `end` return them.
+  `running-a-software-workflow` adds `lib/uncommitted.cjs`, which checks a Build write
+  session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
+  `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
+  session can write, a change is a path that `git status` lists: a tracked, staged or
+  untracked file that git does not ignore, or a submodule whose commit or files changed,
+  whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
+  change in that checkout. The finding is `Commit these changes, then end the session: the
+  suite and the review read only committed work.`, then `Not committed:` with at most 20
+  paths, sorted, fewer when the line would pass 200 characters, with a path that has a key
+  shown as words, and `(<n> in all)`. It counts in `.reports/uncommitted.json` the checks
+  that found a change, and starts again at the first check after one that passed. The count
+  is at most the failed checks since then. At the third failed check, its point is "The
+  Build session ended <n> times with changes it did not commit, so the suite and the review
+  could not check them.", with that count. With no `inputs.json`, another stage, or a stack
+  of core alone, it finds nothing. The Build stage runs `implement-changes`,
+  `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
@@ -2890,7 +2913,8 @@ row's `base`. An untracked file that git does not ignore is such an edit; a file
 `.qory/`, at the top of the checkout, is none, also from a subfolder. `step end failed`
 records the failure with no such check: the session then goes on from the commit before
 the failed step, and the next `step begin` or `step end done` refuses the failed step's
-edits.
+edits. `step begin` and `step end done` do not list what the `ignore` setting of a
+submodule hides, and `scope` does.
 
 The verbs exit 0 as each one lists, 1 as each one lists, 2 for wrong arguments, 3 when an
 input is missing or unreadable, such as a ledger that breaks its schema, a missing or
@@ -3485,9 +3509,16 @@ id.
   the build report. When the session ran no `step end done`, the run has no commit: the
   session skips "The submission", writes `points.json` with one `run_again` point whose text
   is the line "The run stopped, because the checks still fail after 3 changes to <the
-  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it does
-  "The submission", writes no `points.json`, runs no verdict command, starts no later step,
-  and ends with that line. `review-changes` runs next and reports the open step as
+  step>.", and records `escalate`, which needs no `pull-request` output. Otherwise it
+  commits the files that the failed step left, with the identity of a frozen commit, `qory`
+  and `qory@localhost`, with no hook and no signature, and with nothing under `.qory`.
+  Before that commit, `git reset -q <base>`, with the `base` of the last row of the build
+  ledger, keeps each file and takes the step's commits off the branch. The session takes no
+  file out and sets no file back: when the commit has a file with a key, a path outside the
+  plan, a new repository folder or a changed submodule, the scope check of qory's push stops
+  the push, qory pushes no commit, and the run ends `push_scope_refused`. The session then
+  does "The submission", writes no `points.json`, runs no verdict command, starts no later
+  step, and ends with that line. `review-changes` runs next and reports the open step as
   `blocking`, and the limit of 3 rounds of Qory Apiary passes it to a member. `step end`
   takes at most 3 `--attempt`, so a step has no fourth attempt.
 - **The writers.** `software-developer` and `software-debugger` change only the paths that
@@ -4134,12 +4165,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line that starts with `/.qory/`. A line that is empty, has only spaces or starts with `#`
   is no pattern, and no white space is trimmed. The finding is "Remove this line from
   .git/info/exclude, then run the verb again.", with the first such pattern in quotes on the
-  next line. An ignored path is no change, but an untracked `.gitignore`
-  file is one, also when it ignores itself; one inside an ignored folder is none. git
-  compares change times by the second, so a tracked file whose times or size differ from its
-  index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
-  data that an agent writes into the index file is not checked. With a base, it also scans
-  each commit since the base for keys, as `freeze` does.
+  next line. `git status` runs with `--ignore-submodules=none`, so a changed submodule
+  counts whatever its `ignore` setting. An ignored path is no change, but an untracked
+  `.gitignore` file is one, also when it ignores itself; one inside an ignored folder is
+  none. git compares change times by the second, so a tracked file whose times or size
+  differ from its index entry by a nanosecond or a byte is hashed, and counts when its
+  content differs. Stat data that an agent writes into the index file is not checked. With a
+  base, it also scans each commit since the base for keys, as `freeze` does.
 - `freeze <step> | --plan [--base <commit>] [--inputs <path>] [--artifacts <folder>]`: runs
   `scope`, stages the change in a temporary index, checks every path of the tree to commit
   against the scope, scans the names and added lines of the change and of the commits that
