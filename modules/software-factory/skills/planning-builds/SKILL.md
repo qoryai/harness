@@ -89,7 +89,8 @@ runs `write-acceptance-checks`, so every Build has locked checks.
 - **targeted:** the command that runs the test files of one deliverable. Write it so that
   the paths of the test files come last, with no `#`, `;` or `&&`: the run adds the paths
   at its end. Its Result file is the JUnit XML file that it writes.
-- **full:** the command that runs every test, with the same Result file.
+- **full:** the command that runs every test, with the same Result file. Never write `none`
+  in it: see "No full test suite".
 - **locked:** the command that runs the locked acceptance checks; its cells follow the
   rules of `full`. qory is to run it after the session, as it runs `full`. With no such
   command, write `none`, as for the other kinds.
@@ -99,7 +100,15 @@ runs `write-acceptance-checks`, so every Build has locked checks.
   linter."
 - **Source:** where the command comes from, in one of three forms: `repository: <file>`,
   when a file of the repository declares it; `module: <name>`, when a technology module
-  provides it; or `found: <file>:<line>`, the file and line that state it.
+  provides it; `found: <file>:<line>`, the file and line that state it; or `plan: d-<N>`,
+  when deliverable `d-<N>` of this plan creates the command.
+
+## No full test suite
+
+When the repository has no full test suite, make the first deliverable, `d-1`, create it. It
+counts in the 7 deliverables. Write the `full`, `targeted` and `locked` rows with the
+commands that `d-1` creates, and `plan: d-1` as their Source. Never write `none` in `full`,
+and never ask a person for the command.
 
 ## The app address
 

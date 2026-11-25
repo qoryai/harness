@@ -26,9 +26,18 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   repository has no full test suite, and its build plan adds one." The finding for a missing
   `full` row has no line on `none`. `lint` and `build` keep `none` with a reason in Source.
   The `full` row of a proposal has the JUnit XML file of the suite in Result file, or `none`.
-- `## Track` of a proposal is read from its lines outside a code block, as the check of the
-  track on the fast track reads it: a code block before the track line no longer gives the
-  finding "Start ## Track of proposal.md with…".
+- A Source of the form `plan: d-<N>` in `## Commands` of a build plan is valid when `d-<N>` is
+  a deliverable of the same plan. Otherwise the finding is "Write a step d-<N> in the plan, or
+  cite another source for <kind>." A proposal has no such form. With no full test suite,
+  `planning-builds` and `build-planner` make `d-1` create it, which counts in the 7
+  deliverables, and the rows `full`, `targeted` and `locked` have `plan: d-1` as Source.
+  `checking-build-plans` lists for `plan-reviewer` as findings a `full` row of `none`, and a
+  row that cites a step that does not add the suite. `writing-proposals` says to write the track
+  Standard with no full test suite, `proposal-writer` never writes `none` in `full`, and
+  `checking-proposals` reports a `full` row of `none` or empty.
+- `## Track` of a proposal is read from its lines outside a code block, as the check of
+  the sections does, which skips code blocks: a code block before the track line no longer
+  gives the finding "Start ## Track of proposal.md with…".
 - `run lint` and `run build` read their commands from `## Commands` of the approved version
   of `proposal` when the folder of `--artifacts` or `qory.start_artifacts` has one whose
   `## Track` is the fast track, which has no build plan. `run targeted` and `run types`

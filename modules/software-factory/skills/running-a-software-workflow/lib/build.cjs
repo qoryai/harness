@@ -161,9 +161,11 @@ module.exports = (lib) => {
   // Command that is none with the reason in Source, or a Source of one of three forms. The
   // kind full has a command, as qory starts the suite from it: a Command of none or an empty
   // Command gets the finding noSuite, the text that the caller gives. Each kind of required
-  // has a row. It returns { given, seen }: the kinds whose Command is not none, and the kinds
-  // with a row, or null after the finding of a missing table.
-  function commandsTable(run, part, { file, kinds, required, noSuite }) {
+  // has a row. With steps, a Set of the ids of the steps of the plan, a Source of the form
+  // "plan: d-<N>" is valid when steps has d-<N>; without steps that form is no form. It
+  // returns { given, seen }: the kinds whose Command is not none, and the kinds with a row, or
+  // null after the finding of a missing table.
+  function commandsTable(run, part, { file, kinds, required, noSuite, steps }) {
     const found = sectionTable(run, file, part, ['Kind', 'Command', 'Result file', 'Source']);
     if (!found) return null;
     run.did('commands');
@@ -188,10 +190,19 @@ module.exports = (lib) => {
         continue;
       }
       given.add(name);
-      if (!/^(?:repository|module): \S/.test(source) &&
+      const step = steps && /^plan: `?(d-[1-9][0-9]*)`?$/.exec(source);
+      if (step) {
+        if (!steps.has(step[1])) {
+          run.find(`Write a step ${step[1]} in the plan, or cite another source for ${name}.`);
+        }
+      } else if (!/^(?:repository|module): \S/.test(source) &&
         !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
-        run.find(`Write the Source of ${name} in ${file} in one of its three forms.\nThe forms ` +
-          'are "repository: <file>", "module: <name>" and "found: <file>:<line>". The Source ' +
+        const forms = steps
+          ? 'four forms.\nThe forms are "repository: <file>", "module: <name>", ' +
+            '"found: <file>:<line>" and "plan: d-<N>"'
+          : 'three forms.\nThe forms are "repository: <file>", "module: <name>" and ' +
+            '"found: <file>:<line>"';
+        run.find(`Write the Source of ${name} in ${file} in one of its ${forms}. The Source ` +
           `is ${short(source, 80)}.`);
       }
     }

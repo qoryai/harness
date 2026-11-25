@@ -127,7 +127,7 @@ of the areas.
 On the fast track, check `## Commands` too: each command and each Source comes from the
 explorer's report or from a file that you read. Read the file and line of each `found:`
 Source: a command that the line does not state, or one that no source shows, is a finding. A
-kind with `none` has its reason in Source.
+kind with `none` has its reason in Source. A `full` row of `none` or empty is a finding.
 
 Check the fast track against the kinds and the sensitive areas, written exactly as these
 lists write them.

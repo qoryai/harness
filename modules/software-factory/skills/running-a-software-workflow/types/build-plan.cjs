@@ -119,8 +119,13 @@ module.exports = (lib) => {
 
   // commands checks ## Commands as commandsTable of lib/build.cjs does, and adds the serve
   // kind for a criterion planned as Demo. It returns the kinds whose Command is not none.
-  function commands(run, part, live) {
-    const found = commandsTable(run, part, { file: FILE, kinds: KINDS, required: REQUIRED,
+  function commands(run, part, live, rows) {
+    // The steps of the plan: a Source of the form "plan: d-<N>" cites one of them.
+    // shortcut: the check reads only that d-<N> is a step; the reviewer judges that the step
+    // creates the command; replace it with a check of the Files of the step when a plan
+    // writes the suite in a file that Files can name.
+    const steps = new Set((rows || []).map((row) => row.id));
+    const found = commandsTable(run, part, { file: FILE, kinds: KINDS, required: REQUIRED, steps,
       noSuite: `Write a command for full in ## Commands of ${FILE}.\nIf the repository has no ` +
         'full test suite, add a step that creates one, and write its command in the row.' });
     if (!found) return;
@@ -160,7 +165,7 @@ module.exports = (lib) => {
     if (inOrder(run, FILE, parts, SECTIONS)) {
       const rows = deliverables(run, parts[1]);
       if (rows) criteria(run, rows, live);
-      const kinds = commands(run, parts[2], live);
+      const kinds = commands(run, parts[2], live, rows);
       if (kinds && kinds.has('serve')) address(run, parts[0]);
       if (rows) run.note = plural(rows.length, 'deliverable');
     }

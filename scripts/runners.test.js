@@ -430,6 +430,26 @@ test('the writer of a proposal gives full the JUnit file that qory counts the te
   assert.ok(!skill.includes('and `none` in Result file'), 'no none for every row');
 });
 
+test('the skills of the plans and of the proposal list the rule for a repository with no suite', () => {
+  const text = (file) => fs.readFileSync(path.join(MODULES, 'software-factory', file), 'utf8')
+    .replace(/\s+/g, ' ');
+  const lists = {
+    'skills/planning-builds/SKILL.md': ['make the first deliverable, `d-1`, create it',
+      '`plan: d-1` as their Source', 'Never write `none` in `full`'],
+    'agents/build-planner.md': ['make `d-1` create it', 'Never write `none` in `full`'],
+    'skills/checking-build-plans/SKILL.md': ['A `full` row with `none` or no command is a finding',
+      'is a finding unless deliverable `d-<N>` creates that command'],
+    'skills/writing-proposals/SKILL.md': ['With no full test suite, write the track Standard.',
+      'Never write `none` in `full`.'],
+    'agents/proposal-writer.md': ['for a kind of `## Commands` but `full`',
+      'Never write `none` in `full`'],
+    'skills/checking-proposals/SKILL.md': ['A `full` row of `none` or empty is a finding.'],
+  };
+  for (const [file, sentences] of Object.entries(lists)) {
+    for (const sentence of sentences) assert.ok(text(file).includes(sentence), `${file}: ${sentence}`);
+  }
+});
+
 // proposed returns the path of an inputs.json whose qory.start_artifacts is a copy of the
 // artifact folder of dir with proposal version 1 added, approved unless approved is null, and
 // with its file unless file is false.

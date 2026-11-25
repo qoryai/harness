@@ -287,6 +287,12 @@ test('proposal: ## Commands has a row for lint, build and full, each with a Sour
     /^Put a table with the columns Kind, Command, Result file, Source in ## Commands of proposal\.md\.$/);
 });
 
+test('proposal: a Source of the form plan: d-<N> is no form of a proposal', () => {
+  // A proposal has no steps to cite.
+  fails(push(withCommands(LINT, BUILD, '| full | `npm test` | none | plan: d-1 |'), 'proposal'),
+    /^Write the Source of full in proposal\.md in one of its three forms\. The forms are "repository: <file>", "module: <name>" and "found: <file>:<line>"\. The Source is "plan: d-1"\.$/);
+});
+
 test('proposal: a full row with no command returns the finding to choose the Standard track', () => {
   const standard = /^Choose the Standard track: the repository has no full test suite, and its build plan adds one\.$/;
   fails(push(withCommands(LINT, BUILD, '| full | none | none | The repository has no tests. |'),

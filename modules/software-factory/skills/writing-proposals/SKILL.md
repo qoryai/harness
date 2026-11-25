@@ -344,12 +344,15 @@ for each of the kinds `lint`, `build` and `full`.
 
 - **Result file:** for `full`, the JUnit XML file that it writes, or `none`. For `lint` and
   `build`, `none`.
-- **Command:** a command that the code explorer's report or a file shows. With no such
-  command, write `none` in Command, and in Source the reason, such as "The repository has no
-  linter." Never write a command that no report and no file shows.
+- **Command:** a command that the code explorer's report or a file shows. For `lint` and
+  `build` with no such command, write `none` in Command, and in Source the reason, such as
+  "The repository has no linter." Never write `none` in `full`. Never write a command that no
+  report and no file shows.
 - **Source:** where the command comes from, in one of three forms: `repository: <file>`,
   when a file of the repository declares it; `module: <name>`, when a technology module
   provides it; or `found: <file>:<line>`, the file and line that state it.
+
+With no full test suite, write the track Standard.
 
 For example:
 
