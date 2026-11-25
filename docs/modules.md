@@ -1204,19 +1204,22 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `<outbox>`. The session creates that folder and writes each output to
   `<outbox>/<type>/<type>.json`.
   The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
-  `inputs.json`, the check finds nothing. It finds:
+  `inputs.json`, the check finds nothing. A run with no `qory.outbox`, such as a run with
+  the access `read` or `write-no-push`, has no outbox, and the check reads no output file.
+  A missing file is no finding, also for a required output. When a `schema` is null, the
+  type has no JSON Schema, and the check applies none to its file. The check finds:
   - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
     `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
-    or `false`, or a `schema` is no object. The finding is "Fix qory.outputs in the lines
-    after this one:", with a line for each such part. Only an absent list passes;
+    or `false`, or a `schema` is neither an object nor null. The finding is "Fix
+    qory.outputs in the lines after this one:", with a line for each such part. Only an
+    absent list passes;
   - an `inputs.json` that is no regular file of at most 1 MiB, or no JSON object: "Fix the
     inputs file of the run." The point says that the setup of the run must provide it;
-  - a stage that declares an output while `qory.outbox` is missing or is not an absolute
+  - a stage that declares an output while `qory.outbox` is present and is not an absolute
     path. The finding is "Set qory.outbox in the inputs file to the absolute path of the
-    outbox folder.", with the cause "The inputs file has no qory.outbox." or "qory.outbox of
-    the inputs file is not an absolute path.", and the check reads no file. The point states
-    that the setup of the run must set it;
-  - a required output with no file;
+    outbox folder.", with the cause "qory.outbox of the inputs file is not an absolute
+    path.", and the check reads no file. The point states that the setup of the run must
+    set it;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
     is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
@@ -1247,8 +1250,7 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   A file with findings gives the line "Fix the <n> findings of <file> in the lines after
   this one:" and then the findings, and adds the `run_again` point "<The type> output
   breaks its format rules, so the run could not deliver it, and another round writes it
-  again." A required output with no file adds the point "The stage needs <the type>, which
-  the run did not write, and another round writes it again."
+  again."
 - `checks.cjs end --offline --artifacts <dir> --store <dir> --verdict <file> --out <dir>
   --run <id> [--continues <id>[,<id>...]] [--inputs <file>]`:
   the end check after the session, for qory to run in a new container, so that no count or

@@ -94,11 +94,63 @@ test('outbox: a valid file of a type with no module code passes, an invalid one 
   assert.match(bad.text, new RegExp(`/title of ${FILE} so that it matches its pattern`));
 });
 
-test('outbox: a required output that is missing fails, an optional one does not', () => {
-  const missing = end(session(OUT));
-  assert.equal(missing.status, 1);
-  assert.match(missing.text, new RegExp(`^Write ${FILE}\\.`, 'm'));
-  assert.equal(end(session([{ type: 'reply', required: false, schema: REPLY }])).status, 0);
+test('outbox: an output with no file is no finding, required or not', () => {
+  for (const required of [true, false]) {
+    const found = end(session([{ type: 'reply', required, schema: REPLY }]));
+    assert.equal(found.status, 0, found.text);
+  }
+});
+
+// passes checks that the end check has no finding with the member qory in the form that qory
+// writes for a run with no outbox. files are in .qory/outbox, which the check does not read.
+function passes(qory, files = {}) {
+  const one = session(undefined, files);
+  fs.writeFileSync(one.inputs, JSON.stringify({ qory: { harness_extensions: {}, ...qory,
+    start_commits: [], start_artifacts: '' } }));
+  // The old variable QORY_OUTBOX is no fallback.
+  const found = end(one, { QORY_OUTBOX: one.outbox });
+  assert.equal(found.status, 0, found.text);
+  assert.match(found.text, /: 0 findings\.$/m);
+}
+
+// entry is one entry of qory.outputs: schema is null for a type with no JSON Schema, and
+// REPLY stands for the schema of a type that has one.
+const entry = (type, required, schema = null) => ({ type, required, schema });
+
+test('outbox: Explore, with a required proposal, schema null and no outbox, passes', () => {
+  passes({ outputs: [entry('proposal', true)] });
+});
+
+test('outbox: Shape, with two required outputs and no outbox, passes', () => {
+  passes({ outputs: [entry('spec', true), entry('acceptance-criteria', true, REPLY),
+    entry('decision-record', false), entry('mockup', false), entry('demo-scenarios', false)] });
+});
+
+test('outbox: a run with no outbox reads no output, also with a file in .qory/outbox', () => {
+  // A read run and a write-no-push run of Build get this form, with no qory.outbox.
+  for (const files of [{}, { 'pull-request': 'not json' }]) {
+    passes({ outputs: [entry('pull-request', true, REPLY)] }, files);
+  }
+});
+
+test('outbox: the file of a type with schema null is checked as JSON, with no schema', () => {
+  const OPEN = [entry('reply', true)];
+  // With a schema, also {}, the null and the number that is not finite are findings.
+  const good = end(session(OPEN, { reply: '{"target":{},"note":null,"count":1e400}' }));
+  assert.equal(good.status, 0, good.text);
+  const bad = end(session(OPEN, { reply: 'not json' }));
+  assert.equal(bad.status, 1);
+  assert.match(bad.text, new RegExp(`^Write ${FILE} as JSON\\.`, 'm'));
+  const linked = session(OPEN, { reply: reply() });
+  const file = path.join(linked.outbox, 'reply/reply.json');
+  fs.rmSync(file);
+  fs.symlinkSync(linked.inputs, file);
+  assert.match(end(linked).text, /It is a link\./);
+  // The check of the module for the type runs too.
+  const typed = end(session([entry('review-comments', true)],
+    { 'review-comments': '{"comments":[]}' }));
+  assert.equal(typed.status, 1);
+  assert.match(typed.text, /^Pull the artifacts first\.\n\s+The check of review-comments /m);
 });
 
 test('outbox: with no qory.outputs, an empty list or no inputs file, the check passes', () => {
@@ -126,7 +178,9 @@ test('outbox: a qory.outputs that is present and malformed is a finding', () => 
       schema: REPLY }] } }), /^Write the type of entry 1 of qory\.outputs as lower-case/m],
     ['a schema that is text', JSON.stringify({ qory: { outputs: [{ type: 'reply',
       required: true, schema: 'x' }] } }),
-      /^Write the schema of entry 1 of qory\.outputs as an object\./m],
+      /^Write the schema of entry 1 of qory\.outputs as an object or null\./m],
+    ['no schema', JSON.stringify({ qory: { outputs: [{ type: 'reply', required: true }] } }),
+      /^Write the schema of entry 1 of qory\.outputs as an object or null\./m],
     ['a required that is no boolean', JSON.stringify({ qory: { outputs: [{ type: 'reply',
       required: 'yes', schema: REPLY }] } }),
       /^Write the required of entry 1 of qory\.outputs as true or false\./m],
@@ -137,18 +191,17 @@ test('outbox: a qory.outputs that is present and malformed is a finding', () => 
     assert.match(found.text, pattern, name);
   }
   // The well-formed entries beside a malformed one are still checked.
-  const mixed = session([{ type: 'reply', required: true, schema: REPLY }, 5]);
+  const mixed = session([{ type: 'reply', required: true, schema: REPLY }, 5],
+    { reply: 'not json' });
   const found = end(mixed);
   assert.equal(found.status, 1);
   assert.match(found.text, /^Write entry 2 of qory\.outputs as an object\.\n\s+It is a number\./m);
-  assert.match(found.text, new RegExp(`^Write ${FILE}\\.`, 'm'));
+  assert.match(found.text, new RegExp(`^Write ${FILE} as JSON\\.`, 'm'));
 });
 
-test('outbox: qory.outbox must be an absolute path when the stage declares an output', () => {
-  const missing = 'The inputs file has no qory.outbox.';
-  const relative = 'qory.outbox of the inputs file is not an absolute path.';
-  for (const [value, cause] of [[undefined, missing], ['', relative], ['relative/outbox',
-    relative], [5, relative], [null, relative]]) {
+test('outbox: a qory.outbox that is present must be an absolute path', () => {
+  const cause = 'qory.outbox of the inputs file is not an absolute path.';
+  for (const value of ['', 'relative/outbox', 5, null]) {
     const one = session(OUT, { reply: reply() });
     fs.writeFileSync(one.inputs, JSON.stringify({ qory: { outputs: OUT, outbox: value } }));
     // The old variable QORY_OUTBOX is no fallback.

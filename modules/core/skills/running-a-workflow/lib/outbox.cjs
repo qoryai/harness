@@ -9,7 +9,7 @@ const path = require('node:path');
 
 const { Missing, NAME, isObject, jsonKind, quote, short } = require('./base.cjs');
 const { allowed, checkFiles } = require('./drafts.cjs');
-const { OUTBOX_BROKEN, OUTBOX_NONE, OUTBOX_SETUP } = require('./end.cjs');
+const { OUTBOX_BROKEN, OUTBOX_SETUP } = require('./end.cjs');
 
 // The most bytes of the inputs file, and of an output file (the largest structured type).
 const INPUTS_MAX = 1024 * 1024;
@@ -69,11 +69,8 @@ function readInputs(inputs) {
 }
 
 // outboxCause returns why value, qory.outbox of the inputs file, is no outbox folder, or null.
-const outboxCause = (value) => {
-  if (value === undefined) return 'The inputs file has no qory.outbox.';
-  return typeof value === 'string' && path.isAbsolute(value) ? null
-    : 'qory.outbox of the inputs file is not an absolute path.';
-};
+const outboxCause = (value) => (typeof value === 'string' && path.isAbsolute(value) ? null
+  : 'qory.outbox of the inputs file is not an absolute path.');
 
 // outboxFolder returns qory.outbox of the inputs file at inputs, null when the file has none,
 // or throws Missing with the fix for no inputs, a missing or broken file, or a relative path.
@@ -118,8 +115,8 @@ function readOutputs(inputs) {
         'It is no such name.');
     } else if (typeof one.required !== 'boolean') {
       faults.push(`Write the required of ${at} as true or false.\nIt is another value.`);
-    } else if (!isObject(one.schema)) {
-      faults.push(`Write the schema of ${at} as an object.\nIt is another value.`);
+    } else if (one.schema !== null && !isObject(one.schema)) {
+      faults.push(`Write the schema of ${at} as an object or null.\nIt is another value.`);
     } else outputs.push(one);
   });
   return { outputs, faults, outbox };
@@ -221,6 +218,7 @@ function fileFault(stat) {
 
 // outboxDrafts returns the results of the check of the outbox, as endDrafts lists them:
 // { line, point, item }. io is the io of end, with cwd, env, home, inputs, plugin, registry().
+// With no qory.outbox, the run has no outbox: only the form of qory.outputs is checked.
 function outboxDrafts(io) {
   const { outputs, faults, setup, outbox } = readOutputs(io.inputs);
   const env = io.env || process.env;
@@ -229,7 +227,7 @@ function outboxDrafts(io) {
       point: OUTBOX_SETUP, item: 'inputs' }];
   }
   const results = faults.length ? broken(faults, 'outputs') : [];
-  if (!outputs.length) return results;
+  if (!outputs.length || outbox === undefined) return results;
   const cause = outboxCause(outbox);
   if (cause) {
     return [...results, { line: `${OUTBOX_FIX}\n${cause}`, point: OUTBOX_SETUP, item: 'outbox' }];
@@ -238,7 +236,7 @@ function outboxDrafts(io) {
   const total = limit(env);
   const clock = { total, until: Date.now() + total };
   const { types } = io.registry();
-  for (const { type, required, schema } of outputs) {
+  for (const { type, schema } of outputs) {
     const file = `<outbox>/${type}/${type}.json`;
     const dir = path.join(folder, type);
     const full = path.join(dir, `${type}.json`);
@@ -251,13 +249,7 @@ function outboxDrafts(io) {
         // No file.
       }
     }
-    if (!stat && !link) {
-      if (required === true) {
-        results.push({ line: `Write ${file}.\nThe stage needs a ${type} output, and the file ` +
-          'does not exist.', point: OUTBOX_NONE, item: type });
-      }
-      continue;
-    }
+    if (!stat && !link) continue;
     const why = link ? null : fileFault(stat);
     let lines = [];
     if (link) {
@@ -280,7 +272,8 @@ function outboxDrafts(io) {
 }
 
 // checkOutput returns the findings of one output file: its JSON, the members that the session
-// writes by mistake, its schema, and the check of the module for the type.
+// writes by mistake, its schema, and the check of the module for the type. When schema is
+// null, the type has no JSON Schema, and the check applies none.
 function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
   const text = fs.readFileSync(full, 'utf8');
   let value;
@@ -297,7 +290,7 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
         'fills'} it after the push, and the session writes none.`);
     }
   }
-  lines.push(...checkSchema({ type, schema: rules.schema, text, file }, clock));
+  if (schema) lines.push(...checkSchema({ type, schema: rules.schema, text, file }, clock));
   const def = types.find((one) => one.type === type);
   if (def && allowed(def, `${type}.json`)) {
     try {

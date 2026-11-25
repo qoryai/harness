@@ -422,12 +422,11 @@ check reads those files and finds:
 
 - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
   `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
-  or `false`, or a `schema` is no object. With no `qory.outputs` or no `inputs.json`, the
-  check finds nothing;
+  or `false`, or a `schema` is neither an object nor null. With no `qory.outputs` or no
+  `inputs.json`, the check finds nothing;
 - an `inputs.json` that exists and is no JSON object, and a stage that declares an output
-  while `qory.outbox` is missing or is not an absolute path ("Set qory.outbox in the inputs
-  file ..."). The setup of the run must fix these; no output file does;
-- a required output with no file;
+  while `qory.outbox` is present and is not an absolute path ("Set qory.outbox in the
+  inputs file ..."). The setup of the run must fix these; no output file does;
 - a link in the outbox folder, in the folder above it, or in the folder of the type, which
   the fix "Remove the link ..." names, and a file that is a link, is no regular file, or
   has more than 1 MiB, each with a cause line that says which. A link above the parent of
@@ -446,6 +445,10 @@ check reads those files and finds:
   process, and the finding names the type and the member;
 - each finding of the check that the module declares for the type, as `check <type>`
   prints it.
+
+A run with no `qory.outbox` has no outbox, and the check reads no output file. A missing
+file is no finding, also for a required output. When a `schema` is null, the type has no
+JSON Schema, and the check applies none to its file.
 
 A finding names a member by its JSON pointer, with `~` written as `~0` and `/` as `~1`.
 Fix each finding as for a draft: write the output file again, then end again.
