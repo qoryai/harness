@@ -4452,8 +4452,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   - the prefix, of printable ASCII without a space; `any_case` matches its ASCII letters in
     either case;
   - `blank` requires 1 to 16 spaces or tabs after the prefix;
-  - `word_start` requires that no ASCII letter, digit or `_` comes right before the prefix;
-    of the default shapes, only the generic `sk-` key has it;
+  - `word_start` requires that the prefix starts the text, or comes right after a byte that
+    is no ASCII letter, digit or `_`, or right after the end of an escape: `\` and a
+    letter, `\u` and 4 hex digits, `\x` and 2 hex digits, or `%` and 2 hex digits, such as
+    `\n` or `%3D`; of the default shapes, only the generic `sk-` key has it;
   - the alphabet, the exact bytes of the token: single characters and ranges such as `A-Z`,
     where a `-` that starts no range is the character itself;
   - `min` and `max`, the fewest and the most characters of the token that a find covers.

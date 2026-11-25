@@ -1419,6 +1419,11 @@ test('key shapes: word_start finds the generic sk- key only where a word starts'
   assert.equal(secrets.scanLine(`x sk-${'a'.repeat(20)}`, []), 'the generic sk- key');
   assert.equal(secrets.scanLine(`sk-${'a'.repeat(20)}`, []), 'the generic sk- key');
   assert.equal(secrets.scanLine(`_sk-${'a'.repeat(20)}`, []), null);
+  // The end of an escape is a word start too: \n, \t, \x3d and %3D in an escaped text.
+  for (const before of ['\\n', '\\t', '\n', '=', '\\x3d', 'api_key%3D', '\\u003d']) {
+    assert.equal(secrets.scanLine(`${before}sk-${'a'.repeat(20)}`, []), 'the generic sk- key',
+      before);
+  }
   assert.deepEqual(DEFAULT_SHAPES.filter((shape) => shape.word_start).map((shape) => shape.prefix),
     ['sk-']);
 });

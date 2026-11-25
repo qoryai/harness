@@ -48,12 +48,18 @@ function alphabetOf(text) {
 
 const hex = (code) => `\\x${code.toString(16).padStart(2, '0')}`;
 
+// The start of a word, before the prefix of a shape with word_start: the start of the text, a
+// byte that is no ASCII letter, digit or _, or the end of an escape: \ and a letter, \u and 4
+// hex digits, \x and 2 hex digits, or % and 2 hex digits, such as \n, \x3d or %3D.
+const WORD_START = String.raw`(?:(?<![A-Za-z0-9_])|(?<=\\[A-Za-z])|(?<=\\u[0-9A-Fa-f]{4})|` +
+  String.raw`(?<=\\x[0-9A-Fa-f]{2})|(?<=%[0-9A-Fa-f]{2}))`;
+
 // compile returns { kind, pattern } of shape: the words "the <name>" and one RegExp without
 // flags. With any_case, each letter of the prefix matches in both cases, as Forager folds
 // the ASCII case of the prefix alone; the alphabet is the exact set of its bytes. With
-// word_start, the byte before the prefix is no ASCII letter, digit or _, or there is none.
+// word_start, the prefix follows WORD_START.
 function compile(shape) {
-  const start = shape.word_start ? '(?<![A-Za-z0-9_])' : '';
+  const start = shape.word_start ? WORD_START : '';
   const prefix = [...shape.prefix].map((char) => (shape.any_case && /[A-Za-z]/.test(char)
     ? `[${char.toLowerCase()}${char.toUpperCase()}]` : hex(char.charCodeAt(0)))).join('');
   const blank = shape.blank ? `[ \\t]{1,${MAX_BLANK}}` : '';

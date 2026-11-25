@@ -33,7 +33,7 @@
             "type": "boolean"
           },
           "word_start": {
-            "description": "true requires that the prefix starts the text or follows a byte that is no ASCII letter, digit or _.",
+            "description": "true requires that the prefix starts the text, follows a byte that is no ASCII letter, digit or _, or follows the end of an escape: \\ and a letter, \\u and 4 hex digits, \\x and 2 hex digits, or % and 2 hex digits.",
             "type": "boolean"
           },
           "alphabet": {
