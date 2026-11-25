@@ -115,6 +115,9 @@ decline.
   `reading-the-work` lists.
 - If you tried to write a draft file and failed, report `blocked` with the file and the
   state of the artifact folder.
+- If the code explorer's report shows no command for a kind of `## Commands`, write `none`
+  in its Command and the reason in Source. Never write a command that no report and no file
+  shows.
 - If only a person can settle something, list it in your report. Do not settle it.
 
 ## Expected output

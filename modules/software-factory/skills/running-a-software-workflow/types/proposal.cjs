@@ -7,7 +7,8 @@ const path = require('node:path');
 
 module.exports = (lib) => {
   const {
-    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, DESTINATION_ID,
+    address, areaOf, BadQuestions, blank, brief, characters, codeSpans, commandsTable,
+    DESTINATION_ID,
     factoryExtensions,
     firstFilled, folderRef, headingLevel, headings, INLINE, isObject, isRow, jsonKind,
     lines, markdownText, Missing, parseJson, paths, plural, points, quote, readFile, REPORT_FILE,
@@ -27,6 +28,14 @@ module.exports = (lib) => {
   };
 
   const PROPOSAL_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Track', 'Sources'];
+
+  // The sections of a proposal on the fast track: the table of the commands that the run
+  // reads from the approved proposal (lib/plan.cjs) comes after ## Track.
+  const FAST_SECTIONS = ['Summary', 'Background', 'Proposed solution', 'Track', 'Commands',
+    'Sources'];
+
+  // The kinds of ## Commands, which each have a row.
+  const COMMAND_KINDS = ['lint', 'build', 'full'];
 
   const WIREFRAME = /^[a-z0-9-]+\.svg$/;
 
@@ -391,7 +400,10 @@ module.exports = (lib) => {
     const parts = sections(list, 2).slice(1);
     const part = (title) => parts.find((one) => one.title === title);
     // ## Sources counts toward no limit: its heading and its lines, as sourceLines reads them.
+    // ## Commands counts toward none either: each line under its heading.
     const skipped = new Set(sourceLines(list).flat().map((line) => line.number));
+    const commandLines = part('Commands');
+    for (const line of commandLines ? commandLines.lines : []) skipped.add(line.number);
     for (const line of list) {
       if (!line.fenced && headingLevel(line.text) === 2 &&
         line.text.replace(/^ {0,3}#{2}\s*/, '').trim().toLowerCase() === 'sources') {
@@ -590,12 +602,20 @@ module.exports = (lib) => {
     }
     const list = lines(md);
     // writing-proposals (SKILL.md:49-50: "Markdown with five sections, in this order"): these
-    // five sections, in order, and no other.
+    // five sections, in order, and no other; on the fast track six, with ## Commands.
     run.did('sections');
-    const titles = topSections(run, 'proposal.md', list).map((part) => part.title);
-    if (!same(titles, PROPOSAL_SECTIONS)) {
-      run.find(`Give proposal.md the ${PROPOSAL_SECTIONS.length} sections of its type, in their ` +
-        `order.\nThey are ${headings(PROPOSAL_SECTIONS)}.\nproposal.md has ${headings(titles)}.`);
+    const parts = topSections(run, 'proposal.md', list);
+    const titles = parts.map((part) => part.title);
+    const track = trackLine(md);
+    const wanted = track && track.id === TRACK_LISTS.track ? FAST_SECTIONS : PROPOSAL_SECTIONS;
+    if (!same(titles, wanted)) {
+      run.find(`Give proposal.md the ${wanted.length} sections of its type, in their ` +
+        `order.\nThey are ${headings(wanted)}.\nproposal.md has ${headings(titles)}.`);
+    }
+    const commands = wanted === FAST_SECTIONS && parts.find((part) => part.title === 'Commands');
+    if (commands) {
+      commandsTable(run, commands, { file: 'proposal.md', kinds: COMMAND_KINDS,
+        required: COMMAND_KINDS });
     }
     const fast = trackForm(run, list);
     proposalLimits(run, list);

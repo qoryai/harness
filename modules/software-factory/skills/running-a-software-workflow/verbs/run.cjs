@@ -78,6 +78,10 @@ module.exports = (lib) => {
     if (kind === 'locked') return runLocked(io, pinned, paths, inputs);
     const plan = lib.readPlan(pinned);
     const row = plan.commands[kind];
+    if (!row && plan.fast) {
+      throw new Missing(`Run lint or build: the fast track has no ${kind} command.`,
+        ['## Commands of the approved proposal lists only lint, build and full.']);
+    }
     if (!row) {
       throw new Missing(`Add the kind ${kind} to ## Commands of the build plan, then push it: ` +
         `version ${plan.version} has none.`);
@@ -116,7 +120,8 @@ module.exports = (lib) => {
       `Ran no targeted command ${where}.`);
     }
     if (!row.command) {
-      return done('none', [], `Ran no ${kind} command ${where}: the build plan has none.`);
+      return done('none', [], `Ran no ${kind} command ${where}: ` +
+        `${plan.fast ? 'the approved proposal' : 'the build plan'} has none.`);
     }
     if (limit.problem) {
       return done('red', limitFindings(limit), `Ran no ${kind} command ` +

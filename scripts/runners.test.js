@@ -409,6 +409,90 @@ test('run: no artifact folder, no index.json or no build plan exits 3', () => {
     'Pull the artifacts, then run the verb again: the artifact folder has no index.json.');
 });
 
+// ---- the fast track: the commands of the approved proposal -------------------------------
+
+// A proposal with the sections that readPlan reads: the track and the Commands table.
+const FAST_TRACK = 'Fast track: a text that the product shows. The label "Go" becomes "OK" in ' +
+  '`locales/en.json`.\n\nReason: only the shown words change.';
+const proposalText = (track, commands) => ['## Summary', '', 'A label changes.', '', '## Track', '',
+  track, '', '## Commands', '', '| Kind | Command | Result file | Source |', '|---|---|---|---|',
+  ...commands, ''].join('\n');
+const COMMAND_ROWS = ['| lint | `node tool/lint.js` | none | repository: package.json:12 |',
+  '| build | none | none | The repository has no build. |',
+  '| full | `node tool/runner.js` | `out/junit.xml` | repository: package.json:14 |'];
+
+// proposed returns the path of an inputs.json whose qory.start_artifacts is a copy of the
+// artifact folder of dir with proposal version 1 added, approved unless approved is null, and
+// with its file unless file is false.
+function proposed(dir, text, { approved = 'ver_p1', file = true } = {}) {
+  const folder = snapshot(dir);
+  const index = JSON.parse(fs.readFileSync(path.join(folder, 'index.json'), 'utf8'));
+  index.artifacts.push({ type: 'proposal', name: 'main', approved_version: approved,
+    newest_version: 1, versions: [{ id: 'ver_p1', number: 1, writer: { kind: 'person' },
+      files: [] }] });
+  fs.writeFileSync(path.join(folder, 'index.json'), JSON.stringify(index));
+  if (file) write(folder, 'proposal/main/v1/proposal.md', text);
+  return inputsFile({ qory: { harness_extensions: {}, start_artifacts: folder } });
+}
+
+test('run: on the fast track, lint and build read ## Commands of the approved proposal', () => {
+  // The build plan lists a lint tool that does not exist, so a green lint ran the proposal's.
+  const dir = checkout(PLAN({ lint: '| lint | `no-such-tool-of-the-test` | none | x |' }));
+  const inputs = proposed(dir, proposalText(FAST_TRACK, COMMAND_ROWS));
+  const lint = call(dir, ['run', 'lint', '--inputs', inputs]);
+  assert.equal(lint.status, 0, lint.out);
+  assert.match(lint.lines.at(-1), /^Ran lint on [0-9a-f]{12}: green\.$/);
+  assert.equal(lastRecord(dir).build_plan, null);
+  assert.equal(call(dir, ['run', 'lint', '--inputs', inputs], { env: { FAKE_LINT: '1' } }).status, 1);
+  const build = call(dir, ['run', 'build', '--inputs', inputs]);
+  assert.equal(build.status, 0, build.out);
+  assert.match(build.lines.at(-1),
+    /^Ran no build command on [0-9a-f]{12}: the approved proposal has none\.$/);
+});
+
+test('run: on the fast track, a kind that ## Commands lacks exits 3', () => {
+  const dir = checkout();
+  const inputs = proposed(dir, proposalText(FAST_TRACK, COMMAND_ROWS));
+  for (const kind of ['types', 'targeted']) {
+    const got = call(dir, ['run', kind, '--inputs', inputs]);
+    assert.equal(got.status, 3, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [`Run lint or build: the fast track has no ${kind} command.`,
+      '  ## Commands of the approved proposal lists only lint, build and full.']);
+  }
+  const bare = proposed(dir, '## Track\n\n' + FAST_TRACK + '\n');
+  const got = call(dir, ['run', 'lint', '--inputs', bare]);
+  assert.equal(got.status, 3, got.out);
+  assert.deepEqual(got.lines.slice(0, 2), ['Pull the artifacts again.', '  The approved proposal has no table ' +
+    'with the columns Kind, Command, Result file, Source under ## Commands.']);
+});
+
+test('run: with no fast track in an approved proposal, the build plan counts', () => {
+  const dir = checkout();
+  // The proposal's lint tool does not exist, so a green lint ran the build plan's.
+  const broken = ['| lint | `no-such-tool-of-the-test` | none | repository: x |', COMMAND_ROWS[1],
+    COMMAND_ROWS[2]];
+  const cases = {
+    'a standard track': proposed(dir, proposalText('Standard track.', broken)),
+    'no approved version': proposed(dir, proposalText(FAST_TRACK, broken), { approved: null }),
+    'no file of the approved version': proposed(dir, proposalText(FAST_TRACK, broken),
+      { file: false }),
+  };
+  for (const [name, inputs] of Object.entries(cases)) {
+    const got = call(dir, ['run', 'lint', '--inputs', inputs]);
+    assert.equal(got.status, 0, `${name}: ${got.out}`);
+    assert.equal(lastRecord(dir).build_plan, 1, name);
+  }
+  // A folder that no --inputs or --artifacts gives is no pinned folder: its proposal counts
+  // for nothing, because an agent can write to it.
+  write(dir, '.qory/artifacts/proposal/main/v1/proposal.md', proposalText(FAST_TRACK, broken));
+  const index = JSON.parse(fs.readFileSync(path.join(dir, '.qory/artifacts/index.json'), 'utf8'));
+  index.artifacts.push({ type: 'proposal', name: 'main', approved_version: 'ver_p1',
+    newest_version: 1, versions: [{ id: 'ver_p1', number: 1, writer: { kind: 'person' }, files: [] }] });
+  write(dir, '.qory/artifacts/index.json', JSON.stringify(index));
+  assert.equal(call(dir, ['run', 'lint']).status, 0);
+  assert.equal(lastRecord(dir).build_plan, 1);
+});
+
 // ---- limits ------------------------------------------------------------------------------
 
 

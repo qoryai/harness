@@ -5,15 +5,15 @@
 
 module.exports = (lib) => {
   const {
-    appAddress, brief, criterionList, filesCell, inOrder, isPath, liveCriteria, markdownText,
-    MAX_DELIVERABLES, memberLimit, plural, quote, sectionTable, sectionTitles, short, wrongWords,
+    appAddress, brief, commandsTable, criterionList, filesCell, full, inOrder, isPath,
+    liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural, sectionTable,
+    sectionTitles, short, shown, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
   const WORDS = 'the build plan';
   const SECTIONS = ['Summary', 'Deliverables', 'Commands'];
   const DELIVERABLE_COLUMNS = ['Id', 'Change', 'Criteria', 'Files', 'Check'];
-  const COMMAND_COLUMNS = ['Kind', 'Command', 'Result file', 'Source'];
   const KINDS = ['targeted', 'lint', 'types', 'build', 'full', 'locked', 'serve'];
   // The kinds that each plan has: the session runs them after each agent, and qory is to run
   // locked after the session as it runs full. serve is needed only for a criterion planned
@@ -30,12 +30,6 @@ module.exports = (lib) => {
   const idOf = (id) => brief(id, 16);
   // whole returns a later line with id when idOf shortens it, else nothing.
   const whole = (id) => (idOf(id) === id ? '' : `\nThe whole id is ${id}.`);
-  // shown returns a value of a cell in quotes for the first line of a finding, with its start
-  // and its end when it has more than size characters; full returns a later line with the
-  // value when shown shortens it, else nothing.
-  const shown = (value, size) => quote(brief(value, size));
-  const full = (value, size) => (brief(value, size) === value ? ''
-    : `\nThe whole value is ${short(value, 80)}.`);
   // nameOf returns the name of a deliverable in a finding: its id of the form d-<N>, else
   // its place, which a finding on its id already has. A long id is shortened, with the whole
   // id in more.
@@ -123,43 +117,16 @@ module.exports = (lib) => {
     }
   }
 
-  // commands checks ## Commands, and returns the kinds whose Command is not none.
+  // commands checks ## Commands as commandsTable of lib/build.cjs does, and adds the serve
+  // kind for a criterion planned as Demo. It returns the kinds whose Command is not none.
   function commands(run, part, live) {
-    const found = sectionTable(run, FILE, part, COMMAND_COLUMNS);
+    const found = commandsTable(run, part, { file: FILE, kinds: KINDS, required: REQUIRED });
     if (!found) return;
-    run.did('commands');
-    const seen = new Set();
-    const given = new Set();
-    for (const [kind = '', command = '', , source = ''] of found.rows) {
-      const name = plainCell(kind);
-      if (!KINDS.includes(name)) {
-        run.find(`Set the kind ${shown(name, 24)} in ## Commands of ${FILE} to one of the ` +
-          `${KINDS.length} kinds.\nThe kinds are ${KINDS.join(', ')}.${full(name, 24)}`);
-        continue;
-      }
-      if (seen.has(name)) run.find(`Give the kind ${name} one row in ## Commands of ${FILE}.`);
-      seen.add(name);
-      if (plainCell(command) === 'none') {
-        if (!source.trim()) run.find(`Write in Source why ${name} has no command in ${FILE}.`);
-        continue;
-      }
-      given.add(name);
-      if (!/^(?:repository|module): \S/.test(source) &&
-        !/^found: `?[^\s`]+:[1-9][0-9]*`?$/.test(source)) {
-        run.find(`Write the Source of ${name} in ${FILE} in one of its three forms.\nThe forms ` +
-          'are "repository: <file>", "module: <name>" and "found: <file>:<line>". The Source ' +
-          `is ${short(source, 80)}.`);
-      }
-    }
-    for (const kind of REQUIRED.filter((one) => !seen.has(one))) {
-      run.find(`Add the kind ${kind} to ## Commands of ${FILE}.\nWith no command, write none in ` +
-        'Command and the reason in Source.');
-    }
     if (live.some((criterion) => criterion.check.startsWith('Demo: ')) &&
-      !seen.has('serve')) {
+      !found.seen.has('serve')) {
       run.find(`Add the kind serve to ## Commands of ${FILE}.\nA criterion is planned as Demo.`);
     }
-    return given;
+    return found.given;
   }
 
   // address finds, in a plan with a serve command, no line "App address: <url>" in ## Summary,

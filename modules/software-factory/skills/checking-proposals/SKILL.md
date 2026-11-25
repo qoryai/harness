@@ -124,6 +124,11 @@ matches a file pattern of a sensitive area. The patterns are in `short-path.json
 `running-a-software-workflow`. Judge a changed file that no pattern matches by the names
 of the areas.
 
+On the fast track, check `## Commands` too: each command and each Source comes from the
+explorer's report or from a file that you read. Read the file and line of each `found:`
+Source: a command that the line does not state, or one that no source shows, is a finding. A
+kind with `none` has its reason in Source.
+
 Check the fast track against the kinds and the sensitive areas, written exactly as these
 lists write them.
 
@@ -219,7 +224,8 @@ For the writer before it reports, and for a reviewer:
 The checks script checks the counts and tables of the section "Limits" of
 `writing-proposals`. In a run, a review starts only on a draft that passes the script, and
 you get its lines under "Checks:", as `reviewing-drafts` lists. In `proposal.md`, the
-script checks the five sections in order, the form of `## Track`, and these counts and
+script checks the five sections in order, or on the fast track six with `## Commands`, the
+form of `## Track`, the kinds and the Sources of `## Commands`, and these counts and
 tables: the sentences and words of the summary, the words of the background, the sentence
 and words of the recommendation, the rows and columns of the table of alternatives, the
 words of each part, the rows and cells of each table, and the 450 words with the reasons of
@@ -313,7 +319,8 @@ that never repeats the summary.
 - The first paragraph of the background states why the work exists, as the section
   "Limits" of `writing-proposals` lists.
 - The proposal has no plan, acceptance criteria, deliverables, questions, or proposed label
-  or stage. The track under `## Track` is no proposed stage.
+  or stage. The track under `## Track` is no proposed stage, and the table under
+  `## Commands` is no plan.
 - The fast track is of one kind of the list, changes no file in a sensitive area, and its
   change and its reason hold against each changed file, as the section "The track" lists.
 - A proposal that starts from a newest proposal keeps its background, its sources and each
