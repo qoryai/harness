@@ -2316,10 +2316,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   Code, Codex, Gemini CLI, Cursor and Copilot CLI. bash reads some variables before `env`
   runs: it runs the file in `BASH_ENV`, and sh can run the file in `ENV`. `SHELLOPTS=xtrace`
   runs a `$(...)` in `PS4`, and on Linux `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` load
-  a library into bash and `env`. So the `env` field of each hook of Gemini CLI sets `BASH_ENV`, `ENV`,
-  `SHELLOPTS`, `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT` and `LD_LIBRARY_PATH` to `""`.
-  The setting `advanced.excludedEnvVars` of Gemini CLI lists `NODE_OPTIONS`, `NODE_PATH`,
-  `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`.
+  a library into bash and `env`. So the `env` field of each hook of Gemini CLI sets
+  `BASH_ENV`, `ENV`, `SHELLOPTS`, `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT` and
+  `LD_LIBRARY_PATH` to `""`. The setting `advanced.excludedEnvVars` of Gemini CLI lists
+  `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV`.
   Gemini CLI applies that list to a project `.env` and not to `.gemini/.env`. So the reports
   guard of all five runtimes also denies a write to a file named `.env` and a shell command
   with the word `.env`. The Cursor matcher of `beforeShellExecution` starts the guard for a
