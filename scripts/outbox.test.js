@@ -113,6 +113,38 @@ function passes(qory, files = {}) {
   assert.match(found.text, /: 0 findings\.$/m);
 }
 
+// unread checks that the end check of the session has one finding, with the code as its cause.
+function unread(one, code) {
+  const found = end(one);
+  assert.equal(found.status, 1, code);
+  assert.match(found.text, new RegExp(`^Write ${FILE} as a regular file of at most 1048576 ` +
+    `bytes\\.\\n\\s+Its path cannot be read: ${code}\\.$`, 'm'));
+}
+
+test('outbox: a regular file in place of a folder of the path is a finding', () => {
+  for (const schema of [REPLY, null]) {
+    const type = session([{ type: 'reply', required: true, schema }]);
+    fs.writeFileSync(path.join(type.outbox, 'reply'), 'x');
+    unread(type, 'ENOTDIR');
+    const outbox = session([{ type: 'reply', required: true, schema }]);
+    fs.rmdirSync(outbox.outbox);
+    fs.writeFileSync(outbox.outbox, 'x');
+    unread(outbox, 'ENOTDIR');
+  }
+});
+
+test('outbox: a folder of the type that the check cannot enter is a finding',
+  { skip: process.getuid?.() === 0 && 'root can enter a folder with mode 000' }, () => {
+    const one = session(OUT, { reply: reply() });
+    const folder = path.join(one.outbox, 'reply');
+    fs.chmodSync(folder, 0o000);
+    try {
+      unread(one, 'EACCES');
+    } finally {
+      fs.chmodSync(folder, 0o755);
+    }
+  });
+
 // entry is one entry of qory.outputs: schema is null for a type with no JSON Schema, and
 // REPLY stands for the schema of a type that has one.
 const entry = (type, required, schema = null) => ({ type, required, schema });
@@ -149,6 +181,11 @@ test('outbox: the file of a type with schema null is checked as JSON, with no sc
   fs.rmSync(file);
   fs.symlinkSync(linked.inputs, file);
   assert.match(end(linked).text, /It is a link\./);
+  const outside = session(OPEN, { reply: reply() });
+  const folder = path.join(outside.outbox, 'reply');
+  fs.renameSync(folder, path.join(outside.work, 'reply'));
+  fs.symlinkSync(path.join(outside.work, 'reply'), folder);
+  assert.match(end(outside).text, /^Remove the link /m);
   // The check of the module for the type runs too.
   const typed = end(session([entry('review-comments', true)],
     { 'review-comments': '{"comments":[]}' }));

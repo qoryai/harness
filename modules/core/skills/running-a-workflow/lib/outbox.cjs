@@ -241,16 +241,15 @@ function outboxDrafts(io) {
     const dir = path.join(folder, type);
     const full = path.join(dir, `${type}.json`);
     const link = linked(folder, type);
-    let stat = null;
+    let why = null;
     if (!link) {
       try {
-        stat = fs.lstatSync(full);
-      } catch {
-        // No file.
+        why = fileFault(fs.lstatSync(full));
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        why = `Its path cannot be read: ${error.code}.`;
       }
     }
-    if (!stat && !link) continue;
-    const why = link ? null : fileFault(stat);
     let lines = [];
     if (link) {
       lines = [`Remove the link ${short(link, 80)}.\nThe outbox of ${file} must hold no link: ` +

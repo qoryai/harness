@@ -1205,9 +1205,10 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   `<outbox>/<type>/<type>.json`.
   The check searches for no `.git` and no `.qory`. With no `qory.outputs`, or no
   `inputs.json`, the check finds nothing. A run with no `qory.outbox`, such as a run with
-  the access `read` or `write-no-push`, has no outbox, and the check reads no output file.
-  A missing file is no finding, also for a required output. When a `schema` is null, the
-  type has no JSON Schema, and the check applies none to its file. The check finds:
+  the access `read` or `write-no-push`, has no outbox, and the check reads no output file;
+  a malformed `qory.outputs` is a finding there too. A missing file is no finding, also for
+  a required output. When a `schema` is null, the type has no JSON Schema, and the check
+  applies none to its file and finds no member that qory sets or fills. The check finds:
   - a `qory.outputs` that is present and malformed: it is no list, an entry is no object, a
     `type` is no name of lower-case letters, digits and hyphens, a `required` is not `true`
     or `false`, or a `schema` is neither an object nor null. The finding is "Fix
@@ -1222,8 +1223,9 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
     set it;
   - a link in the outbox folder, in the folder above it, or in the folder of the type. The
     finding is "Remove the link <path>.", and a link above the parent of the outbox folder
-    is followed. A file that is a link, is no regular file, or has more than 1 MiB gets one
-    cause line for each of these;
+    is followed. A file that is a link, is no regular file, or has more than 1 MiB, and a
+    path that cannot be read, such as one below a regular file, gets one cause line for each
+    of these;
   - a file that is no JSON;
   - a member that qory sets or fills after the push, which the session writes none of:
     `target`, and each top-level member whose schema has `x-qory-fill`. The finding is
