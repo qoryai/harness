@@ -1442,9 +1442,9 @@ for NAME in primitives verification acceptance-criteria; do
 	pass "the $NAME file of software-factory is qory's $QFILE at QORY_SOURCE"
 done
 
-# process.yaml sets withdrawable: false for acceptance-lock and build-ledger. Outside a run,
-# qory reads that flag from the exported modules and exits 4 before it writes a file.
-for type in acceptance-lock build-ledger; do
+# process.yaml sets withdrawable: false for acceptance-lock, build-ledger and feedback. Outside
+# a run, qory reads that flag from the exported modules and exits 4 before it writes a file.
+for type in acceptance-lock build-ledger feedback; do
 	LOCKED="qory artifact push $type --withdraw exits 4: process.yaml sets withdrawable: false"
 	run "$ROOT" "$QORY" artifact push "$type" --name main --withdraw
 	if [ "$RC" -ne 4 ] || ! printf '%s\n' "$OUT" |

@@ -4737,10 +4737,10 @@ template that a software-factory workspace starts with. The file sets these keys
   except `pull-request`, whose `size_limit` is 786432.
   Each structured type has the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`. The draft check of
-  `build-ledger` and of `feedback` reads that size limit from `process.yaml` and refuses a file above it, as
-  the push does. `build-ledger` and
-  `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
-  either type and pushes a new version instead: Qory Apiary returns 422 for that push in a
+  `build-ledger` and of `feedback` reads that size limit from `process.yaml` and fails a file
+  above it, as the push does. `build-ledger`, `acceptance-lock` and `feedback` also have
+  `withdrawable: false`, so a run cannot withdraw a name of any of these types and pushes a
+  new version instead: Qory Apiary returns 422 for that push in a
   run, and outside a run `qory artifact push --withdraw` exits 4. Every other type keeps
   the default, `true`.
   `qory config` checks the form of each entry and that the JSON Schema compiles. qory has

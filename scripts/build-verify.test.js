@@ -632,15 +632,17 @@ test('the draft size limit of build-ledger is its size_limit, and verification h
     /^Cut verification\.json to at most 256 KB\./);
 });
 
-// A run cannot withdraw a name of acceptance-lock or build-ledger. The flag is a plain YAML
-// bool: qory exits with an error for any other form, such as a quoted "false".
-test('process.yaml sets withdrawable: false for acceptance-lock and build-ledger alone', () => {
+// A run cannot withdraw a name of acceptance-lock, build-ledger or feedback. The flag is a
+// plain YAML bool: qory exits with an error for any other form, such as a quoted "false".
+test('process.yaml sets withdrawable: false for acceptance-lock, build-ledger and feedback ' +
+  'alone', () => {
   const flags = Object.fromEntries(templateEntries()
     .filter((entry) => 'withdrawable' in entry)
     .map((entry) => [entry.name, entry.withdrawable]));
-  assert.deepEqual(flags, { 'build-ledger': 'false', 'acceptance-lock': 'false' });
+  assert.deepEqual(flags,
+    { 'build-ledger': 'false', 'acceptance-lock': 'false', feedback: 'false' });
   const yaml = fs.readFileSync(PROCESS, 'utf8');
-  assert.equal((yaml.match(/withdrawable:/g) || []).length, 2);
+  assert.equal((yaml.match(/withdrawable:/g) || []).length, 3);
 });
 
 test('each JSON Schema of schemas/ is the json_schema of its type in process.yaml', () => {

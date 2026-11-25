@@ -1177,6 +1177,7 @@ artifact_types:
     base_view: structured
     size_limit: 1048576
     max_files: 1
+    withdrawable: false
     # The same JSON Schema is in running-a-software-workflow/schemas/feedback.schema.json.
     json_schema:
       {
