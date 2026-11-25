@@ -5305,8 +5305,9 @@ folder. These limits stay:
 
 - Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
   store that no agent call can write.
-- The lift pulls the questions also when a free-text note frees the question rule, so one pull is
-  needless. The limit ends when `criteriaReads` repeats that test of the rule.
+- The lift pulls the questions, and the criteria version unless it is the target, also when a
+  free-text note frees the question rule, so those pulls are needless. The limit ends when
+  `criteriaReads` repeats that test of the rule.
 - An agent call that rewrites a pulled file after its pull and before the read is not stopped.
   The limit ends when the read checks each file against the SHA-256 of `index.json`, or the
   pulls make a folder that no agent call can write.

@@ -1,6 +1,6 @@
 ---
 name: running-a-software-workflow
-description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, the files that each check takes, the plain words of each type, and the steps of the build ledger.
+description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, Change mode, the files that each check takes, the plain words of each type, and the steps of the build ledger.
 ---
 
 # Running a software workflow
