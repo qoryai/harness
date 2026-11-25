@@ -49,23 +49,28 @@ module.exports = (lib) => {
       .questions.filter(isObject);
   }
 
+  // aboutPoint returns the first point of group that question is about, or undefined: a point
+  // whose item, a ripple point's included, is the about's item in the output of the group, or
+  // a point of the feedback whose id is the about's item in the feedback.
+  function aboutPoint(group, question) {
+    if (!isObject(question.about) || typeof question.about.item !== 'string') return undefined;
+    const { type, item } = question.about;
+    return group.points.find((point) => (type === group.output ? point.item === item
+      : type === 'feedback' && typeof point.quote === 'string' && point.id === item));
+  }
+
   // waitingOn returns the ids of the questions with no answer that group waits for: the
   // question of each `question` point of its source on its output, and each open question
-  // about a point of the group, such as one that a writer of the group raised. A question is
-  // about a point when its about is the point's item in the output of the group, or the
-  // point's id in the feedback.
+  // about a point of the group, such as one that a writer of the group raised.
   function waitingOn(group, data, questions) {
-    const asked = new Set(questions.filter((one) => one.state !== 'open').map((one) => one.id));
-    const items = new Set(group.points.map((point) => point.item).filter(Boolean));
-    const ids = new Set(group.points.filter((point) => typeof point.quote === 'string')
-      .map((point) => point.id));
-    const about = (one) => isObject(one.about) && (one.about.type === group.output
-      ? items.has(one.about.item) : one.about.type === 'feedback' && ids.has(one.about.item));
+    const answered = new Set(questions.filter((one) => one.state !== 'open')
+      .map((one) => one.id));
     return [...new Set([
       ...data.points.filter((point) => point.sort === 'question' &&
         point.source === group.decision && point.output === group.output &&
-        !asked.has(point.question)).map((point) => point.question),
-      ...questions.filter((one) => one.state === 'open' && about(one)).map((one) => one.id),
+        !answered.has(point.question)).map((point) => point.question),
+      ...questions.filter((one) => one.state === 'open' && aboutPoint(group, one))
+        .map((one) => one.id),
     ])];
   }
 
@@ -385,5 +390,5 @@ module.exports = (lib) => {
       draft.gaps.every((gap, place) => gapOk(gap, place));
   }
 
-  return { criterionGroups, amended, FEEDBACK_OUTPUTS: ORDER };
+  return { aboutPoint, criterionGroups, amended, FEEDBACK_OUTPUTS: ORDER };
 };

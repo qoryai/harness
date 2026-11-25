@@ -20,8 +20,9 @@
 'use strict';
 
 module.exports = (lib) => {
-  const { Context, FEEDBACK_OUTPUTS, amended, artifactFolder, criterionGroups, isObject, Missing,
-    lists, parseJson, plainLine, plural, sourcesOf, storedFeedback, wordsOf, workItemNotes } = lib;
+  const { Context, FEEDBACK_OUTPUTS, aboutPoint, amended, artifactFolder, criterionGroups,
+    isObject, Missing, lists, parseJson, plainLine, plural, sourcesOf, storedFeedback, wordsOf,
+    workItemNotes } = lib;
 
   // stored returns the list key of the newest version of type, in its file, or none.
   function stored(context, type, key) {
@@ -36,19 +37,21 @@ module.exports = (lib) => {
     return work ? 1 : 0;
   }
 
-  // groupQuestions returns { point, question } for each open question that a group of
+  // groupQuestions returns { point, question, words } for each open question that a group of
   // criterion changes waits for and no `question` point has, such as one that a writer of the
-  // group raised: point is the point of the group that the question is about.
+  // group raised: point is the point of the group that the question is about, and words those
+  // of its quote, or, for a ripple point, those of the source of the group.
   function groupQuestions(context, data, questions, asked) {
     const known = new Set(asked.map(({ point }) => point.question));
     const out = new Map();
     for (const group of criterionGroups(context, data)) {
       for (const id of group.waiting || []) {
         const found = questions.find((one) => one.id === id);
-        if (known.has(id) || out.has(id) || !found || !isObject(found.about)) continue;
-        const point = group.points.find((one) => typeof one.quote === 'string' &&
-          (found.about.type === group.output ? one.item : one.id) === found.about.item);
-        if (point) out.set(id, { point, question: id });
+        const point = found && !known.has(id) && !out.has(id) && aboutPoint(group, found);
+        if (!point) continue;
+        const source = data.sources.find((one) => one.id === group.decision);
+        const text = typeof point.quote === 'string' ? point.quote : source && source.text;
+        out.set(id, { point, question: id, words: wordsOf(text || '') });
       }
     }
     return [...out.values()];
@@ -75,10 +78,9 @@ module.exports = (lib) => {
       ...sources.flatMap((source) => [JSON.stringify(source),
         `Words of ${source.id}: ${wordsOf(source.text)}`]),
       ...missing.map(({ point }) => `Not asked: ${point.id}, ${point.question}`),
-      ...waiting.flatMap(({ point, question }) => (question === undefined
+      ...waiting.flatMap(({ point, question, words }) => (question === undefined
         ? [`Waiting for an answer: ${point.id}, ${point.question}`]
-        : [`Waiting for an answer: ${point.id}, ${question}`,
-          `Words of ${point.id}: ${wordsOf(point.quote)}`])),
+        : [`Waiting for an answer: ${point.id}, ${question}`, `Words of ${point.id}: ${words}`])),
     ], `Open feedback: ${plural(sources.length, 'source')}; ` +
       `${plural(missing.length, 'question')} not asked; ${plural(waiting.length, 'question')} ` +
       `with no answer. The next ids are p${data.points.length + 1} and q${highest + 1}.`,

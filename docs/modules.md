@@ -4658,12 +4658,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line "Waiting for an answer: <point>, <question>" per open one. It also prints that line for
   each open question that a group of `feedback points` waits for and no `question` point has,
   such as one that a writer raised, with the point of the group that the question is about,
-  and "Words of <point>: <words>" after it, so that the session ends with an `answer` point
-  on it, not with `passed`. The notes are those of the kinds `request_changes`, `move`,
-  `escalation` and `answer` with a text. A note with no id has the key of its time and text,
-  and an answer to a question is left out. It exits with 1
-  for a source or a question not asked, with 0 for neither, and with 3 when the notes cannot
-  be read. A line of a source is not cut.
+  a ripple point's included, and "Words of <point>: <words>" after it, with the words of the
+  source for a ripple point, so that the session ends with an `answer` point on it, not with
+  `passed`. The notes are those of the kinds `request_changes`, `move`, `escalation` and
+  `answer` with a text. A note with no id has the key of its time and text, and an answer to
+  a question is left out. It exits with 1 for a source or a question not asked, with 0 for
+  neither, and with 3 when the notes cannot be read. A line of a source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
   changes that have not ended: the groups of `acceptance-criteria` first, then those of

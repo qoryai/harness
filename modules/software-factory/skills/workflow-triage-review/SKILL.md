@@ -142,8 +142,10 @@ When the writer lists an item under "What only a person can settle", or reports
 for the group, keep one `answer` point for it, and take the next group. Start the questions
 writer with the writer's report, then check and push the questions as steps 5 and 8 list.
 The text of the point is "The feedback "<words>" changes the approved criteria, so a member
-decides it.", with `<words>` the text after "Words of <decision>: ", and its `question` is
-the id of the question that the questions writer adds for the item.
+decides it.", or, for a group of `demo-scenarios`, "The feedback "<words>" changes the
+approved demo scenarios, so a member decides it.", with `<words>` the text after "Words of
+<decision>: ", and its `question` is the id of the question that the questions writer adds
+for the item.
 
 After the last group, run `<qory> artifact pull` and `feedback points` again. A new JSON
 line is a group that a push of this run started, such as the demo scenarios of a changed
@@ -169,10 +171,15 @@ another start of the writer and the reviewer can write the change.
 Write `points.json` with one `answer` point per question on a line "Waiting for an answer:",
 as "Points" of `running-a-workflow` lists, then end as that section lists. The `question` of
 the point is the id of the question on that line. An `answer` point that "Criterion changes"
-kept on the same question is that point. A line followed by "Words of <point>: <words>" is a
-question that a group of criterion changes waits for: the text of its point is "The feedback
-"<words>" changes the approved criteria, so a member decides it.", with `<words>` the text
-after "Words of <point>: ". For any other line, read the question in
+kept on the same question is that point. A line followed by "Words of <id>: <words>" is a
+question that a group of criterion changes waits for. `<id>` is the point of the group that
+the question is about: a point of the feedback, or, for a ripple point, a criterion id such
+as `ac-2`, with the words of its source. The text of its point is "The feedback "<words>"
+changes the approved criteria, so a member decides it.", with `<words>` the text after
+"Words of <id>: ". For a question about the demo scenarios, whose `about.type` is
+`demo-scenarios` or whose `about.item` is a point with the `output` `demo-scenarios`, the
+text is "The feedback "<words>" changes the approved demo scenarios, so a member decides
+it." For any other line, read the question in
 `<folder>/questions.json`, else in the newest version, with the file tool of your runtime.
 `<words>` is what the context has in its first double quotes, unchanged, and `<criterion
 text>` what it has in its second double quotes. The text of the point is one of these, by

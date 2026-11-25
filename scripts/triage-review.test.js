@@ -848,6 +848,33 @@ test('feedback open lists a question of a writer that a group waits for, so the 
   assert.ok(!once.some((line) => line.startsWith('Words of p')), once.join('\n'));
 });
 
+test('feedback open lists a question about a scenario that only a ripple point of the group has', () => {
+  const linked = { data: edit(CRITERIA, [AC2, AC2_NEW]), decision: 'gd_1',
+    at: '2026-11-25T10:00:00Z' };
+  const on = (item) => ({ id: 'q1', state: 'open', about: { type: 'demo-scenarios',
+    name: 'main', item } });
+  const root = (data, question) => scenarioStore({ feedback: [{ data }],
+    'acceptance-criteria': [{ data: CRITERIA }, linked],
+    questions: [{ data: { questions: [question] } }] });
+  const waitsOf = (data, question) => {
+    const [group] = sourcesIn(points(root(data, question)));
+    const lines = open(root(data, question), [GD1]).lines;
+    return [group.output, group.waiting, lines.filter((line) => /^(Waiting|Words)/.test(line))];
+  };
+  // A group of only ripple points: the words are those of the note.
+  assert.deepEqual(waitsOf(CASE, on('scenario-1')), ['demo-scenarios', ['q1'],
+    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]]);
+  // A mixed group: a question about the scenario of the ripple point, or of the note's point.
+  const mixed = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
+      item: 'scenario-2' });
+  });
+  assert.deepEqual(waitsOf(mixed, on('scenario-1'))[2],
+    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]);
+  assert.deepEqual(waitsOf(mixed, on('scenario-2'))[2],
+    ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the row limit')}`]);
+});
+
 // The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a
 // draft of the writer, amended, the check of the type, and the push as a linked version.
 test('a stub of the triage step: one change makes one linked criteria version, other lines kept', () => {
@@ -917,6 +944,7 @@ test('each text that the skill ends with passes the check of the text of a point
     ['The feedback removes "<criterion text>", and the change already has <the built part, in ' +
       'one clause>.'],
     ['The feedback "<words>" changes the approved criteria, so a member decides it.'],
+    ['The feedback "<words>" changes the approved demo scenarios, so a member decides it.'],
     ['The feedback "<words>" is not <kind>: <reason>.', 'Pick Switch to Standard to build this ' +
       'change on the Standard track, because the Fast track is only for <kind>.'],
     ['The run could not write the change to AC-2, "<first sentence>", that you asked for.',
