@@ -17,6 +17,10 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 
+// A run of Build sets QORY_RUN_ID, which changes where the verbs read the build plan from.
+// Only the tests of a run set it.
+delete process.env.QORY_RUN_ID;
+
 const MODULES = path.join(__dirname, '../modules');
 const PLUGIN = path.join(MODULES, 'core');
 const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-workflow');
@@ -54,6 +58,10 @@ const P01 = {
 const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
 const P03_FIX = 'Ask an owner or admin of your organisation to correct the app\'s sign-in ' +
   'variables in Workspace settings > Secrets and variables, then run another round.';
+const P03_SETUP_FIX = 'Make the sign-in of the app work with the variables set, then run ' +
+  'another round.';
+const p03SetupText = (names) => `The sign-in of the app failed with the values of ${names} ` +
+  'set in the workspace\'s variables.';
 const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
   'in the workspace\'s variables.';
 
@@ -335,6 +343,12 @@ test('preflight: a serve command or a variable name that breaks the text of a po
     'sign-in variables of the demo scripts in the workspace\'s variables.');
   assert.equal(names.fix, P03_FIX);
   checks(names);
+  const setup = preflight.pointOf('signInSetup', 'DEMO__PASSWORD', { agents: new Set(),
+    rules: LIBRARY.pointRules() });
+  assert.equal(setup.text, 'The sign-in of the app failed with the values of the sign-in ' +
+    'variables of the demo scripts set in the workspace\'s variables.');
+  assert.equal(setup.fix, P03_SETUP_FIX);
+  checks(setup);
   assert.equal(preflight.joined(['A']), 'A');
   assert.equal(preflight.joined(['A', 'B']), 'A and B');
   assert.equal(preflight.joined(['A', 'B', 'C']), 'A, B and C');
@@ -511,9 +525,10 @@ test('preflight: a sign-in with a wrong value writes the point of the sign-in', 
   assert.equal(first, 'End the session with points.json: the sign-in to the app failed.');
   assert.equal(why, 'The sign-in of scenario-1 and scenario-2 failed: the page still showed a ' +
     'field that a variable was typed into 3 s after the last action.');
-  assert.equal(fix, `The fix of its point: ${P03_FIX}`);
-  assert.deepEqual(points(here.root), [{ text: p03Text('DEMO_PASSWORD'), action: 'run_again',
-    fix: P03_FIX }]);
+  assert.equal(fix, `The fix of its point: ${P03_SETUP_FIX}`);
+  assert.equal(done.findings[0].split('\n').at(-1), 'Kind: setup');
+  assert.deepEqual(points(here.root), [{ text: p03SetupText('DEMO_PASSWORD'),
+    action: 'run_again', fix: P03_SETUP_FIX }]);
   assert.equal(call(['check', 'points', path.join(here.root, 'points.json')],
     { cwd: here.dir }).status, 0);
   // A wait that never shows its text fails too.
@@ -528,12 +543,14 @@ test('preflight: a sign-in with no value, or a target that is not there, fails w
   assert.match(done.findings[0].split('\n')[1],
     /: action 3 \(type into #password\) failed: the variable DEMO_PASSWORD has no value\.$/);
   assert.equal(points(here.root)[0].text, p03Text('DEMO_PASSWORD'));
+  assert.equal(done.findings[0].split('\n').at(-1), 'Kind: outside');
   const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#pin', variable: 'DEMO_PIN' },
     ...SIGN_IN.slice(2)];
   const missing = await signIn(setup, 'parcel-blue-41', { DEMO_PIN: '4410' });
   assert.match(missing.done.findings[0].split('\n')[1],
     /: action 3 \(type into #pin\) failed: no element of the target showed within 3 s\.$/);
-  assert.equal(points(missing.here.root)[0].text, p03Text('DEMO_PIN and DEMO_PASSWORD'));
+  assert.equal(points(missing.here.root)[0].text,
+    p03SetupText('DEMO_PIN and DEMO_PASSWORD'));
 });
 
 // outsidePoint returns the point of a sign-in that loads a page of origin, outside the app at
@@ -1917,16 +1934,18 @@ test('film: two film scenarios make two films, and a pictures scenario one pictu
   assert.ok(!vtt.includes('Sign in'), vtt);
 });
 
-test('film: a step that fails stores nothing, with the fix first', { skip: NO_FILM }, async () => {
+test('film: a step that fails keeps the film up to it for the review, with the step first', { skip: NO_FILM }, async () => {
   const here = await filming([scenario('scenario-1', 'film', ORDERS[0],
     [{ do: 'click', target: '#nothing' }])]);
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
-  assert.equal(done.status, 1, done.out + done.err);
+  assert.equal(done.status, 5, done.out + done.err);
   const lines = done.out.trim().split('\n');
-  assert.equal(lines[0], 'Check step 2 against the app, then run film scenario-1 again.');
+  assert.equal(lines[0], 'Start demo-reviewer on step 2 of scenario-1, then record it.');
   assert.match(lines[1], /^ {2}action 1 \(click #nothing\) failed: /);
-  assert.equal(lines.at(-1), 'Stored no film: it failed in step 2.');
-  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+  assert.equal(lines.at(-1), 'Filmed scenario-1 up to step 2: it failed in step 2.');
+  const kept = path.join(here.root, '.film', 'scenario-1');
+  assert.deepEqual(fs.readdirSync(kept).sort(), ['failed.json', 'scenario-1.mp4', 'scenario-1.vtt']);
+  assert.equal(JSON.parse(fs.readFileSync(path.join(kept, 'failed.json'), 'utf8')).step, 2);
 });
 
 test('film pages: a picture of each page at each width, after the sign-in of the first script', { skip: NO_BROWSER }, async () => {
@@ -2285,7 +2304,7 @@ test('film: a step title is the text of its cue, and a title with an arrow is re
   one.steps[1].title = 'Save --> done.';
   const here = await filming([one]);
   const done = call(['film', 'scenario-1', '--artifacts', here.plan], here.deps);
-  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.status, 1, done.out + done.err);
   assert.deepEqual(done.out.split('\n').slice(0, 2), [
     'Change the Action of step 2 in the demo scenario so it has no "-->", then film it again.',
     '  A cue of scenario-1.vtt cannot hold "-->", which ends the cue in a player.']);

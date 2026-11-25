@@ -16,9 +16,13 @@ const MARGIN_MS = 15000;
 const CALL_MS = TOOL_CALL_MS - MARGIN_MS;
 // The time that lib/preflight.cjs adds to the limit of the runner to stop it.
 const STOP_MS = 15000;
-// The time of pass 1, the encode of verbs/film.cjs, in a call, measured: 35 s for about
-// 28,000 frames.
-// shortcut: replace it with the run-image measurement when it exists.
+// The time of pass 1, the encode of verbs/film.cjs, in a call. Measured with ffmpeg 7.1.5 in a
+// debian:trixie-slim container on an unloaded machine, for 28,000 frames of 50 KB: pass 1 took
+// 29 s with 18 CPUs and 61 s with 2 CPUs, and pass 2 took 25 s and 46 s. A pass 1 that ffmpeg
+// does not finish in its time keeps the frames and exits 4, and film recode, which has the
+// whole call, makes the film.
+// shortcut: the image of the run was not available to measure, so ENCODE_MS holds for 18 CPUs
+// and not for 2; replace it with the measurement of the run image when it exists.
 const ENCODE_MS = 35000;
 // The most time of the runner of a film.
 const RUN_BUDGET_MS = CALL_MS - STOP_MS - ENCODE_MS;
