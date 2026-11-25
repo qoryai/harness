@@ -1751,10 +1751,10 @@ test('withdrawn criteria: the lock and the build plan say they are withdrawn', (
     return folder;
   };
   both(withdrawn, LOCK_DOC, (result) => exactly(result, 'Ask a member to approve the ' +
-    'acceptance criteria again, then lock: the approval is withdrawn.'));
+    'criteria again, then lock the checks: the approval is withdrawn.'));
   for (const mode of [push, check]) {
     exactly(mode(withdrawn(), 'build-plan', planFile(PLAN)), 'Write the build plan after a ' +
-      'member uploads the acceptance criteria again.\nThey are withdrawn.');
+      'member approves the acceptance criteria again.\nThey are withdrawn.');
   }
 });
 

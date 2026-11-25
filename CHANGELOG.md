@@ -1306,8 +1306,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   write the change in a request for changes.", where it was "Ask a member to upload the
   acceptance criteria they accept as a new version." The question of a locked check that
   does not fail has the same wording in its first option. The first line for withdrawn
-  acceptance criteria is "Ask a member to approve the acceptance criteria again, then lock:
-  the approval is withdrawn." `acceptance-lock` reads `questions` besides
+  acceptance criteria is "Ask a member to approve the criteria again, then lock the checks:
+  the approval is withdrawn.", and a check of a build plan, verification or walkthrough
+  says "Write <what> after a member approves the acceptance criteria again." `acceptance-lock` reads `questions` besides
   `acceptance-criteria`.
 
 - The outbox folder is `qory.outbox` of `inputs.json`, not the variable `QORY_OUTBOX`,

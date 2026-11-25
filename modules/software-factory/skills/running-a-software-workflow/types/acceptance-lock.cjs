@@ -29,7 +29,7 @@ module.exports = (lib) => {
 
   // The line for every lock while the acceptance criteria are withdrawn: a stage input takes
   // nothing of a withdrawn name, so no approval counts until a member approves them again.
-  const WITHDRAWN = 'Ask a member to approve the acceptance criteria again, then lock: the ' +
+  const WITHDRAWN = 'Ask a member to approve the criteria again, then lock the checks: the ' +
     'approval is withdrawn.';
 
   // The action when no lock that a run can write passes: only a person's decision opens a new
