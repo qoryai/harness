@@ -641,20 +641,19 @@ function lockTypeOf(args) {
 }
 
 // liftedLock returns lock without the files that `lock.writable` of the type of the lock returns,
-// else lock. `lock.writable` takes the agent's name, the version of the lock and the records of
-// its files, and returns the files of the lock that the agent may write. Every other file
-// stays locked, also when the type has no `lock.writable`, when it throws, or when it returns
-// no list; an entry of the list that is no text lifts nothing. name is the name of the agent of
-// the call, or null for the main session.
-function liftedLock(lock, { root, name, fold, type }) {
+// else lock. `lock.writable` takes the io of the lock reader, the agent's name and the records
+// of the files of the lock, and returns the files of the lock that the agent may write. The
+// guard reads no other record. Every other file stays locked, also when the type has no
+// `lock.writable`, when it throws, or when it returns no list; an entry of the list that is no
+// text lifts nothing. name is the name of the agent of the call, or null for the main session.
+function liftedLock(lock, { io, name, fold, type }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
-    !Number.isInteger(lock.number) || name === null || !type) return lock;
+    name === null || !type) return lock;
   const writable = type.lock && type.lock.writable;
   if (typeof writable !== 'function') return lock;
   let free;
   try {
-    free = writable({ root, number: lock.number, agent: name, checks: lock.checks, fold,
-      resolve: (file) => real(path.resolve(root, file)) });
+    free = writable({ io: io(), agent: name, checks: lock.checks, fold });
   } catch {
     return lock;
   }
@@ -2176,7 +2175,8 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   const lockOf = () => {
     if (lock === null) {
       lock = (locked || ((args) => lockedFiles(args)))({ root, env, script });
-      lock = liftedLock(lock, { root, fold, type: agent ? typeOf() : null,
+      lock = liftedLock(lock, { io: () => lockSetup({ root, env, script }).io, fold,
+        type: agent ? typeOf() : null,
         name: agent ? reportName(input.agent_type, runtime, env.QORY_HARNESS_HOME) : null });
     }
     return lock;

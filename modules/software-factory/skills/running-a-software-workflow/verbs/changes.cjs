@@ -10,8 +10,9 @@
 // criteria planned as Tests, which need a new check. leaves lists the criteria of the lock
 // that the target does not plan as Tests, whose checks leave the draft. paths lists the
 // check files of the changed Tests criteria, each as the lock lists it, except a path that
-// another locked check or a support file has too: the tool guard lifts these paths for the
-// writer of the checks while the lock is the one that this file was made from.
+// another locked check or a support file has too. The workflows print it, and the check of a
+// build plan in a session reads it; the tool guard reads none of it: `lock.writable` of the
+// type acceptance-lock decides the lift from the lock and the criteria.
 'use strict';
 
 const path = require('node:path');

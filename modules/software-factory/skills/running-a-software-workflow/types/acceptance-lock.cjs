@@ -9,12 +9,11 @@ const path = require('node:path');
 const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
-  const changeRecord = require('../lib/change-record.cjs');
   const {
-    Missing, approvedNumber, askAbove, byPerson, criteriaFile, criteriaTarget, criterionHash,
-    criterionHashes, CRITERIA_HASHES, hashOf, isObject, jsonFile, liveIn, linked, linkProblem,
-    countedOf, newestCriteria, noCriteria, num, parseJson, plural, pullCriteria, readFile, short,
-    timeOf, versionsOf,
+    Context, Missing, approvedNumber, artifactFolder, askAbove, byPerson, criteria, criteriaFile,
+    criteriaTarget, criterionHash, criterionHashes, CRITERIA_HASHES, hashOf, isObject, jsonFile,
+    liveIn, linked, linkProblem, countedOf, lockReader, newestCriteria, noCriteria, num,
+    parseJson, plural, pullCriteria, readFile, short, timeOf, versionsOf,
   } = lib;
 
   const FILE = 'acceptance-lock.json';
@@ -546,9 +545,10 @@ module.exports = (lib) => {
         }
       }
       const folder = spelled === undefined ? '' : `${FURTHER}/${spelled}`;
-      // record is what `writable` reads of a check: the id of its criterion. A support file
-      // has none.
-      const record = check ? { criterion: entry.criterion } : undefined;
+      // record is what `writable` reads of a check: the id of its criterion, its hash and the
+      // criteria version of the lock. A support file has none.
+      const record = check ? { criterion: entry.criterion, hash: entry.criterion_sha256,
+        version: isObject(data.criteria) ? data.criteria.version : undefined } : undefined;
       out.push({ folder, path: entry.path, entry, ...(record ? { record } : {}),
         ...(problem ? { problem } : {}) });
     }
@@ -608,29 +608,58 @@ module.exports = (lib) => {
   // The agent that writes the checks of a lock in change mode.
   const WRITER = 'acceptance-check-writer';
 
-  // writable returns the files of checks that the agent may write while the lock holds them: a
-  // list of the `file` of entries of checks, each { file, criterion } as lockedFiles makes it
-  // (`criterion` is the id of the criterion of the check, and a support file has none). All of
-  // these must hold for a file: the agent is the writer of the checks; the record of the verb
-  // changes in the working folder root is of mode `changes` and was made from the lock of
-  // `number`; the file is a path of that record; and each entry at that file is a check of a
-  // criterion that the record lists as changed. A support file and every other file stay
-  // locked. resolve returns the real path of a path of the record, and fold the form of a path
-  // that the guard compares.
+  // targetOf returns { number, live } of the criteria version that criteriaTarget returns for
+  // the artifact folder of io, as the verb changes reads it, with live the map of each live
+  // criterion by id to { hash, tests }, or null when no version is approved, the version has no
+  // file, or no criterion. In a run it pulls the version first, so a file that an agent wrote
+  // in its place counts for nothing. A fault throws.
+  function targetOf(io) {
+    const context = new Context(artifactFolder(io), 'check', io.home);
+    const number = criteriaTarget(context, 'the lock');
+    if (number === null) return null;
+    const inRun = Boolean(io.env && io.env.QORY_RUN_ID);
+    const store = inRun ? lockReader.pull(io, 'acceptance-criteria', number, 'write')
+      : artifactFolder(io);
+    const file = criteriaFile({ store }, number);
+    if (file === null) return null;
+    const text = readFile(file, `acceptance-criteria version ${number}`).replace(/\r\n?/g, '\n');
+    if (!criteria(text).length) return null;
+    return { number, live: new Map(liveIn(text).filter((one) => one.id !== '')
+      .map((one) => [one.id, { hash: criterionHash(one), tests: one.check === 'Tests' }])) };
+  }
+
+  // writable returns the files that the agent may write while the lock holds them: the `file`
+  // of the entries of checks that lockedFiles lists, each { file, criterion, hash, version }
+  // as lockedFiles makes it (`criterion` is the id of the criterion of the check, `hash` its
+  // criterion_sha256 and `version` the criteria version that the lock locks; a support file has
+  // none of these). io is the io of checks.cjs. The agent must be the writer of the checks. A
+  // file is writable when the criteria version that criteriaTarget returns is newer than the
+  // locked one, and each entry at that file is a check of a criterion whose hash in that version
+  // is not the hash of the lock, or that the version does not have, and that the version plans
+  // as Tests when it has it. A criterion that the lock and the version hash alike is
+  // unchanged, so its file stays locked, and so does a support file, a file with an entry of
+  // an unchanged criterion, and every file when the version cannot be read. fold is the form
+  // of a path that the guard compares.
   // shortcut: the guard has no source for the name of the workflow, so this keys on the agent:
   // the writer of the checks starts only in write-acceptance-checks; replace it when the input
   // of a call has the workflow.
-  function writable({ root, number, agent, checks, resolve, fold }) {
-    if (agent !== WRITER || !Array.isArray(checks)) return [];
-    const record = changeRecord.read(root);
-    if (!record || record.mode !== 'changes' || record.lock !== number) return [];
-    const text = (list) => (Array.isArray(list) ? list.filter((one) => typeof one === 'string')
-      : []);
-    const changed = new Set(text(record.changed));
-    const named = new Set(text(record.paths).map((one) => fold(resolve(one))));
-    return [...new Set(checks.map((one) => one.file))].filter((file) => named.has(fold(file)) &&
-      checks.filter((one) => fold(one.file) === fold(file))
-        .every((one) => typeof one.criterion === 'string' && changed.has(one.criterion)));
+  // shortcut: the lift trusts the pulled store as the lock read does, and the pulled folder
+  // (index.json, criteria versions, lock documents) is agent-writable through a shell
+  // expansion; keptFiles and lock --verify are the boundary, replace it when the guard reads a
+  // store that no agent call can write.
+  function writable({ io, agent, checks, fold }) {
+    if (agent !== WRITER || !Array.isArray(checks) || !checks.length) return [];
+    const target = targetOf(io);
+    if (target === null) return [];
+    const HASH = /^[0-9a-f]{64}$/;
+    const changed = (one) => {
+      if (typeof one.criterion !== 'string' || !HASH.test(one.hash || '') ||
+        !Number.isInteger(one.version) || target.number <= one.version) return false;
+      const now = target.live.get(one.criterion);
+      return now === undefined || (now.tests && now.hash !== one.hash);
+    };
+    return [...new Set(checks.map((one) => one.file))].filter((file) => checks
+      .filter((one) => fold(one.file) === fold(file)).every(changed));
   }
 
   // The word of the verb that writes the record, in a shell command of an agent.

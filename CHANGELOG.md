@@ -18,13 +18,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   newest lock, and keeps each check of an unchanged criterion whole. `run locked
   <criterion>...` runs only the new checks. With no lock, no build plan or no approved
   criteria, the run is full, as before.
-- The tool guard lifts a locked check file for the acceptance check writer when
-  `changes.json` lists the file, was made from the lock that counts, and every check at that
-  file is a check of a changed criterion. A support file, a file with a check of an
-  unchanged criterion, every other agent and the main session stay denied.
-  `lock.writable` of the type `acceptance-lock` returns those files, and the guard keeps every
-  file locked when the type has no `lock.writable` or the function throws. A `changes.json`
-  with more than one link lifts nothing.
+- The tool guard lifts a locked check file for the acceptance check writer when the lock that
+  counts lists it, and every check at that file is a check of a criterion that the newer
+  target criteria version changed or no longer has. A support file, a file with a check of an
+  unchanged criterion, every other agent and the main session stay denied, and so does every
+  file when the target cannot be read. `lock.writable` of the type `acceptance-lock` decides
+  this from the lock and the criteria, and the guard reads no `changes.json`; it keeps every
+  file locked when the type has no `lock.writable` or the function throws. The lift trusts the
+  pulled folder as the lock read does, and a shell expansion can write that folder; `lock
+  --verify` is the boundary. The check of a build plan reads no `changes.json` with more than
+  one link.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and
   the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and

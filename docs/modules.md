@@ -5159,22 +5159,36 @@ lists no changed, added or removed criterion. The acceptance check writer gets o
 criteria of "Checks to write", starts its draft from the newest lock, and keeps each check
 of an unchanged criterion whole; `run locked <criterion>...` runs only the new checks.
 
-The tool guard lifts the files of `paths` for the writer of the checks, and only then: the
-agent is the `acceptance-check-writer`, the file `changes.json` has the mode `changes` and
-the number of the lock that counts, the file is in `paths`, and every check of the lock at
-that file is a check of a changed criterion. A support file, a file that another check has,
-every other agent and the main session stay denied. `lock.writable` reads `changes.json`
-without following links, and a `changes.json` with more than one link lifts nothing. The
-guard has no source for the name of the workflow, so it keys on the agent.
+The tool guard lifts the locked check files of changed criteria for the writer of the checks,
+and reads no `changes.json` for it. A file is lifted only when all of these hold:
+
+- The agent is the `acceptance-check-writer`.
+- The lock that counts lists the file, and every entry of the lock at that file is a check of
+  a criterion.
+- The criteria version that `criteriaTarget` returns is newer than the one that the lock
+  locks, and the store has its file with at least one criterion.
+- For each entry at the file, the `criterion_sha256` of the entry is a SHA-256, and either the
+  target version has no live criterion with that id, or it has one that it plans as Tests and
+  whose hash differs from `criterion_sha256`.
+
+A support file, a file with an entry of an unchanged criterion, a criterion that left Tests,
+every other agent and the main session stay denied, and so does every file when the target
+cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
+`changes.json` is written by the verb `changes`, printed by the workflows and read by the check
+of a build plan in a session, which finds no record with more than one link. The lift trusts
+the pulled folder (`index.json`, criteria versions and lock documents) as the lock read does,
+and a shell expansion can write that folder; `keptFiles` and `lock --verify` are the boundary,
+and the limit ends when the guard reads a store that no agent call can write.
 
 The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
 has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The
-guard calls `lock.writable({ root, number, agent, checks, resolve, fold })` for a call of an
-agent, and lifts the files that it returns. `lock.refused({ command })` returns the start of
-the reason for a shell command of an agent that runs `checks.cjs changes`. When the type has no
-`lock.writable`, when it throws, or when it returns no list, the guard lifts nothing, and every
-locked file stays locked. When the type has no `lock.refused`, when it throws, or when it returns
-no text, the guard refuses no command for that reason.
+guard calls `lock.writable({ io, agent, checks, fold })` for a call of an agent, with the `io`
+of the lock reader and the entries of `lock.files` as `{ file, ...record }`, and lifts the
+files that it returns. `lock.refused({ command })` returns the start of the reason for a shell
+command of an agent that runs `checks.cjs changes`. When the type has no `lock.writable`, when
+it throws, or when it returns no list, the guard lifts nothing, and every locked file stays
+locked. When the type has no `lock.refused`, when it throws, or when it returns no text, the
+guard refuses no command for that reason.
 
 ## The process template, process.yaml
 

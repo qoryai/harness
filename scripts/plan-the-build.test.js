@@ -683,6 +683,22 @@ test('in change mode, the check of a plan finds a changed deliverable that lists
   assert.equal(call('check', 'build-plan', file).status, 0);
 });
 
+test('in change mode, the check of a plan reads no record that has a second link', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 1);
+  // A second link to the record could rewrite it, so the check reads no record.
+  fs.linkSync(path.join(w.repo, '.qory', 'build', 'changes.json'), path.join(w.repo, 'alias.json'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
 test('in change mode, a withdrawn acceptance-lock leaves the lock of the record in place', () => {
   const w = work();
   withPlan(w);
