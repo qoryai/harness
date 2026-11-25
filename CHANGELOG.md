@@ -22,8 +22,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `changes.json` lists the file, was made from the lock that counts, and every check at that
   file is a check of a changed criterion. A support file, a file with a check of an
   unchanged criterion, every other agent and the main session stay denied.
-  The type `acceptance-lock` decides this in `lock.writable`, and the guard keeps every file
-  locked when the type has no such function or the function throws.
+  `lock.writable` of the type `acceptance-lock` returns those files, and the guard keeps every
+  file locked when the type has no `lock.writable` or the function throws. A `changes.json`
+  with more than one link lifts nothing.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and
   the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and

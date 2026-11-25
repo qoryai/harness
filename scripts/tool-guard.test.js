@@ -472,6 +472,34 @@ test('the guard denies a write of the record by the writer, and reads no record 
     'Leave the locked file as it is');
 });
 
+test('the guard lifts nothing for a record with a second link', () => {
+  const one = changeCase();
+  const record = path.join(one.dir, '.qory', 'build', 'changes.json');
+  assert.equal(one.call(claude('Write', { file_path: one.file, content: 'x' }, WRITER)), null);
+  fs.linkSync(record, path.join(one.dir, 'alias.json'));
+  firstLine(one.call(claude('Write', { file_path: one.file, content: 'x' }, WRITER)),
+    'Leave the locked file as it is');
+});
+
+test('the guard keeps a support file locked, as the lock type lists it with no criterion', () => {
+  // The store has version 1 of the lock, so the record is made from version 1.
+  const one = changeCase({ lock: 1 });
+  const helper = path.join(one.dir, 'checks', 'helper.ts');
+  fs.writeFileSync(helper, 'export {};\n');
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'tool-guard-claude.cjs');
+  const store = server({ support: [{ path: 'checks/helper.ts', sha256: sha('export {};\n') }] });
+  const lock = lockedFiles({ root: one.dir, env: fakeQory(store), script });
+  const support = lock.checks.find((entry) => entry.file.endsWith('helper.ts'));
+  assert.ok(support, JSON.stringify(lock));
+  assert.equal('criterion' in support, false);
+  const write = (file) => decide({ input: { ...claude('Write', { file_path: file, content: 'x' },
+    WRITER), cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir, locked: () => lock });
+  firstLine(write(helper), 'Leave the locked file as it is');
+  // The check of the changed criterion, which the same lock lists, is lifted.
+  assert.equal(write(one.file), null);
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +
@@ -865,13 +893,13 @@ function patchedHome(from, to, ...more) {
 
 // server returns a folder that stands for Qory Apiary's artifacts: the testdata and version 1
 // of acceptance-lock, which locks CHECK_PATH.
-function server() {
+function server({ support } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
   const lock = { criteria: { version: 1 }, start_commit: '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e',
     commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
     checks: [{ criterion: 'ac-4', path: CHECK_PATH, command: `npm test -- ${CHECK_PATH}`,
-      failed_with: 1, sha256: sha(CHECK_TEXT) }] };
+      failed_with: 1, sha256: sha(CHECK_TEXT) }], ...(support ? { support } : {}) };
   const text = JSON.stringify(lock, null, 2);
   const file = path.join(root, 'acceptance-lock', 'main', 'v1', 'acceptance-lock.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });

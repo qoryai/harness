@@ -13,7 +13,8 @@ const FILE = path.join('.qory', 'build', 'changes.json');
 const MAX_BYTES = 1024 * 1024;
 
 // read returns the parsed record of the working folder, or null when the folder has none, a
-// link stands in its place or on the way, or the file is no JSON object of at most MAX_BYTES.
+// link stands in its place or on the way, or the file has more than one link, or is no JSON
+// object of at most MAX_BYTES. A file with a second link could be rewritten through that link.
 function read(folder) {
   try {
     let at = folder;
@@ -22,7 +23,7 @@ function read(folder) {
       if (fs.lstatSync(at).isSymbolicLink()) return null;
     }
     const stat = fs.lstatSync(at);
-    if (!stat.isFile() || stat.size > MAX_BYTES) return null;
+    if (!stat.isFile() || stat.nlink > 1 || stat.size > MAX_BYTES) return null;
     const data = JSON.parse(fs.readFileSync(at, 'utf8'));
     return data !== null && typeof data === 'object' && !Array.isArray(data) ? data : null;
   } catch {
