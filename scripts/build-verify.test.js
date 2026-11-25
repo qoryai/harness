@@ -9,6 +9,7 @@
 'use strict';
 
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -100,12 +101,19 @@ const EVIDENCE_DOC = {
   })),
 };
 
+// The hash that a lock lists for the check of ac-4: the SHA-256 of the JSON text of its text and
+// its check.
+const AC4_HASH = crypto.createHash('sha256').update(JSON.stringify(
+  [criterionOf(CRITERIA.criteria, 'ac-4').text, criterionOf(CRITERIA.criteria, 'ac-4').check]))
+  .digest('hex');
+
 const LOCK_DOC = {
   criteria: { version: 1 },
   start_commit: C1,
   commit: C2,
   checks: [{ criterion: 'ac-4', path: 'tests/corrected-reply.test.ts', sha256: H,
-    command: 'npm test -- tests/corrected-reply.test.ts', failed_with: 1 }],
+    command: 'npm test -- tests/corrected-reply.test.ts', failed_with: 1,
+    criterion_sha256: AC4_HASH }],
 };
 
 const ledgerRow = (id, pass, extra = {}) => ({
@@ -2008,6 +2016,9 @@ function follow(make, mode, doc) {
     const line = result.findings[0];
     seen.push(line);
     if (line.startsWith(REQUEST)) return { seen, end: 'ask' };
+    // A check that differs from the check of the newest lock, for a criterion that did not
+    // change, is refused whatever the version.
+    if (line.startsWith('Restore check 1 ')) return { seen, end: 'restore' };
     if (line === UNAPPROVED) return { seen, end: 'unapproved' };
     const to = /^(?:Set \/criteria\/version of acceptance-lock\.json to |Lock version )([0-9]+)[ ,.]/
       .exec(line);
@@ -2044,8 +2055,11 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
           const { seen, end } = follow(make, mode, lockOf(checks, number));
           const label = `${name}, ${mode}, version ${number}: ${seen.join(' | ')}`;
           assert.ok(seen.length <= 2, label);
-          // With a person's version 4, every lock reaches a lock of version 4, which passes.
-          if (name.endsWith('a person')) assert.equal(end, 'pass', label);
+          // With a person's version 4, every lock reaches a lock of version 4, which passes,
+          // unless its check differs from the check of lock 2 for a criterion that is the same.
+          if (name.endsWith('a person')) {
+            assert.equal(end, checks === WEAK ? 'restore' : 'pass', label);
+          }
         }
       }
     }
@@ -2072,7 +2086,11 @@ test('acceptance-lock: each finding leads to a pass or a member within 2 steps',
   both(personAfter, LOCK_2, (result) => exactly(result, 'Set /criteria/version of ' +
     'acceptance-lock.json to 4, the newest criteria version.\nA push check reads only the ' +
     'newest version, and acceptance-lock.json has version 2.'));
-  both(personAfter, lockOf(WEAK, 4), (result) => passes(result, 'acceptance-lock'));
+  both(personAfter, lockOf(LOCK_DOC, 4), (result) => passes(result, 'acceptance-lock'));
+  // The check of ac-4 did not change in version 4, so lock 4 cannot weaken it.
+  both(personAfter, lockOf(WEAK, 4), (result) => exactly(result, 'Restore check 1 of ' +
+    'acceptance-lock.json as acceptance-lock version 2 has it.\nac-4 did not change, so its ' +
+    'check keeps its sha256, path, command and failed_with.'));
 });
 
 test('acceptance-lock: no probe gets a new lock through', () => {
@@ -2365,6 +2383,9 @@ test('acceptance-lock: the Tests criteria of the criteria version of the lock', 
   const doc = clone(LOCK_DOC);
   doc.criteria.version = 2;
   doc.checks[0].criterion = 'ac-5';
+  doc.checks[0].criterion_sha256 = crypto.createHash('sha256').update(JSON.stringify(
+    [criterionOf(criteria.criteria, 'ac-5').text, criterionOf(criteria.criteria, 'ac-5').check]))
+    .digest('hex');
   both(root, doc, (result) => passes(result, 'acceptance-lock'));
   doc.checks[0].criterion = 'ac-4';
   both(root, doc, (result) => fails(result,

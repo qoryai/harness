@@ -1,5 +1,6 @@
 // lock and lock --verify: the lock of listed files. A type of the registry has a lock
-// when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb) }.
+// when it has the member `lock`, { files(data, env, verb), folder(dir, env, verb),
+// fill(data, folder) }; fill is optional.
 // files returns the files that a version of the type lists, each { folder, path, entry,
 // problem }, or null when the version has no such list. folder is '' or a folder under
 // the working folder, path is the file's path below it, entry.sha256 is the file's
@@ -9,8 +10,9 @@
 // env is the environment of the call, and verb is `lock` or `lock --verify`, as a line of
 // the type shows it.
 //
-// lock <file> fills entry.sha256 of each listed file from the working folder, writes <file>,
-// checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
+// lock <file> fills entry.sha256 of each listed file from the working folder, calls fill of the
+// type with the parsed draft and the artifact folder, so that the type fills what it derives
+// from other artifacts, writes <file>, checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
 // walled run, qory runs the push check of the type before Qory Apiary stores the lock, and a
 // lock that the check refuses is not stored. lock --verify reads the version that counts,
 // and finds each listed file that differs from its SHA-256.
@@ -283,6 +285,7 @@ function lockFile(io, def, draft) {
     return 1;
   }
   for (const [file, hash] of found) file.entry.sha256 = hash;
+  if (typeof def.lock.fill === 'function') def.lock.fill(data, root);
   writeJson(draft, data);
   const checked = checkFiles('check', root, def, [draft], io.home, io.plugin);
   if (checked.findings.length) {
@@ -500,5 +503,5 @@ module.exports = {
   },
   workingFolder,
   // The reader of the lock that another module uses, such as for its locked checks.
-  lockReader: { lockType, readLock, changedFiles, printFindings, pull },
+  lockReader: { lockType, readLock, changedFiles, printFindings, pull, workingFolder },
 };

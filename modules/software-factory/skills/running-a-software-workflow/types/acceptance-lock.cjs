@@ -411,12 +411,22 @@ module.exports = (lib) => {
       .replace(/\r\n?/g, '\n');
     const planned = new Set(liveIn(text).filter((criterion) => criterion.check === 'Tests')
       .map((criterion) => criterion.id));
+    const live = new Map(liveIn(text).map((criterion) => [criterion.id, criterion]));
     data.checks.forEach((check, place) => {
       if (!planned.has(check.criterion)) {
         run.find(`Set the criterion of check ${place + 1} of ${FILE} to a criterion planned as ` +
           `Tests.\nCriteria version ${num(version)} does not plan ${check.criterion} as Tests.`);
+      } else if (check.criterion_sha256 === undefined) {
+        run.find(`Lock the draft with checks.cjs lock: check ${place + 1} of ${FILE} has no ` +
+          `criterion_sha256.\n${check.criterion} needs the hash of its text and check in ` +
+          `criteria version ${num(version)}.`);
+      } else if (check.criterion_sha256 !== criterionHash(live.get(check.criterion))) {
+        run.find(`Lock the draft again with checks.cjs lock: criterion_sha256 of check ` +
+          `${place + 1} is wrong.\nThe hash of ${check.criterion} in criteria ` +
+          `version ${num(version)} is ${criterionHash(live.get(check.criterion))}.`);
       }
     });
+    keptFiles(run, data, state);
     // Each criterion planned as Tests needs a locked check: a lock with none leaves the
     // criterion with no check that binds the build. An id has at most 7 characters, so the
     // first line stays within 100.
@@ -426,6 +436,56 @@ module.exports = (lib) => {
         run.find(`Add a check of ${id} to ${FILE}, then lock again.\nCriteria version ` +
           `${num(version)} plans ${id} as Tests, and no check of the lock has it.`);
       }
+    }
+  }
+
+  // keptFiles finds each check of data, a new lock, that does not keep what the newest lock
+  // has for the same criterion hash, and each support file that has the path of one of the
+  // newest lock and other bytes: a criterion that did not change keeps its check, and a
+  // locked support file keeps its hash, so a changed support file gets a new path. The lock
+  // pushed again is the newest lock, and a push whose store lacks the newest lock has none to
+  // compare with.
+  // shortcut: with no newest lock in a push store, the check compares nothing; replace it
+  // when qory mounts every lock that counts.
+  function keptFiles(run, data, state) {
+    const last = state.same || !state.newest ? null : state.newest.doc;
+    if (last === null || !isObject(last)) return;
+    const before = Array.isArray(last.checks) ? last.checks.filter(isObject) : [];
+    const keys = ['sha256', 'path', 'repository', 'command', 'failed_with'];
+    data.checks.forEach((check, place) => {
+      const old = before.find((one) => one.criterion === check.criterion &&
+        one.criterion_sha256 !== undefined && one.criterion_sha256 === check.criterion_sha256);
+      if (old && !keys.every((key) => isDeepStrictEqual(old[key], check[key]))) {
+        run.find(`Restore check ${place + 1} of ${FILE} as acceptance-lock version ` +
+          `${num(state.newest.number)} has it.\n${check.criterion} did not change, so its ` +
+          'check keeps its sha256, path, command and failed_with.');
+      }
+    });
+    const files = Array.isArray(last.support) ? last.support.filter(isObject) : [];
+    for (const file of Array.isArray(data.support) ? data.support : []) {
+      const old = files.find((one) => one.path === file.path && one.repository === file.repository);
+      if (old && old.sha256 !== file.sha256) {
+        run.find(`Give the changed support file ${short(file.path, 40)} a new path in ${FILE}.\n` +
+          `acceptance-lock version ${num(state.newest.number)} locks that path with other ` +
+          'bytes.');
+      }
+    }
+  }
+
+  // fillCriteria writes criterion_sha256 into each check of data, a draft of the lock, from
+  // the criteria version that data lists, in the artifact folder folder: the hash of the
+  // criterion of the check. It leaves a check of a criterion that the version does not list
+  // with none, and does nothing when the folder has no such version; the check of the draft
+  // reports both.
+  function fillCriteria(data, folder) {
+    if (!isObject(data) || !isObject(data.criteria) || !Array.isArray(data.checks)) return;
+    const file = criteriaFile({ store: folder }, data.criteria.version);
+    if (file === null) return;
+    const live = new Map(liveIn(readFile(file, 'acceptance-criteria').replace(/\r\n?/g, '\n'))
+      .map((criterion) => [criterion.id, criterion]));
+    for (const check of data.checks.filter(isObject)) {
+      if (live.has(check.criterion)) check.criterion_sha256 = criterionHash(live.get(check.criterion));
+      else delete check.criterion_sha256;
     }
   }
 
@@ -554,6 +614,6 @@ module.exports = (lib) => {
     words: 'acceptance lock',
     reviewer: null,
     check: acceptanceLock,
-    lock: { files: lockedFiles, folder: lockFolder },
+    lock: { files: lockedFiles, folder: lockFolder, fill: fillCriteria },
   };
 };

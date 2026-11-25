@@ -56,9 +56,10 @@ const criterionHash = (criterion) => sha(JSON.stringify([criterion.text, criteri
 const AC4 = JSON.parse(fs.readFileSync(path.join(TESTDATA, 'acceptance-criteria.json'), 'utf8'))
   .criteria.find((one) => one.id === 'ac-4');
 
-// LOCK is DRAFT with the SHA-256 of the files of a new working folder.
+// LOCK is DRAFT with the SHA-256 of the files of a new working folder and of the criterion.
 const LOCK = clone(DRAFT);
 LOCK.checks[0].sha256 = sha(CHECK_TEXT);
+LOCK.checks[0].criterion_sha256 = criterionHash(AC4);
 LOCK.support[0].sha256 = sha(SUPPORT_TEXT);
 
 // SECOND is another lock of criteria version 1: its check fails with another exit status.
@@ -1331,7 +1332,7 @@ test('a lock of a cancelled run does not hide the lock before it', () => {
 });
 
 test('after a cancelled lock, a person\'s upload newer than the lock that counts opens a lock', () => {
-  const doc = clone(SECOND);
+  const doc = clone(LOCK);
   doc.criteria.version = 2;
   const make = () => criteriaVersion(stored(stored(artifacts(), 1, LOCK), 2, LOCK,
     { cancelled: true, at: LATER }), 2, { writer: PERSON, at: LATEST });
@@ -1898,8 +1899,10 @@ test('an answer needs no question for an unchanged or an added criterion, and on
 });
 
 test('a lock without hashes counts each check as changed, and free text needs no question', () => {
-  // LOCK has no criterion_sha256, as every lock stored before the hash has.
-  const unhashed = () => criteriaVersion(stored(artifacts(), 1, LOCK), 2,
+  // A lock stored before the hash existed has no criterion_sha256.
+  const old = clone(LOCK);
+  delete old.checks[0].criterion_sha256;
+  const unhashed = () => criteriaVersion(stored(artifacts(), 1, old), 2,
     { at: LATER, decision: 'an_1', decision_at: LATEST });
   refused(unhashed, docFor(2), 'Version 2 changes ac-4, and no question about ac-4 has an ' +
     'answer after acceptance-lock version 1.');
@@ -1924,4 +1927,124 @@ test('a free-text note above the lock frees the answer after it from the questio
     { at: AFTER_ALL, decision: 'an_1', decision_at: AFTER_ALL }, (doc) => REWORDED(doc));
   refused(stale, docFor(3, REWORDED), 'Version 3 changes ac-4, and no question about ac-4 ' +
     'has an answer after acceptance-lock version 1.');
+});
+
+// ---- The hash of the criterion of each check -----------------------------------------------
+
+// TWO plans ac-2 as Tests too, so that a lock has two checks.
+const TWO = (doc) => { doc.criteria.find((one) => one.id === 'ac-2').check = 'Tests'; };
+
+// twoLock returns the lock of criteria version number with a check of ac-4 and of ac-2, for
+// the testdata criteria with TWO and then each of edits applied.
+function twoLock(number, ...edits) {
+  const criteria = readJson(path.join(TESTDATA, 'acceptance-criteria.json'));
+  [TWO, ...edits].forEach((edit) => edit(criteria));
+  const hash = (id) => criterionHash(criteria.criteria.find((one) => one.id === id));
+  const doc = clone(LOCK);
+  doc.criteria.version = number;
+  doc.checks[0].criterion_sha256 = hash('ac-4');
+  doc.checks.push({ criterion: 'ac-2', path: 'checks/hours.check.ts',
+    sha256: sha('the second check'), command: 'npm test -- checks/hours.check.ts',
+    failed_with: 1, criterion_sha256: hash('ac-2') });
+  return doc;
+}
+
+// twoRoot returns a folder with lock 1 of two checks, which locks criteria version 1, and
+// criteria version 2, which a run stored at LATER, linked to a free-text note after the lock,
+// with TWO and then edit applied.
+function twoRoot(edit = () => {}, change = (doc) => doc) {
+  const root = artifacts();
+  const file = path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json');
+  const first = readJson(file);
+  TWO(first);
+  writeJson(file, first);
+  stored(root, 1, change(twoLock(1)));
+  return criteriaVersion(root, 2, { at: LATER, decision: 'gd_1', decision_at: LATEST },
+    (doc) => { TWO(doc); edit(doc); });
+}
+
+test('a new lock keeps the check of each criterion that did not change', () => {
+  // ac-4 changes, so its check and its hash change; the check of ac-2 stays as it is.
+  const changed = twoLock(2, REWORDED);
+  changed.checks[0].sha256 = sha('the new check');
+  changed.checks[0].path = 'checks/corrected-reply-2.check.ts';
+  for (const result of both(() => twoRoot(REWORDED), changed)) {
+    assert.equal(result.status, 0, result.out);
+  }
+  // A check of ac-2 that differs in one member is refused, whatever the member.
+  for (const [key, value] of [['sha256', sha('another')], ['path', 'checks/other.check.ts'],
+    ['command', 'npm test'], ['failed_with', 2]]) {
+    const doc = twoLock(2, REWORDED);
+    doc.checks[1][key] = value;
+    for (const result of both(() => twoRoot(REWORDED), doc)) {
+      assert.equal(result.status, 1, `${key}: ${result.out}`);
+      assert.equal(result.lines[0], 'Restore check 2 of acceptance-lock.json as ' +
+        'acceptance-lock version 1 has it.');
+      assert.equal(result.lines[1], '  ac-2 did not change, so its check keeps its sha256, ' +
+        'path, command and failed_with.');
+    }
+  }
+});
+
+test('a hash that is missing or does not match its criterion is refused', () => {
+  const doc = twoLock(2, REWORDED);
+  doc.checks[0].criterion_sha256 = twoLock(1).checks[0].criterion_sha256;
+  for (const result of both(() => twoRoot(REWORDED), doc)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Lock the draft again with checks.cjs lock: criterion_sha256 ' +
+      'of check 1 is wrong.');
+    assert.match(result.lines[1], /^ {2}The hash of ac-4 in criteria version 2 is [0-9a-f]{64}\.$/);
+  }
+  const bare = twoLock(2, REWORDED);
+  delete bare.checks[1].criterion_sha256;
+  for (const result of both(() => twoRoot(REWORDED), bare)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Lock the draft with checks.cjs lock: check 2 of ' +
+      'acceptance-lock.json has no criterion_sha256.');
+  }
+  // The hash is of the text and the check, and of nothing else.
+  const check = (edit) => both(() => twoRoot(edit), twoLock(2, edit)).map((one) => one.status);
+  assert.deepEqual(check((doc2) => { doc2.summary = 'Another summary.'; }), [0, 0]);
+  assert.deepEqual(check((doc2) => { doc2.criteria.find((one) => one.id === 'ac-2').check = 'Tests'; }),
+    [0, 0]);
+});
+
+test('a support file keeps its hash, and a changed one gets a new path', () => {
+  const same = twoLock(2, REWORDED);
+  same.support[0].sha256 = sha('other bytes');
+  for (const result of both(() => twoRoot(REWORDED), same)) {
+    assert.equal(result.status, 1, result.out);
+    assert.equal(result.lines[0], 'Give the changed support file "check.config.js" a new path ' +
+      'in acceptance-lock.json.');
+  }
+  const moved = twoLock(2, REWORDED);
+  moved.support = [{ path: 'check.config.v2.js', sha256: sha('other bytes') }];
+  for (const result of both(() => twoRoot(REWORDED), moved)) {
+    assert.equal(result.status, 0, result.out);
+  }
+});
+
+test('lock writes criterion_sha256 of each check from the criteria version of the draft', () => {
+  const root = artifacts();
+  const file = path.join(root, 'acceptance-criteria', 'main', 'v1', 'acceptance-criteria.json');
+  const criteria = readJson(file);
+  TWO(criteria);
+  writeJson(file, criteria);
+  const work = working();
+  writeJson(path.join(work, 'checks/hours.check.ts'), 'the second check');
+  const draft = clone(DRAFT);
+  draft.checks.push({ criterion: 'ac-2', path: 'checks/hours.check.ts',
+    command: 'npm test -- checks/hours.check.ts', failed_with: 1,
+    // A hash that the session wrote is replaced.
+    criterion_sha256: 'f'.repeat(64) });
+  const result = lock(root, work, draft);
+  exitsWith(result, 0);
+  assert.deepEqual(readJson(result.file).checks.map((one) => one.criterion_sha256),
+    [criterionHash(AC4), twoLock(1).checks[1].criterion_sha256]);
+  // A check of a criterion that the criteria do not list gets no hash and is refused.
+  const other = clone(DRAFT);
+  other.checks[0].criterion = 'ac-9';
+  const refused1 = lock(artifacts(), working(), other);
+  exitsWith(refused1, 1, /^Set the criterion of check 1 of acceptance-lock\.json to a criterion/);
+  assert.equal(readJson(refused1.file).checks[0].criterion_sha256, undefined);
 });

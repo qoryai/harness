@@ -124,7 +124,8 @@ Write `acceptance-lock.json` at the top of the artifact folder, as JSON in this 
 - `checks`: one entry for each criterion planned as `Tests`, in the order of the criteria.
   `failed_with` is the exit of the last run of that check.
 - `support`: each support file. Leave `support` out when there is none.
-- Write no `sha256` and no `repository`: the lock fills each `sha256`.
+- Write no `sha256`, no `criterion_sha256` and no `repository`: the lock fills each `sha256`
+  and each `criterion_sha256`.
 
 When you get a line of `scope` or `lock`, change only the file or the field that the line is
 about. A line that sets `/criteria/version` contains the version to write.
