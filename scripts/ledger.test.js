@@ -1341,12 +1341,12 @@ test('ledger: step end done of a fix of a finding needs one line Reply:, and rec
   // With no --report, or a report too long for the ledger, the cause is that report.
   const none = call('step', 'end', 'fix:f3', 'done');
   assert.equal(none.status, 1, none.out);
-  assert.deepEqual(none.lines.slice(0, 2), [fix, '  The call has no --report.']);
+  assert.deepEqual(none.lines.slice(0, 2), [fix, '  Give the call --report.']);
   const big = call('step', 'end', 'fix:f3', 'done', '--report', report(call,
     'software-developer-fix-f3', `Reply: fixed: the limit.\n${'x'.repeat(9000)}\n`));
   assert.equal(big.status, 1, big.out);
-  assert.deepEqual(big.lines.slice(0, 2), [fix, '  The report is too long for the ledger, so ' +
-    'the line Reply: is not read.']);
+  assert.deepEqual(big.lines.slice(0, 2), [fix, '  Shorten the report to at most 8 KB: it is ' +
+    'too long for the ledger, so its line Reply: is not read.']);
   assert.ok(big.lines.some((line) => line.startsWith('Cut the report ')), big.out);
   assert.deepEqual(stored(w).ledger.steps.map((row) => row.state), ['running']);
   const long = `Export the first limit rows. ${'x'.repeat(2100)}`;

@@ -60,14 +60,15 @@ module.exports = (lib) => {
   // reply returns the reply of the report of the step id, { kind, reason }, or the finding of a
   // report that has no line Reply: with a reason, or more than one.
   // A report of null is a call with no --report, or, when reported, a report that is too long
-  // for the ledger, as the other finding of the call shows.
+  // for the ledger, as the other finding of the call shows: the limit is 8,192 bytes, REPORT_BYTES
+  // of the ledger verb of running-a-workflow.
   function reply(id, report, reported) {
     const found = (report || '').replace(/\r\n?/g, '\n').split('\n')
       .map((line) => REPLY.exec(line.trimEnd())).filter(Boolean);
     const reason = found.length === 1 ? lib.cut(lib.plainText(found[0][2]), REASON) : '';
     if (reason) return { reply: { kind: found[0][1], reason } };
-    const none = reported ? 'The report is too long for the ledger, so the line Reply: is not ' +
-      'read.' : 'The call has no --report.';
+    const none = reported ? 'Shorten the report to at most 8 KB: it is too long for the ledger, ' +
+      'so its line Reply: is not read.' : 'Give the call --report.';
     const cause = report === null ? none : (found.length > 1
       ? `The report has ${found.length} lines Reply:.`
       : (found.length ? 'The line Reply: has no reason.' : 'The report has no line Reply:.'));
