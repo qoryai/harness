@@ -4661,7 +4661,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   changes that have not ended: the groups of `acceptance-criteria` first, then those of
   `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
   `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
-  questions of the source about the criteria that have no answer. A criterion change has
+  questions with no answer of the source about the output, and of the open questions about
+  a point of the group, such as one that a writer raised. While a source has a group of
+  `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
+  that the group after the criteria version has both kinds of points. A criterion change has
   ended when a version of its output that counts, from a run, has the id of its source as
   `decision`. A criteria version from a run, linked to a source, that adds, changes or
   removes a criterion checked by `Demo` also adds a ripple point to the group of

@@ -19,10 +19,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   draft of the acceptance criteria or the demo scenarios for the points of one source byte for
   byte against the newest version: it changes only the item of each point, adds one item at
   the end for a point with no item, and keeps every other byte, the order and the line ends.
-  `feedback points` prints the groups of the criteria before those of the scenarios, the
-  questions of a source that wait for an answer as `waiting`, and a ripple point for each
-  criterion checked by `Demo` that a linked criteria version changed, until a later linked
-  scenario version.
+  `feedback points` prints the groups of the criteria before those of the scenarios, and the
+  group of the scenarios of a source only after its criteria version, unless the criteria
+  wait. It prints as `waiting` the questions of a source that wait for an answer and the open
+  questions about a point of the group, and a ripple point for each criterion checked by
+  `Demo` that a linked criteria version changed, until a later linked scenario version.
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,

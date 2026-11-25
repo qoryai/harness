@@ -498,17 +498,18 @@ test('feedback points prints each point that has not ended, and one group per so
   // Two points of one source and output are one group; the oldest source comes first, and a
   // new criterion has no item.
   const data = changed((d) => {
-    d.sources.push(sourceOf('es_2', 'note', 'Add a total. Film it.', '2026-11-24T09:00:00Z'));
+    d.sources.push(sourceOf('es_2', 'note', 'Add a total.', '2026-11-24T09:00:00Z'),
+      sourceOf('es_3', 'note', 'Film it.', '2026-11-23T09:00:00Z'));
     d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit' },
       { ...P2, id: 'p4', source: 'es_2', quote: 'Add a total.', item: undefined },
-      { ...P2, id: 'p5', source: 'es_2', quote: 'Film it.', output: 'demo-scenarios',
+      { ...P2, id: 'p5', source: 'es_3', quote: 'Film it.', output: 'demo-scenarios',
         item: 'scenario-1' });
   });
   const groups = sourcesIn(points(store({ feedback: [{ data }] })));
-  // The groups of the criteria come before those of the scenarios, which follow them.
+  // The groups of the criteria come before those of the scenarios, also of an older source.
   assert.deepEqual(groups.map((one) => [one.decision, one.output, one.points.map((p) => p.id)]),
     [['es_2', 'acceptance-criteria', ['p4']], ['gd_1', 'acceptance-criteria', ['p2', 'p3']],
-      ['es_2', 'demo-scenarios', ['p5']]]);
+      ['es_3', 'demo-scenarios', ['p5']]]);
   assert.equal('item' in groups[0].points[0], false);
 });
 
@@ -746,6 +747,32 @@ test('a note with points on the scenarios too has one group with both kinds of p
   assert.deepEqual(groupsOf({}, { decision: 'gd_1', at: '2026-11-25T10:30:00Z' }), []);
 });
 
+test('a note with points on the scenarios too prints its scenarios after its criteria version', () => {
+  const scenarioPoint = { ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
+    item: 'scenario-2' };
+  const data = changed((d) => { d.points.push(scenarioPoint); });
+  const linked = { data: edit(CRITERIA, [AC2, AC2_NEW]), decision: 'gd_1',
+    at: '2026-11-25T10:00:00Z' };
+  const kindsOf = (feedback, criteria, versions = [{}]) => sourcesIn(points(scenarioStore({
+    feedback: [{ data: feedback }], 'acceptance-criteria': [{ data: CRITERIA }, ...criteria] },
+  versions.map(() => SCENARIOS), versions))).map((group) => [group.output,
+    group.points.map((point) => point.id)]);
+  // The criteria are not stored yet when points first runs: only their group prints, so that
+  // no scenario version comes before the criteria and hides the ripple.
+  assert.deepEqual(kindsOf(data, []), [['acceptance-criteria', ['p2']]]);
+  // The pull after the criteria version prints one group with both kinds of points.
+  assert.deepEqual(kindsOf(data, [linked]), [['demo-scenarios', ['p3', 'ac-2']]]);
+  assert.deepEqual(kindsOf(data, [linked], [{}, { decision: 'gd_1',
+    at: '2026-11-25T10:30:00Z' }]), []);
+  // While the criteria wait for a question, the group of the scenarios prints.
+  const asking = changed((d) => {
+    d.points.push(scenarioPoint, { ...ASK, id: 'p4', source: 'gd_1',
+      output: 'acceptance-criteria', item: 'ac-3', question: 'q1' });
+  });
+  assert.deepEqual(kindsOf(asking, []), [['acceptance-criteria', ['p2']],
+    ['demo-scenarios', ['p3']]]);
+});
+
 test('a group whose source has a question about the criteria with no answer waits', () => {
   const data = changed((d) => {
     d.points.push({ ...ASK, id: 'p3', source: 'gd_1', output: 'acceptance-criteria',
@@ -756,6 +783,26 @@ test('a group whose source has a question about the criteria with no answer wait
   assert.deepEqual(groupOf().waiting, ['q1']);
   assert.deepEqual(groupOf([{ id: 'q1', state: 'open' }]).waiting, ['q1']);
   assert.equal('waiting' in groupOf([{ id: 'q1', state: 'answered' }]), false);
+});
+
+test('a group waits for an open question about one of its points, such as one of the writer', () => {
+  const data = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Add a total.', item: undefined });
+  });
+  const criterion = { type: 'acceptance-criteria', name: 'main', item: 'ac-2' };
+  const groupOf = (...questions) => sourcesIn(points(store({ feedback: [{ data }],
+    questions: [{ data: { questions } }] })))[0];
+  // The writer's question about the item of p2, or about p3, which adds a criterion.
+  assert.deepEqual(groupOf({ id: 'q1', state: 'open', about: criterion }).waiting, ['q1']);
+  assert.deepEqual(groupOf({ id: 'q2', state: 'open', about: { type: 'feedback',
+    name: 'main', item: 'p3' } }).waiting, ['q2']);
+  // Until the answer, each pull prints the group with waiting, so the run changes nothing of it.
+  assert.equal('waiting' in groupOf({ id: 'q1', state: 'answered', about: criterion }), false);
+  // A question about another criterion, or about an item in another output, makes no group wait.
+  for (const about of [{ ...criterion, item: 'ac-3' }, { type: 'demo-scenarios', name: 'main',
+    item: 'ac-2' }, { type: 'feedback', name: 'main', item: 'p1' }]) {
+    assert.equal('waiting' in groupOf({ id: 'q1', state: 'open', about }), false);
+  }
 });
 
 // The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a

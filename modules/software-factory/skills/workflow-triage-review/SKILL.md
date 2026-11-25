@@ -103,7 +103,9 @@ that output makes. A group has these members:
   that criterion in a newer version of the acceptance criteria: its `quote` has the row
   `before` and `after`, and its `item` is the scenario that shows the criterion, or there is
   none when a new scenario shows it;
-- `waiting`: only when a question of the source about the criteria has no answer.
+- `waiting`: only when a question has no answer that the group depends on: a question of
+  the source about the output, or a question about a point of the group, such as one that a
+  writer of the group raised.
 
 Take the groups one at a time, in the order of the lines. `<writer>` and `<reviewer>` are
 ${qory:agents/spec-writer} and ${qory:agents/spec-reviewer} for `acceptance-criteria`, and
@@ -144,7 +146,10 @@ the id of the question that the questions writer adds for the item.
 
 After the last group, run `<qory> artifact pull` and `feedback points` again. A new JSON
 line is a group that a push of this run started, such as the demo scenarios of a changed
-Demo criterion: take it as above. A pushed group stays pushed when a later group fails.
+Demo criterion: take it as above. `feedback points` prints the group of the demo scenarios
+of a source only after the criteria version of that source, unless the group of the
+criteria has `waiting`, so that one group has the source's points on the scenarios and
+those of each changed Demo criterion. A pushed group stays pushed when a later group fails.
 After a crash, step 9 prints only the groups that no version has.
 
 ### A change that the run could not write

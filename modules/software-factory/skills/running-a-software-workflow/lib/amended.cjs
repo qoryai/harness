@@ -6,8 +6,9 @@
 // feedback, or, in a group of demo-scenarios, a ripple point { id, quote: { before, after },
 // item }: a Demo criterion that a criteria version linked to the source added, changed or
 // removed, with its id, its row before and after ({ text, check }, or null), and the scenario
-// that shows it, or no item when a new scenario must show it. waiting lists the questions of
-// the source about the criteria that have no answer: the run changes nothing of such a group.
+// that shows it, or no item when a new scenario must show it. waiting lists the questions with
+// no answer of the source about the output, and the open questions about a point of the
+// group: the run changes nothing of such a group.
 'use strict';
 
 const fs = require('node:fs');
@@ -40,12 +41,32 @@ module.exports = (lib) => {
     return readFile(file, `${type} version ${number}`);
   }
 
-  // answered returns the ids of the newest questions that are not open.
-  function answered(context) {
+  // newestQuestions returns the questions of the newest version of questions, or none.
+  function newestQuestions(context) {
     const newest = context.newest('questions', 'questions.json');
-    if (!newest) return new Set();
-    return new Set(parseJson(newest.text, `questions version ${newest.number}`, 'questions')
-      .questions.filter((one) => isObject(one) && one.state !== 'open').map((one) => one.id));
+    if (!newest) return [];
+    return parseJson(newest.text, `questions version ${newest.number}`, 'questions')
+      .questions.filter(isObject);
+  }
+
+  // waitingOn returns the ids of the questions with no answer that group waits for: the
+  // question of each `question` point of its source on its output, and each open question
+  // about a point of the group, such as one that a writer of the group raised. A question is
+  // about a point when its about is the point's item in the output of the group, or the
+  // point's id in the feedback.
+  function waitingOn(group, data, questions) {
+    const asked = new Set(questions.filter((one) => one.state !== 'open').map((one) => one.id));
+    const items = new Set(group.points.map((point) => point.item).filter(Boolean));
+    const ids = new Set(group.points.filter((point) => typeof point.quote === 'string')
+      .map((point) => point.id));
+    const about = (one) => isObject(one.about) && (one.about.type === group.output
+      ? items.has(one.about.item) : one.about.type === 'feedback' && ids.has(one.about.item));
+    return [...new Set([
+      ...data.points.filter((point) => point.sort === 'question' &&
+        point.source === group.decision && point.output === group.output &&
+        !asked.has(point.question)).map((point) => point.question),
+      ...questions.filter((one) => one.state === 'open' && about(one)).map((one) => one.id),
+    ])];
   }
 
   // rowOf returns the text and the check of a live criterion, or null.
@@ -94,7 +115,10 @@ module.exports = (lib) => {
   // criterionGroups returns the groups of criterion changes that have not ended, the groups of
   // acceptance-criteria first, each output's groups oldest source first. A criterion change
   // ends when a version of its output that counts, which a run wrote, has the id of its source
-  // as `decision`. A ripple point joins the group of demo-scenarios of its source.
+  // as `decision`. A ripple point joins the group of demo-scenarios of its source. The group of
+  // demo-scenarios of a source is left out while the source has a group of
+  // acceptance-criteria with no waiting: after that group's version, one group of
+  // demo-scenarios has both the points of the source and the ripple points.
   function criterionGroups(context, data = storedFeedback(context)) {
     const groups = new Map();
     const group = (source, output) => {
@@ -118,14 +142,15 @@ module.exports = (lib) => {
       const found = ripples(context, source);
       if (found.length) group(source, 'demo-scenarios').points.push(...found);
     }
-    const asked = answered(context);
+    const questions = newestQuestions(context);
     for (const one of groups.values()) {
-      const waiting = data.points.filter((point) => point.sort === 'question' &&
-        point.source === one.decision && point.output === one.output &&
-        !asked.has(point.question)).map((point) => point.question);
+      const waiting = waitingOn(one, data, questions);
       if (waiting.length) one.waiting = waiting;
     }
-    return [...groups.values()].sort((a, b) => ORDER.indexOf(a.output) -
+    const held = new Set([...groups.values()].filter((one) =>
+      one.output === 'acceptance-criteria' && !one.waiting).map((one) => one.decision));
+    return [...groups.values()].filter((one) => !(one.output === 'demo-scenarios' &&
+      held.has(one.decision))).sort((a, b) => ORDER.indexOf(a.output) -
       ORDER.indexOf(b.output) || Date.parse(a.at) - Date.parse(b.at));
   }
 
