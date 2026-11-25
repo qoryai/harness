@@ -102,9 +102,11 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
      findings of that text report. That start does not count toward the reviewer's start
      limit, so run no `starts` before it. This applies only when the file did not change
      since that review; a review of a changed file counts as the skill of your workflow
-     lists. The file changed when the report path in that line differs from the path that
-     the call before the start printed. Then run the call again. When the line is still there after two such starts, run
-     `step end <id> failed`, and end as "Failures" lists.
+     lists. The reviewed content changed when the path in the line "The report of this file
+     is <path>." differs from the path that the call before the start printed. For `checks`,
+     the reviewed content also includes the files that the lock lists. Then run the call
+     again. When the line is still there after two such starts, run `step end <id> failed`,
+     and end as "Failures" lists.
    - After a review, a line that starts with "Fix the blocking findings" means that the
      report file has a blocking finding: push, lock and run nothing. The file needs a fix of
      its writer and a new review, as your workflow lists for a finding marked `break`.
