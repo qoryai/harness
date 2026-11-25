@@ -1820,8 +1820,10 @@ tool's error. The first line of each reason starts with what to do. The guard de
   comment after it, with a quoted redirect file that has a space, as in `> "a b"`, with a
   quoted or `$` redirect file after `2>&1`, or with the target in a combined or shortened
   option, as in `mv -vt /tmp a`. The guard reads a shell command as it does for `.reports/`,
-  so a script that a later call runs still reaches the folder, and so does an archive that
-  `tar`, `unzip` or `ditto` extracts into the artifact folder. On Gemini CLI, Cursor and
+  so a script that a later call runs still reaches the folder, and so do an archive that
+  `tar`, `unzip` or `ditto` extracts into the artifact folder, a copy of the sources that
+  `find -exec` or `xargs` add, as in `find src -exec cp -R {} /tmp \;`, and a copy that the
+  guard splits at a redirect, as in `cp -R src/. /x 2>&1 /tmp`. On Gemini CLI, Cursor and
   Copilot CLI no guard protects `.step-reports`, so any agent can write a report there.
   Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
@@ -4842,8 +4844,9 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
   runs `demo check <id>`, starts the agent again with the printed lines at most twice,
-  starts `check-reviewer` on the script, at most 3 times for each script and each
-  correction, runs `check demo-script`, runs `preflight` once for the session, runs `demo
+  starts `check-reviewer` on the script, once for the first script of a scenario, at most
+  12 times for the first scripts of a run together and 3 times in a follow for the
+  corrections, runs `check demo-script`, runs `preflight` once for the session, runs `demo
   run <id>`, reads the report of the script again with `step end`, pushes the script with
   `qory artifact push demo-script --name <scenario> <folder>/.demo/<scenario>.json`, and
   ends the step with `--script-sha256` of the script that passed.

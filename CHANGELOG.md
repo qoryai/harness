@@ -27,11 +27,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   have the name of the folder below, as for `.reports`. The limits, as for `.reports`: an
   agent with a shell can write the report with a path that a variable, `$( )`, a backquote
   or `eval` makes, with a script that a later call runs, with a path that code joins from
-  parts, or with an archive that `tar`, `unzip` or `ditto` extracts; and on Gemini CLI,
-  Cursor and Copilot CLI any agent can write it. Any edit after the review needs a new
-  review, so `workflow-plan-the-build` fixes no sentence after the last one. Every other
-  kind of step ends as before, and on Claude Code the step limit leaves the two agents out,
-  as before.
+  parts, with an archive that `tar`, `unzip` or `ditto` extracts, with a copy of the sources
+  that `find -exec` or `xargs` add, or with a copy that the guard splits at a redirect, as
+  in `cp -R src/. /x 2>&1 /tmp`; and on Gemini CLI, Cursor and Copilot CLI any agent can
+  write it. Any edit after the review needs a new review, so `workflow-plan-the-build` fixes
+  no sentence after the last one. Every other kind of step ends as before, and on Claude
+  Code the step limit leaves the two agents out, as before.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
