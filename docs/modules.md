@@ -5164,9 +5164,8 @@ agent is the `acceptance-check-writer`, the file `changes.json` has the mode `ch
 the number of the lock that counts, the file is in `paths`, and every check of the lock at
 that file is a check of a changed criterion. A support file, a file that another check has,
 every other agent and the main session stay denied. `lock.writable` reads `changes.json`
-without following links, and a `changes.json` with more than one link lifts nothing. The guard
-has no source for the name of the workflow, so it keys on the
-agent.
+without following links, and a `changes.json` with more than one link lifts nothing. The
+guard has no source for the name of the workflow, so it keys on the agent.
 
 The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
 has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The

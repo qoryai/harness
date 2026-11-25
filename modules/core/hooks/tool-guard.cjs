@@ -596,9 +596,10 @@ function lockSetup({ root, env, script = process.argv[1], plugin, artifacts }) {
 // lockedFiles returns { what, files, number, checks } of the lock that counts: files are the
 // real paths of the files it lists under root, the working folder, number is the version of
 // the lock, and checks lists each file as { ...record, file }, with the record that
-// `lock.files` of the type of the lock lists for the file, or none. It returns { files: [] } when no type of the registry
-// has a lock, or no version of it counts, and { type, problem } when the lock of type cannot be
-// read. It reads the lock with checks.cjs's reader: in a run, it pulls the lock.
+// `lock.files` of the type of the lock lists for the file, or none. It returns { files: [] }
+// when no type of the registry has a lock, or no version of it counts, and { type, problem }
+// when the lock of type cannot be read. It reads the lock with checks.cjs's reader: in a run,
+// it pulls the lock.
 function lockedFiles(args) {
   const { root } = args;
   const { base, io, lockType, readLock } = lockSetup(args);
@@ -641,10 +642,10 @@ function lockTypeOf(args) {
 
 // liftedLock returns lock without the files that `lock.writable` of the type of the lock returns,
 // else lock. `lock.writable` takes the agent's name, the version of the lock and the records of
-// its files, and returns the files of the lock that the agent may write. Every
-// other file stays locked, also when the type has no `lock.writable`, when it throws, or when
-// it returns anything but a list of text. name is the name of the agent of the call, or null
-// for the main session.
+// its files, and returns the files of the lock that the agent may write. Every other file
+// stays locked, also when the type has no `lock.writable`, when it throws, or when it returns
+// no list; an entry of the list that is no text lifts nothing. name is the name of the agent of
+// the call, or null for the main session.
 function liftedLock(lock, { root, name, fold, type }) {
   if (!Array.isArray(lock.files) || !lock.files.length || !Array.isArray(lock.checks) ||
     !Number.isInteger(lock.number) || name === null || !type) return lock;
@@ -663,7 +664,8 @@ function liftedLock(lock, { root, name, fold, type }) {
 }
 
 // refusedShell returns the start of the reason that `lock.refused` of the type of the lock
-// returns for a shell command of an agent, else null. It is null when the type has no `lock.refused` or throws.
+// returns for a shell command of an agent, else null. It is null when the type has no
+// `lock.refused`, when it throws, or when it returns no text.
 function refusedShell(type, command) {
   const refused = type && type.lock && type.lock.refused;
   if (typeof refused !== 'function') return null;

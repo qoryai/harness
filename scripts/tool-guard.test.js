@@ -482,8 +482,9 @@ test('the guard lifts nothing for a record with a second link', () => {
 });
 
 test('the guard keeps a support file locked, as the lock type lists it with no criterion', () => {
-  // The store has version 1 of the lock, so the record is made from version 1.
-  const one = changeCase({ lock: 1 });
+  // The store has version 1 of the lock, so the record is made from version 1. The record
+  // lists the support file in `paths`, so only its missing criterion keeps it locked.
+  const one = changeCase({ lock: 1, paths: [CHECK_PATH, 'checks/helper.ts'] });
   const helper = path.join(one.dir, 'checks', 'helper.ts');
   fs.writeFileSync(helper, 'export {};\n');
   const home = harnessHome();
