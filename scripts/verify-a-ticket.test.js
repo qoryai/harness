@@ -163,8 +163,9 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(!/`previous_findings`[^.]*\bmissing\b/.test(stops),
       `${name} stops for previous_findings`);
     assert.ok(!/build_report[^.]*\bmissing\b/.test(stops), `${name} stops for build_report`);
-    assert.ok(flat.includes('With no `previous_findings` in `qory.review_session`, this is the ' +
-      'first round: go on.'), `${name} goes on in the first round`);
+    assert.ok(flat.includes('With no `previous_findings` in `qory.review_session`, the stage ' +
+      'has no earlier finding of a reviewer: go on. The same holds when its file has no ' +
+      'finding of your role.'), `${name} goes on in the first round`);
     assert.ok(flat.includes('`previous_findings` is set and its file cannot be read'),
       `${name} stops for a file that cannot be read`);
     assert.ok(flat.includes('Where a skill lists a value of `qory.review`, read the member of ' +
@@ -707,9 +708,11 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(oneLine(reviewers).includes('Read no report of a reviewer, start no reviewer ' +
     'again, and fix no report'));
   const round = oneLine(section(WORKFLOW, 'The round'));
-  assert.ok(round.includes('--reviewers tamper-reviewer,verification-reviewer` once, and add ' +
+  assert.ok(round.includes('--reviewers tamper-reviewer,verification-reviewer` once. Add ' +
     '`--suite <suite>` only when the member `qory.review_session.suite_result` exists'));
   assert.ok(round.includes('With no `--suite`, the round has no suite finding.'));
+  assert.ok(round.includes('Add `--previous <file>` only when the member ' +
+    '`qory.review_session.previous_findings` exists, with its path as `<file>`'));
   const end = oneLine(section(WORKFLOW, 'The end'));
   assert.ok(end.includes('`passed`, when all of these hold'));
   assert.ok(end.includes('Never record `passed` while step 7 has a failed scenario.'));
@@ -718,6 +721,11 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(end.includes('"The change passed Verify: 1 criterion is met and no finding is ' +
     'blocking."'));
   assert.ok(end.includes('"Failed scenarios: <names>." with the names joined by ", "'));
+  assert.ok(end.includes('qory posts the reports to the findings of the work item before it ' +
+    'records the verdict, and the next session of `implement-changes` gets each open finding.'));
+  assert.ok(end.includes('Checked 2 reports: 1 blocking, 0 non-blocking open findings; 0 ' +
+    'closed.'));
+  assert.doesNotMatch(oneLine(WORKFLOW), /qory writes the findings/);
   // The limit of the verdict is in docs/modules.md: a skill that an agent loads has none.
   assert.doesNotMatch(WORKFLOW, /shortcut:/);
   assert.doesNotMatch(read('skills', 'workflow-review-changes', 'SKILL.md'), /shortcut:/);
@@ -792,9 +800,33 @@ test('a session with no suite result: a clean round passes and the matrix passes
   const got = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH]);
   assert.equal(got.status, 0, got.out + got.err);
   assert.equal(got.lines.at(-1),
-    'Checked 2 reports: 0 blocking and 0 non-blocking findings; no blocking finding is open.');
+    'Checked 2 reports: 0 blocking, 0 non-blocking open findings; 0 closed.');
   assert.ok(!got.out.includes('full-suite'));
   assert.equal(verification(wk).matrix.every((row) => row.state === 'met'), true);
+});
+
+test('a session of a later take: an earlier finding of a Verify reviewer stays open until its ' +
+  'report closes it', () => {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  const previous = path.join(fs.mkdtempSync(path.join(tmp, 'previous-')), 'open-findings.json');
+  fs.writeFileSync(previous, JSON.stringify({ round: 1, findings: [{ id: 'f7', stage: 'verify',
+    source: { kind: 'reviewer', name: 'tamper-reviewer' }, severity: 'blocking', state: 'open',
+    quote: 'skip: true', file: 'tests/ac4.test.js', line: 3, point: 'The test of AC-4 is skipped.',
+    problem: 'The check of AC-4 runs no assertion.', fix: 'Remove the skip.',
+    proof: 'tests/ac4.test.js:3 has skip: true.', disputed: false, replies: [] }] }));
+  reviewed(wk, 'tamper-reviewer', []);
+  reviewed(wk, 'verification-reviewer', []);
+  const open = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH, '--previous', previous]);
+  assert.equal(open.status, 1, open.out + open.err);
+  assert.equal(open.lines[0], 'Blocking finding f7 of tamper-reviewer, tests/ac4.test.js:3, ' +
+    'open and not in its report: The test of AC-4 is skipped.');
+  fs.writeFileSync(path.join(wk.reports, 'tamper-reviewer.json'), JSON.stringify({
+    reviewer: 'tamper-reviewer', findings: [], closes: [{ id: 'f7', state: 'fixed',
+      reason: 'The test of AC-4 runs its assertion.' }] }));
+  const closed = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH, '--previous', previous]);
+  assert.equal(closed.status, 0, closed.out + closed.err);
+  assert.equal(closed.lines.at(-1),
+    'Checked 2 reports: 0 blocking, 0 non-blocking open findings; 1 closed.');
 });
 
 test('a session: a lowered state is one blocking finding with its proof, and exits 1', () => {
