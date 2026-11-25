@@ -579,8 +579,8 @@ module.exports = (lib) => {
     COMMIT, MATRIX_RECORD, SCENARIO_JSON, brief, short, shown, full, commandsTable, jsonFile,
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
-    versionsOf, countedOf, timeOf, linked, criterionHash, pullAgain, criteriaTarget, criteriaFile, newestCriteria, askAbove,
-    noCriteria,
+    versionsOf, countedOf, timeOf, linked, criterionHash, pullAgain, criteriaTarget, criteriaFile,
+    newestCriteria, askAbove, noCriteria,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,
   };

@@ -517,6 +517,48 @@ test('a session on a test work item stores build-plan and ends passed', () => {
     ['code-explorer', 'build-planner', 'plan-reviewer']);
 });
 
+// ---- The check of a plan in change mode -----------------------------------------------------
+
+// changed writes the record of `checks.cjs changes` in the checkout of w, as that verb does.
+function changed(w, record) {
+  const file = path.join(w.repo, '.qory', 'build', 'changes.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(record));
+}
+
+// withPlan stores planOf(3) as version 1 of build-plan in the artifact folder of w.
+function withPlan(w) {
+  version(w.artifacts, 'build-plan', 1, 'build-plan.md', planOf(3));
+  listVersion(path.join(w.artifacts, 'index.json'), 'build-plan', 1, 'run-0');
+}
+
+test('in change mode, the check of a plan finds a changed deliverable that lists no changed criterion', () => {
+  const w = work();
+  withPlan(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  const record = { mode: 'changes', lock: 1, criteria: 1, target: 2, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] };
+  changed(w, record);
+  // The row of AC-2 changes: no finding. The row of AC-1 changes too: one finding.
+  fs.writeFileSync(file, planOf(3).replace('Write one row per order.', 'Write one row per item.'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  const refused = call('check', 'build-plan', file);
+  assert.equal(refused.status, 1, refused.err);
+  assert.match(refused.out, /Restore d-1 of build-plan.md as the newest version has it\.\n/);
+  // A row that the newest version lacks and that lists no changed criterion is removed.
+  fs.writeFileSync(file, planOf(3).replace('| d-3 |', '| d-9 |'));
+  assert.match(call('check', 'build-plan', file).out, /Remove d-9 of build-plan.md\./);
+  // With no record of change mode, or the mode full, the check finds nothing of this kind.
+  fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  changed(w, { mode: 'full', reason: 'no acceptance lock counts' });
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
 // allFenced returns the text of each code block of text, without the indent of its lines.
 function allFenced(text) {
   return [...text.matchAll(/^( *)```[a-z]*\n([\s\S]*?)\n *```/gm)].map((match) =>

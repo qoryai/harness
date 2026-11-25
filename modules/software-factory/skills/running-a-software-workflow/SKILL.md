@@ -109,3 +109,26 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    last, or follow it with a heading. Any other line in it, and any other spelling of
    the header, such as `## Left out` or `left out:`, makes the list unreadable.
    `Left out: none` is the empty list.
+
+## Change mode
+
+`plan-the-build` and `write-acceptance-checks` redo only what a changed criterion touches.
+Right after `checks.cjs resume`, run `checks.cjs changes` once. It pulls the criteria version
+that the newest acceptance lock locks, compares it with the criteria version that the run
+reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. No agent
+writes that file: the tool guard denies each write below `.qory/build/`. The last line of its
+output is one of these three, and it reads nothing of the build plan except that a version
+exists:
+
+- "Full run: <reason>." There is no lock that counts, no build plan or no approved criteria.
+  Do the workflow whole, as you would without this section.
+- "No criterion changed since acceptance-lock version <N>." Run no `step begin`, start no
+  agent, push nothing, and read no stop of the build plan, such as a missing check path:
+  the workflow ends as its section "No criterion changed" lists. A build plan that is
+  newer than the lock stays as it is.
+- "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed." The
+  lines before it list the ids as "Changed: ac-2, ac-4.", "Added: ac-5.", "Removed: ac-3."
+  and "Checks to write: ac-2, ac-5.", each only when it has an id. Quote these lines when
+  your workflow says to pass the ids to an agent.
+
+When `changes` exits with 1, 2 or 3, end as "Failures" lists for the checks script.

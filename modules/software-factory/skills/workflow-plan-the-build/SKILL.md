@@ -23,7 +23,9 @@ not load the rules it needs, so it pushed no build plan."
 
 1. Pull, then run `<qory> work-item show`. Run the `find` of "Further repositories" of
    `running-a-software-workflow`. Then run `<skill folder>/checks.cjs resume` once, as "The
-   build ledger" of that skill lists.
+   build ledger" of that skill lists, and `<skill folder>/checks.cjs changes` once, as
+   "Change mode" of that skill lists. With the line "No criterion changed since", do "No
+   criterion changed" and go no further in this list.
 2. Run `step begin` for the step `plan` of the workflow `plan-the-build`, as "The build
    ledger" lists. Its files are the `acceptance-criteria.json` and, when the work item has
    one, the `spec.md` that the pull wrote, the `SKILL.md` of this skill and the agent file
@@ -35,11 +37,15 @@ not load the rules it needs, so it pushed no build plan."
    the "Further repositories" line, and what to settle: for each criterion of the newest
    approved acceptance criteria, the files that its change touches, the tests of that area,
    and the commands that run the tests, the linter, the type check, the build and the app.
-   A subagent may be unable to start another, so you start this agent first and pass its
+   In change mode, give it the lines "Changed:" and "Added:" of `changes`, quoted, and ask
+   for the criteria on them only. A subagent may be unable to start another, so you start this agent first and pass its
    facts on, unchanged.
 4. Start ${qory:agents/build-planner} with the input file's path, the artifact folder, the
    run's number, the notes, the "Further repositories" line, the code explorer's report,
-   unchanged, and any finding to fix. Run `notes` for it with `--files`, as "Notes in a
+   unchanged, and any finding to fix. In change mode, also give it the lines "Changed:",
+   "Added:" and "Removed:" of `changes`, quoted, and tell it to change only the deliverables
+   that list those criteria: `check build-plan` finds a changed deliverable that lists none.
+   Run `notes` for it with `--files`, as "Notes in a
    start" of `running-a-workflow` lists, and give it the paths that the explorer's report
    lists under "Facts:". It drafts `build-plan.md`.
 5. Run `check build-plan <folder>/build-plan.md`, as "Check before each review" lists. When a
@@ -59,6 +65,14 @@ not load the rules it needs, so it pushed no build plan."
 8. Run `step end plan done`, as "The build ledger" lists, with the planner's last report
    and the version that the push stored.
 9. Do "The end".
+
+## No criterion changed
+
+When `changes` prints "No criterion changed since acceptance-lock version <N>.", run no
+`step begin`, start no agent, and push nothing. The build plan stays as it is, also when it
+is newer than the lock. When the run is alone, run `<qory> run verdict passed`, and end with
+"No criterion changed since acceptance-lock version <N>, so the run changed no plan and
+wrote no checks." Under a higher workflow, return that line as the report.
 
 ## More than 7 deliverables
 

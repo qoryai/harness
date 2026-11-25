@@ -16,13 +16,13 @@
 
 const path = require('node:path');
 
+const { FILE } = require('../lib/change-record.cjs');
+
 module.exports = (lib) => {
   const {
     Context, Missing, artifactFolder, countedOf, criteria, criteriaDiff, criteriaFile,
     criteriaTarget, liveIn, lockReader, readFile, writeJson,
   } = lib;
-
-  const FILE = path.join('.qory', 'build', 'changes.json');
 
   // pathOf returns the path of a listed file of the lock below the working folder.
   const pathOf = (file) => (file.folder ? `${file.folder}/${file.path}` : file.path);

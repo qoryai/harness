@@ -484,8 +484,11 @@ module.exports = (lib) => {
     const live = new Map(liveIn(readFile(file, 'acceptance-criteria').replace(/\r\n?/g, '\n'))
       .map((criterion) => [criterion.id, criterion]));
     for (const check of data.checks.filter(isObject)) {
-      if (live.has(check.criterion)) check.criterion_sha256 = criterionHash(live.get(check.criterion));
-      else delete check.criterion_sha256;
+      if (live.has(check.criterion)) {
+        check.criterion_sha256 = criterionHash(live.get(check.criterion));
+      } else {
+        delete check.criterion_sha256;
+      }
     }
   }
 

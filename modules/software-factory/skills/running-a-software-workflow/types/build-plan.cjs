@@ -3,11 +3,13 @@
 // A plan with a serve row has the line "App address: <url>" in Summary (lib/plan.cjs).
 'use strict';
 
+const changeRecord = require('../lib/change-record.cjs');
+
 module.exports = (lib) => {
   const {
     appAddress, brief, commandsTable, criterionList, filesCell, full, inOrder, isPath,
-    liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural, sectionTable,
-    sectionTitles, short, shown, wrongWords,
+    liveCriteria, markdownText, MAX_DELIVERABLES, memberLimit, plural, sectionRows,
+    sectionTable, sectionTitles, short, shown, wrongWords,
   } = lib;
 
   const FILE = 'build-plan.md';
@@ -42,7 +44,8 @@ module.exports = (lib) => {
     run.did('deliverables');
     const rows = found.rows.map(([id = '', change = '', criteria = '', files = '', check = '']) =>
       ({ id: plainCell(id), change, criteria: criterionList(criteria), files, check:
-        plainCell(check) }));
+        plainCell(check),
+        cells: [id, change, criteria, files, check].map((cell) => cell.trim()) }));
     if (rows.length > MAX_DELIVERABLES) {
       // A plan over 7 deliverables ends the session with escalate, unless the newest
       // answer of a member on the work item allows its number.
@@ -117,6 +120,43 @@ module.exports = (lib) => {
     }
   }
 
+  // changedRows finds each row of the draft that differs from the row of the same id in the
+  // newest build plan, or has no such row, and lists no criterion that the change mode lists as
+  // changed, added or removed: with the record of `checks.cjs changes` in the working folder,
+  // a plan changes only the rows that a changed criterion touches. A push has no such record,
+  // so only a check of a session reads it.
+  // shortcut: a row that lists a changed criterion may change in any cell, and a deliverable
+  // that the planner removes is not found; replace it when a row of the plan names its reason.
+  function changedRows(run, rows) {
+    const { context } = run;
+    const record = context.mode === 'check' && !context.offline && context.workingFolder
+      ? changeRecord.read(context.workingFolder) : null;
+    const ids = record && record.mode === 'changes'
+      ? new Set(['changed', 'added', 'removed'].flatMap((key) => record[key])) : null;
+    const newest = ids && context.newest('build-plan', FILE);
+    if (!newest) return;
+    let before;
+    try {
+      before = sectionRows(newest.text, 'Deliverables', DELIVERABLE_COLUMNS);
+    } catch {
+      return;
+    }
+    run.did('changed rows');
+    rows.forEach((row, place) => {
+      const old = before.find((one) => plainCell(one.Id) === row.id);
+      const same = old &&
+        DELIVERABLE_COLUMNS.every((name, at) => old[name].trim() === row.cells[at]);
+      const listed = [...row.criteria, ...(old ? criterionList(old.Criteria) : [])]
+        .some((entry) => ids.has(entry.id));
+      if (!same && !listed) {
+        const { name, more } = nameOf(row.id, place);
+        run.find(`${old ? 'Restore' : 'Remove'} ${name} of ${FILE}${old ? ' as the newest ' +
+          'version has it' : ''}.\nNo criterion of it changed since the acceptance lock.` +
+          more);
+      }
+    });
+  }
+
   // commands checks ## Commands as commandsTable of lib/build.cjs does, and adds the serve
   // kind for a criterion planned as Demo. It returns the kinds whose Command is not none.
   function commands(run, part, live, rows) {
@@ -165,6 +205,7 @@ module.exports = (lib) => {
     if (inOrder(run, FILE, parts, SECTIONS)) {
       const rows = deliverables(run, parts[1]);
       if (rows) criteria(run, rows, live);
+      if (rows) changedRows(run, rows);
       const kinds = commands(run, parts[2], live, rows);
       if (kinds && kinds.has('serve')) address(run, parts[0]);
       if (rows) run.note = plural(rows.length, 'deliverable');

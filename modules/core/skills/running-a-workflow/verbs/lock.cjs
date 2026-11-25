@@ -12,7 +12,8 @@
 //
 // lock <file> fills entry.sha256 of each listed file from the working folder, calls fill of the
 // type with the parsed draft and the artifact folder, so that the type fills what it derives
-// from other artifacts, writes <file>, checks it as `check` does, and pushes it with `<qory> artifact push <type> <file>`. In a
+// from other artifacts, writes <file>, checks it as `check` does, and pushes it with
+// `<qory> artifact push <type> <file>`. In a
 // walled run, qory runs the push check of the type before Qory Apiary stores the lock, and a
 // lock that the check refuses is not stored. lock --verify reads the version that counts,
 // and finds each listed file that differs from its SHA-256.

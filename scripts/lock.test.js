@@ -1195,8 +1195,8 @@ test('lock --verify in a run exits 3 when the pull fails, and needs the SHA-256 
 // ---- The push check of acceptance-lock, with a cancelled run's lock -----------------------
 
 // pushStore returns the folder that qory mounts for the push check of acceptance-lock: index.json
-// of root, and the newest version of the lock, of the acceptance criteria and of the questions that no cancelled
-// run wrote. With byNumber, it is the newest version by number, cancelled or not, as in the
+// of root, and the newest version of the lock, of the acceptance criteria and of the questions
+// that no cancelled run wrote. With byNumber, it is the newest version by number, cancelled or not, as in the
 // push store of an older qory, whose push folder holds the newest version by number.
 function pushStore(root, byNumber = false) {
   const store = next('push');
