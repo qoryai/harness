@@ -22,7 +22,7 @@ SOFTWARE_ENTRY=skills/workflow-explore-a-ticket
 # The other entries that every compose of the core stack lists.
 CORE_ENTRIES="hooks/end-gate.cjs hooks/reports-guard.cjs hooks/tool-guard.cjs skills/run-artifacts skills/running-a-workflow skills/reading-the-work skills/artifact-text skills/writing-questions skills/checking-questions skills/replying-to-comments skills/reviewing-drafts agents/questions-writer agents/questions-reviewer agents/reply-writer"
 # The other entries that only a compose of the software stack lists.
-SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket"
+SOFTWARE_ENTRIES="skills/writing-proposals skills/checking-proposals skills/exploring-code agents/code-explorer agents/proposal-writer agents/proposal-reviewer skills/workflow-write-specs skills/running-a-software-workflow skills/running-checks skills/writing-specs skills/checking-specs agents/spec-writer agents/spec-reviewer skills/workflow-write-technical-decisions skills/writing-decisions skills/checking-decisions agents/decision-writer agents/decision-reviewer skills/workflow-make-mockups skills/designing-mockups skills/checking-mockups agents/designer agents/mockup-reviewer skills/workflow-write-demo-scenarios skills/writing-demo-scenarios skills/checking-demo-scenarios agents/scenario-writer agents/scenario-reviewer skills/workflow-shape-a-ticket skills/planning-shape skills/checking-shape agents/shape-planner agents/shape-reviewer skills/workflow-plan-the-build skills/planning-builds skills/checking-build-plans skills/judging-findings agents/build-planner agents/plan-reviewer skills/workflow-write-acceptance-checks skills/writing-acceptance-checks skills/checking-acceptance-checks agents/acceptance-check-writer agents/check-reviewer skills/workflow-review-changes skills/checking-code skills/checking-tests skills/checking-acceptance agents/code-reviewer agents/test-reviewer agents/acceptance-reviewer skills/checking-security skills/checking-data-changes skills/checking-failure-handling agents/security-reviewer agents/data-reviewer agents/failure-reviewer skills/writing-submissions agents/submission-writer skills/workflow-implement-changes skills/changing-code skills/debugging-failures skills/making-small-changes agents/software-developer agents/software-debugger skills/scripting-demos agents/browser-demo-author skills/checking-tampering skills/judging-criteria agents/tamper-reviewer agents/verification-reviewer skills/workflow-verify-a-ticket skills/checking-demos agents/demo-reviewer skills/workflow-capture-demos"
 # The entries that only a compose of the authoring stack lists.
 AUTHORING_ENTRIES="skills/writing-agents skills/writing-skills agents/harness-reviewer"
 # Rule 5: PRD, matched by case, and in any case: whitelist, blacklist, graylist, greylist,
@@ -1563,13 +1563,13 @@ pass "$NOSCOPE"
 # The module browser-screens fills the role demo-author, and no entry of software-factory
 # references that role, so a stack without the module composes, implement-changes included.
 # qory fails the compose of a stack whose workflow starts the role with no agent to fill it.
-# The workflow capture-demos is not built yet, so the module fixture-demos ships a skill
-# workflow-capture-demos that starts agents/demo-author, as qory's check of a workflow reads
-# it. Each case composes a copy of this repository with the stack of the case, from a checkout
+# The workflow capture-demos of software-factory starts no demo-author, so the module
+# fixture-demos ships a skill workflow-fixture-demos that starts agents/demo-author, as qory's
+# check of a workflow reads it, for a stack with the workflow fixture-demos. Each case composes a copy of this repository with the stack of the case, from a checkout
 # that extends the software stack of that copy by path:
-# - plain: no browser-screens and no capture-demos;
-# - bare-demos: no browser-screens and capture-demos, which fails;
-# - screen-demos: browser-screens and capture-demos.
+# - plain: no browser-screens and no fixture-demos;
+# - bare-demos: no browser-screens and fixture-demos, which fails;
+# - screen-demos: browser-screens and fixture-demos.
 for case in plain bare-demos screen-demos; do
 	mkdir -p "$TMP/screens-$case/home" "$TMP/screens-$case/checkout" || exit 1
 	cp -R "$ROOT/qory.yaml" "$ROOT/modules" "$ROOT/stacks" "$TMP/screens-$case/home/" || exit 1
@@ -1591,39 +1591,39 @@ for case in plain bare-demos screen-demos; do
 	esac
 	case $case in
 	bare-demos | screen-demos)
-		mkdir -p "$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-capture-demos" ||
+		mkdir -p "$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-fixture-demos" ||
 			exit 1
 		printf 'apiVersion: qory.dev/v1alpha1\nname: fixture-demos\n' \
 			>"$TMP/screens-$case/home/modules/fixture-demos/qory-module.yaml" || exit 1
-		printf -- '---\nname: workflow-capture-demos\ndescription: Film the demos.\n---\n\n# Capture demos\n\nStart ${qory:agents/demo-author}.\n' \
-			>"$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-capture-demos/SKILL.md" ||
+		printf -- '---\nname: workflow-fixture-demos\ndescription: Film the demos.\n---\n\n# Fixture demos\n\nStart ${qory:agents/demo-author}.\n' \
+			>"$TMP/screens-$case/home/modules/fixture-demos/skills/workflow-fixture-demos/SKILL.md" ||
 			exit 1
 		sed 's/software-factory, /software-factory, fixture-demos, /' "$ROOT/qory.yaml" \
 			>"$TMP/screens-$case/home/qory.yaml" || exit 1
 		awk '{ print $0 }
 			$0 == "  - name: software-factory" { print "  - name: fixture-demos" }
-			$0 == "workflows:" { print "  capture-demos: {tier: balanced, access: read}" }' \
+			$0 == "workflows:" { print "  fixture-demos: {tier: balanced, access: read}" }' \
 			"$STACK" >"$STACK.new" && mv "$STACK.new" "$STACK" || exit 1
 		;;
 	esac
 done
 SCREENS="harness compose --dry-run"
-expect "a stack without browser-screens and without capture-demos: $SCREENS exits 0" \
+expect "a stack without browser-screens and without fixture-demos: $SCREENS exits 0" \
 	0 "$TMP/screens-plain/checkout" "$QORY" harness compose --dry-run --runtime claude
-expect_entry "a stack without browser-screens and without capture-demos: $SCREENS lists skills/workflow-implement-changes" \
+expect_entry "a stack without browser-screens and without fixture-demos: $SCREENS lists skills/workflow-implement-changes" \
 	skills/workflow-implement-changes
 expect_no_entry "a stack without browser-screens: $SCREENS lists no skills/scripting-demos" \
 	skills/scripting-demos
 expect_no_entry "a stack without browser-screens: $SCREENS lists no agents/browser-demo-author" \
 	agents/browser-demo-author
-NODEMO="a stack without browser-screens and with capture-demos: $SCREENS exits 2 with the fix to add a module"
+NODEMO="a stack without browser-screens and with fixture-demos: $SCREENS exits 2 with the fix to add a module"
 run "$TMP/screens-bare-demos/checkout" "$QORY" harness compose --dry-run --runtime claude
 if [ "$RC" -ne 2 ] || ! printf '%s\n' "$OUT" | grep -Fq \
-	'Add a module that fills agents/demo-author, or drop capture-demos from the workflows and process.'; then
+	'Add a module that fills agents/demo-author, or drop fixture-demos from the workflows and process.'; then
 	fail "$NODEMO (exit status $RC)"
 fi
 pass "$NODEMO"
-expect "a stack with browser-screens and with capture-demos: $SCREENS exits 0" \
+expect "a stack with browser-screens and with fixture-demos: $SCREENS exits 0" \
 	0 "$TMP/screens-screen-demos/checkout" "$QORY" harness compose --dry-run --runtime claude
 expect_entry "a stack with browser-screens: $SCREENS lists agents/browser-demo-author" \
 	agents/browser-demo-author
