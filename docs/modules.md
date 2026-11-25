@@ -937,9 +937,9 @@ findings as lines of two lines, `verbs`, `ledger`, the rules of the build ledger
 the check at the end of a session, and `finding_kinds`, the kinds of the source of a
 finding besides `reviewer`, `check` and `hook` of `core`, each with its label, the word
 that a line shows before the name of the source. Only `check`, `push`, `report`, `end`,
-`step`, `resume`, `findings`, `panel --previous`, a verb of the registry and the usage
-read the registry; `starts`, `begin` and `fixes` never load it. A type or a finding kind
-that two skills add stops each verb that reads the registry with exit 3. A
+`step`, `resume`, `lock`, `findings`, `panel --previous`, a verb of the registry and the
+usage read the registry; `starts`, `begin` and `fixes` never load it. A type or a finding
+kind that two skills add stops each verb that reads the registry with exit 3. A
 `workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
 the harness: the verb stops with an error that names the file and exit 3, and `end
 --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs
