@@ -21,6 +21,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const secrets = require('./secrets.cjs');
+const { shown } = require('./shown.cjs');
 
 const SAFE = [
   '-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'diff.external=',
@@ -275,9 +276,9 @@ function hidden(Missing, cwd, env, fix, listed) {
   return found;
 }
 
-// excluded returns '.git/info/exclude' when that file of the checkout has a pattern, a line
-// that is neither blank nor a comment, else null. Its patterns hide untracked files from git
-// status, so a check counts a pattern there as a change.
+// excluded returns the finding of the first pattern in .git/info/exclude, as it hides files from
+// git status, else null. /.qory, which qory writes, and a line that starts with /.qory/ are no
+// finding. A line is blank when it is empty or only ASCII spaces, as in git; none is trimmed.
 function excluded(Missing, cwd, env) {
   const file = ok(Missing, cwd, ['rev-parse', '--git-path', 'info/exclude'],
     'Run the verb in the checkout of the work', { env }).trim();
@@ -287,13 +288,14 @@ function excluded(Missing, cwd, env) {
   } catch {
     return null;
   }
-  return text.split(/\r?\n/).some((line) => line.trim() && !line.startsWith('#'))
-    ? '.git/info/exclude' : null;
+  const found = text.split(/\r?\n/).find((line) => !/^ *$/.test(line) && !line.startsWith('#') &&
+    line !== '/.qory' && !line.startsWith('/.qory/'));
+  if (found === undefined) return null;
+  return `${EXCLUDED}\n${shown(secrets.shown(found, secrets.secretValues(env)), 80)}`;
 }
 
-// EXCLUDED is the line of a checkout with a pattern in .git/info/exclude.
-const EXCLUDED = 'Empty .git/info/exclude, then run the verb again: its patterns hide files ' +
-  'from git status.';
+// EXCLUDED is the first line of the finding of excluded; the pattern is on the line after it.
+const EXCLUDED = 'Remove this line from .git/info/exclude, then run the verb again.';
 
 // changedSince returns each path that a commit between base and HEAD changes, so that a
 // path that a later commit changes back counts too.
@@ -350,6 +352,6 @@ function checkout(Missing, io) {
 }
 
 module.exports = {
-  SAFE, COMMIT, EXCLUDED, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
+  SAFE, COMMIT, git, ok, top, head, resolve, changes, changedSince, unpushed, emptyTree,
   emptyBlob, names, isQory, checkout,
 };

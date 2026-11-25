@@ -996,7 +996,7 @@ test('scope and freeze: a pattern in .git/info/exclude is red', () => {
   write(dir, 'tests/setup.js', 'globalThis.add = () => 3;\n');
   const got = call(dir, ['scope', 'deliverable:d-1']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Empty \.git\/info\/exclude, then run the verb again: its patterns hide files from git status/);
+  assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, '  "tests/setup.js"']);
   write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
   assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 1);
   // A global excludes file hides nothing from the check.
@@ -1005,6 +1005,56 @@ test('scope and freeze: a pattern in .git/info/exclude is red', () => {
   sh(dir, 'config', 'core.excludesFile', path.join(dir, 'global-ignore'));
   assert.match(call(dir, ['scope', 'deliverable:d-1']).out, /Undo the change to "tests\/setup\.js"/);
 });
+
+// What .git/info/exclude of a checkout has in the tests of the line that qory writes there:
+// each text of QORY_LINES is no finding, and each text of PATTERNS is red, with its first
+// pattern as a finding shows it.
+const QORY_LINES = ['/.qory\n', '/.qory', '/.qory/in/\n', '# a comment\n/.qory\n/.qory/in/\n',
+  '# a comment\r\n\r\n  \r\n/.qory\r\n/.qory/in/\r\n'];
+const PATTERNS = [['.qory', '".qory"'], ['.qory/', '".qory/"'], ['/.qoryx', '"/.qoryx"'],
+  ['/.qory*', '"/.qory*"'], [' /.qory', '" /.qory"'], ['\t/.qory', '"\\t/.qory"'],
+  ['/.qory ', '"/.qory "'], ['/.qory\t', '"/.qory\\t"'], [' /.qory/in/', '" /.qory/in/"'],
+  ['!/.qory', '"!/.qory"'], ['/.QORY', '"/.QORY"'], ['/.QORY/in/', '"/.QORY/in/"'],
+  ['/.qory\ntests/setup.js', '"tests/setup.js"'], ['/.qory\n/.qoryx\n.qory', '"/.qoryx"'],
+  ['tests/setup.js\n/.qory/in/', '"tests/setup.js"'], ['\t', '"\\t"'], [' \t', '" \\t"'],
+  ['\f', '"\\f"'], ['\u00a0', '"\u00a0"'], ['\u00a0/.qory', '"\u00a0/.qory"'],
+  ['/.qory\u00a0', '"/.qory\u00a0"'], ['/.qory\n\u00a0', '"\u00a0"'],
+  ['a\u202eb"\u0000\u001b[2J', '"a\\u202eb\\"\\u0000\\u001b[2J"'],
+  ['x'.repeat(80), `"${'x'.repeat(80)}"`], ['x'.repeat(81), `"${'x'.repeat(77)}..."`],
+  [`/${TOKEN}`, '"a path with a key in its name"'],
+  [`${'x'.repeat(90)} ${TOKEN}`, '"a path with a key in its name"']];
+const EXCLUDED = 'Remove this line from .git/info/exclude, then run the verb again.';
+const exclude = (dir, text) => fs.writeFileSync(
+  path.resolve(dir, sh(dir, 'rev-parse', '--git-path', 'info/exclude')), text);
+
+for (const text of QORY_LINES) {
+  test(`scope and freeze: ${JSON.stringify(text)} in .git/info/exclude is no finding`, () => {
+    const dir = checkout();
+    exclude(dir, text);
+    write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+    const scope = call(dir, ['scope', 'deliverable:d-1']);
+    assert.equal(scope.status, 0, scope.out);
+    const freeze = call(dir, ['freeze', 'deliverable:d-1']);
+    assert.equal(freeze.status, 0, freeze.out);
+    assert.equal(sh(dir, 'show', '--name-only', '--format=', 'HEAD'), 'src/a.js');
+  });
+}
+
+for (const [text, shown] of PATTERNS) {
+  test(`scope and freeze: the pattern ${shown} in .git/info/exclude is red`, () => {
+    const dir = checkout();
+    const start = sh(dir, 'rev-parse', 'HEAD');
+    exclude(dir, `${text}\n`);
+    write(dir, 'src/a.js', 'exports.add = (a, b) => b + a;\n');
+    for (const verb of ['scope', 'freeze']) {
+      const got = call(dir, [verb, 'deliverable:d-1']);
+      assert.equal(got.status, 1, `${verb}: ${got.out}`);
+      assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, `  ${shown}`], verb);
+      assert.ok(!got.out.includes(TOKEN));
+    }
+    assert.equal(sh(dir, 'rev-parse', 'HEAD'), start);
+  });
+}
 
 test('freeze: keeps the skip-worktree mark of a path that a sparse checkout leaves out', () => {
   const dir = checkout();
@@ -1578,13 +1628,55 @@ test('run: a pattern in .git/info/exclude is red, and a bad path shows no key', 
   fs.appendFileSync(path.resolve(dir, sh(dir, 'rev-parse', '--git-path', 'info/exclude')), 'tests/setup.js\n');
   const got = call(dir, ['run', 'targeted']);
   assert.equal(got.status, 1, got.out);
-  assert.match(got.lines[0], /^Empty \.git\/info\/exclude/);
+  assert.equal(got.lines[0], EXCLUDED);
   assert.deepEqual([lastRecord(dir).state, lastRecord(dir).clean], ['red', false]);
   const bad = call(dir, ['run', 'targeted', `${TOKEN} x.js`]);
   assert.equal(bad.status, 2);
   assert.ok(!bad.out.includes(TOKEN) && !bad.err.includes(TOKEN), bad.err);
   const masked = call(dir, ['run', 'targeted', `tests/${TOKEN}.js`]);
   assert.ok(!JSON.stringify(lastRecord(dir)).includes(TOKEN) && !masked.out.includes(TOKEN));
+});
+
+test('run: the line that qory writes to .git/info/exclude is no finding', () => {
+  const dir = checkout();
+  for (const text of QORY_LINES) {
+    exclude(dir, text);
+    const got = call(dir, ['run', 'targeted', 'tests/a.test.js']);
+    assert.equal(got.status, 0, `${JSON.stringify(text)}: ${got.out}`);
+    assert.equal(lastRecord(dir).state, 'green');
+  }
+});
+
+for (const [text, shown] of PATTERNS) {
+  test(`run: the pattern ${shown} in .git/info/exclude is red`, () => {
+    const dir = checkout();
+    exclude(dir, `${text}\n`);
+    const got = call(dir, ['run', 'targeted', 'tests/a.test.js']);
+    assert.equal(got.status, 1, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, `  ${shown}`]);
+    const record = lastRecord(dir);
+    assert.deepEqual([record.state, record.clean, record.reasons], ['red', false,
+      [EXCLUDED, shown]]);
+    assert.ok(!`${got.out}${JSON.stringify(record)}`.includes(TOKEN));
+  });
+}
+
+test('run locked, diff and probe: a pattern in .git/info/exclude is the finding', () => {
+  const dir = lockedCheckout();
+  exclude(dir, '/.qory\ntests/setup.js\n');
+  const locked = call(dir, ['run', 'locked']);
+  assert.equal(locked.status, 1, locked.out);
+  assert.deepEqual(lastRecord(dir).reasons, [EXCLUDED, '"tests/setup.js"']);
+  const patch = PATCH('exports.add = (a, b) => a + b;', 'exports.add = (a, b) => a - b;');
+  write(dir, '.qory/artifacts/p.patch', patch);
+  for (const [status, ...argv] of [[1, 'diff', '--from', sh(dir, 'rev-parse', 'HEAD')],
+    [3, 'probe', '.qory/artifacts/p.patch', 'targeted', 'tests/a.test.js']]) {
+    const got = call(dir, argv);
+    assert.equal(got.status, status, got.out);
+    assert.deepEqual(got.lines.slice(0, 2), [EXCLUDED, '  "tests/setup.js"'], argv[0]);
+  }
+  exclude(dir, '/.qory\n');
+  assert.equal(call(dir, ['diff', '--from', sh(dir, 'rev-parse', 'HEAD')]).status, 0);
 });
 
 test('limits: run reads the harness report at the top of the checkout, and never qory.yaml', () => {

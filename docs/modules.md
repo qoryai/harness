@@ -3989,7 +3989,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   line, and the scan result is the line before "Checked ...". git runs with full stat
   checks, no untracked cache, no global excludes file, no global or system git config (git
   2.32 or later), `diff.ignoreSubmodules=none` and `LC_ALL=C`, and a pattern in
-  `.git/info/exclude` is red. An ignored path is no change, but an untracked `.gitignore`
+  `.git/info/exclude` is red, other than the line `/.qory`, which qory writes there, and a
+  line that starts with `/.qory/`. A line that is empty, has only spaces or starts with `#`
+  is no pattern, and no white space is trimmed. The finding is "Remove this line from
+  .git/info/exclude, then run the verb again.", with the first such pattern in quotes on the
+  next line. An ignored path is no change, but an untracked `.gitignore`
   file is one, also when it ignores itself; one inside an ignored folder is none. git
   compares change times by the second, so a tracked file whose times or size differ from its
   index entry by a nanosecond or a byte is hashed, and counts when its content differs. Stat
@@ -4380,8 +4384,8 @@ Exit status:
   the folder, 0 needs a range with no changed path.
 - 1: a path outside the Files, including a path under `.qory`; any changed path when the
   folder has no build plan; a key; more than 500 commits since the start commit; or a
-  pattern in `.git/info/exclude`. One line per finding, the fix first, and never the value
-  of a key.
+  pattern in `.git/info/exclude` other than `/.qory` or a line that starts with `/.qory/`.
+  One line per finding, the fix first, and never the value of a key.
 - 2: wrong arguments, with the usage on stderr.
 - 3: a missing input, such as no folder at `--artifacts`, no `index.json`, a listed build
   plan that cannot be read, a Files cell that is no list of paths, or a start commit that

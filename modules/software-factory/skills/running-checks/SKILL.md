@@ -240,7 +240,8 @@ A check is green only when its result shows it. These are red:
 - A lint, types or build command that exits with a status other than 0.
 - A result file whose testsuite element counts more tests, failures, errors or skips than
   its testcase elements, or with a failure or error outside a testcase.
-- A pattern in `.git/info/exclude`: it hides files from git status. Empty the file.
+- A pattern in `.git/info/exclude` other than `/.qory` or `/.qory/…`: it hides files from
+  git status. Remove the line that the finding shows.
 
 A failed test runs once more alone, by its file, before it counts as failed, when the result
 file has the file of each failed test in its `file` attribute, tests failed in at most 10
