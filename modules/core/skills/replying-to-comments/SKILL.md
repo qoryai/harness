@@ -1,6 +1,6 @@
 ---
 name: replying-to-comments
-description: Load before you decide on an open review comment, and before you write replies to review comments. Contains which comments you decide, the four outcomes of a reply, the members of a reply, and what a replies document keeps.
+description: Load before you decide on an open review comment, and before you write replies to review comments. Contains which comments you decide, the four outcomes of a reply, the members of a reply, what a replies document keeps, and the reply to an entry of a file.
 ---
 
 # Replying to comments
@@ -64,3 +64,10 @@ Keep every other member and every review comment as it is. Never change a member
 never change or remove a reply, never remove a review comment or change its `id`, and never
 add a review comment. A push with a key twice in one object fails. When no review comment
 has a decision, write nothing.
+
+## Reply to an entry of a file
+
+A workflow can give you a file of entries in place of the review comments. Then add the
+member `reply` to each entry whose id you got: what the run does with the entry, as plain
+text on one line of at most 3 sentences, with no id of an item. For an entry with a question,
+write what the question asks. Change nothing else in the file, and write the whole file.

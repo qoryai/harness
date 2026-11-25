@@ -85,8 +85,8 @@ agents, and the hooks of the end check with their settings:
   sets their times once the run has one.
 - `questions-reviewer`: an agent that reviews a run's questions by `reviewing-drafts`
   against the check list of `checking-questions`, and reports findings as text.
-- `reply-writer`: an agent that drafts a run's replies to open review comments by
-  `replying-to-comments`.
+- `reply-writer`: an agent that drafts a run's replies to open review comments, or the reply
+  of each new entry of a file that a workflow gives it, by `replying-to-comments`.
 - `running-a-workflow`: the main session of a small workflow loads it, and no agent does.
   The skill contains what such a session reads, how it starts agents, questions and replies,
   the decision from a finding's marks, the review limits, the checks script with its
@@ -115,13 +115,13 @@ scenario, as docs/modules.md lists. A checkout in a workspace set up as a softwa
 extends it. The stack declares the
 workflow `explore-a-ticket`, with `access: read`, and the workflows `shape-a-ticket`,
 `write-specs`, `write-technical-decisions`, `make-mockups` and `write-demo-scenarios`, each
-with `access: read`, the workflow `plan-the-build`, with `tier: thinking` and `access:
-write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
+with `access: read`, the workflows `triage-review` and `plan-the-build`, each with `tier:
+thinking` and `access: write`, the workflow `write-acceptance-checks`, with `tier: balanced` and `access: write`,
 the workflow `implement-changes`, with `tier: balanced` and `access: write`, the
 workflow `review-changes`, with `tier: thinking`, `access: read` and `review_group:
 reviewers`, and the workflow `verify-a-ticket`, with `tier: thinking`, `access:
 write-no-push` and `review_group: verify-reviewers`. The `software-factory` module ships
-the process template, eleven workflows' skills, thirty-two other skills, twenty-eight
+the process template, twelve workflows' skills, thirty-three other skills, twenty-nine
 agents and the settings for a run of those workflows:
 
 - `process.yaml`: the process template that a software-factory workspace starts with:
@@ -301,6 +301,17 @@ agents and the settings for a run of those workflows:
   read-only, and reports what runs next and the reason for what does not.
 - `shape-reviewer`: an agent that reads a run's outputs together by `reviewing-drafts` and
   `checking-shape`, read-only, and reports findings as text.
+- `workflow-triage-review`: orchestrate the first step of a Build run after feedback. When no
+  note is open, the session ends with `passed` and starts no agent. Otherwise it starts
+  `feedback-triager`, `questions-writer` and `reply-writer` in that order, checks and pushes
+  `feedback`, then the questions. A point that only a member can settle ends the run with
+  `qory run verdict escalate`. Build's `sequence` in `process.yaml` is empty, so no run
+  starts this workflow yet.
+- `sorting-feedback`: load it before you sort a person's feedback on a change into points.
+  The skill contains the file `feedback.json`, the three sorts, the words of a person, the
+  question of a point, the fast track and the check list.
+- `feedback-triager`: an agent that sorts each note into points by `sorting-feedback`: a fix,
+  a change of a criterion, or a question.
 - `workflow-plan-the-build`: orchestrate the build plan of one ticket. The session starts
   `code-explorer`, `build-planner` and `plan-reviewer` in that order, and pushes
   `build-plan` after a review with no finding left. A plan of more than 7 deliverables,

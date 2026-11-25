@@ -30,6 +30,9 @@ module.exports = (lib) => {
     return work ? 1 : 0;
   }
 
+  // shortcut: a question is found by its id alone, so a question that another workflow asks
+  // under the id of a question that a crash left out counts as it; compare the about when a
+  // run shows this.
   function open(io, context) {
     const read = workItemNotes(context);
     if (read.why !== undefined) throw new Missing(`Run feedback open again.\n${read.why}.`);

@@ -8,6 +8,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- The workflow `triage-review`, which sorts the feedback that a person gave on a change into
+  points: a fix, a change of a criterion, or a question. With it come the skills
+  `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
+  `feedback` with its push check, the rule for the question of a point, and the verbs
+  `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
+  file that a workflow gives it. No process entry starts the workflow yet. A criterion-change
+  point changes no criterion yet, and an answer to a question is no source yet.
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
   a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
   the `App address:` of the build plan, signs in with the replay of `preflight`, and runs

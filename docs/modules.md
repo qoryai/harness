@@ -109,9 +109,9 @@ entry with `access: write` sets `plan: build-plan`, and a module of the stack de
 scope check of that type under `scope_checks` (see [The manifest,
 qory-module.yaml](#the-manifest-qory-moduleyaml)). In the `software` stack,
 `explore-a-ticket`, `shape-a-ticket`, `write-specs`, `write-technical-decisions`,
-`plan-the-build`, `review-changes` and `verify-a-ticket` run on `thinking`, and
-`make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and `implement-changes` on
-`balanced`.
+`triage-review`, `plan-the-build`, `review-changes` and `verify-a-ticket` run on
+`thinking`, and `make-mockups`, `write-demo-scenarios`, `write-acceptance-checks` and
+`implement-changes` on `balanced`.
 Each entry of this repository's stacks is one line, as `scripts/plan-the-build.test.js`
 reads it: the test fails on an entry with no tier, a tier that is not one of the three, and
 a write entry with no `plan: build-plan`.
@@ -2361,7 +2361,17 @@ The checks:
   starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
   `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
   titles passes a push. In a push, and in a folder with no such record, a question about a
-  criterion with none of those titles, such as a question of the spec, has no such rule;
+  criterion with none of those titles, such as a question of the spec, has no such rule. The
+  same skill adds the reader of `feedback`, whose items are the ids of its points, and the
+  rule for the question of a point, for an `about` of the type `feedback` or
+  `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as
+  `question`, in the draft `feedback.json` in a check, else in the newest version, and any new
+  question with an `about` of the type `feedback`. It refuses a question with fewer than 2 or
+  more than 4 options, with a `context` that has no words of the point in double quotes, or
+  that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot be
+  built as written: <cause>" and "adds", "changes" or "removes", and with an `about` other
+  than that of the point. A push of questions reads no feedback, so there the rule checks only
+  an `about` of the type `feedback`, with any words in double quotes;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
@@ -2398,7 +2408,7 @@ The checks:
 
 The types of Build and Verify are `pull-request`, `build-plan`, `build-report`,
 `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence`, `demo-video`,
-`screenshot`, `verification` and `walkthrough`. The check of each JSON type checks the file
+`screenshot`, `verification`, `walkthrough` and `feedback`. The check of each JSON type checks the file
 against the type's JSON Schema. The schemas are in `running-a-software-workflow/schemas/`.
 For a custom type, `process.yaml` has the same schema as the type's `json_schema`, and
 Qory Apiary reads it there. `verification` is a standard type: its schema is the
@@ -2589,6 +2599,16 @@ find:
   not the commit of the record. A check with a record that is missing or is not a record of
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
+- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
+  `comment` for `rc_` and `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the
+  source's time and text; a new source that differs from its note, or that has none; in a
+  check, an open note that is no source; a changed or missing source or point of the newest
+  version; a point id out of order; a `quote` that is no part of the source's text; a member
+  that the sort does not have, or lacks; an `item` that is no id of the `output`, or a
+  criterion that the criteria do not have; a `criterion-change` whose source has a `cm_` key,
+  or in a work item with no acceptance criteria; a question of two points, or one that the
+  newest questions have; in a check with a draft `questions.json`, a point whose question it
+  lacks; a `reply` of more than 3 sentences; and, in a push, a new point with no `reply`;
 - `walkthrough`: sections other than `## Summary`, then `## AC-<N>, "<first sentence>"` by
   number, with the id in any case and the criterion's words in quotes, then
   `## Risk on merge`; a heading whose text in quotes is not the criterion's words; a
@@ -2858,7 +2878,7 @@ push_checks:
 `[verification, acceptance-criteria]`, and the other types read nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
-the entries of its 16 types, with the program `workflow-checks.cjs`. Neither declares one
+the entries of its 17 types, with the program `workflow-checks.cjs`. Neither declares one
 for `verdict`, which qory refuses. Each program runs `checks.cjs push` of
 `running-a-workflow` in `modules/core`. `scripts/push-check.cjs` lies outside every entry of
 `core`, as one of the module's other files, which a compose places at
@@ -3201,6 +3221,21 @@ criterion. Both forms keep the words that `running-a-workflow` reads.
 
 Only `shape-a-ticket` uses these four workflows in the shipped process. Each one also works
 as a stage's one entry.
+
+`workflow-triage-review`, process entry `triage-review`, sorts the feedback that a person gave
+on the change. The session pulls and runs `checks.cjs feedback open`. With nothing open, it
+starts no agent, pushes nothing and records `passed`. Otherwise it starts `feedback-triager`,
+which sorts each source into points by `sorting-feedback`: a `fix` inside the approved
+criteria, a `criterion-change`, or a `question`. `check feedback` runs after it, at most 3
+times. Then `questions-writer` writes one question per `question` point, and `reply-writer`
+adds the `reply` of each point. The session pushes `feedback`, then `questions`, and ends with
+`escalate` and one `answer` point per open question, else with `passed`. A point outside the
+kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
+workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
+`process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
+no criterion; the next workflow step adds it. Until then, such a point stays in `feedback
+points`. `shortcut:` an answer to a question is no source yet, so a run builds nothing from
+it; read it once each answer has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -4248,6 +4283,20 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `## Review rounds` and `## Counts`, which need the rounds, and prints a line that says
   so. With no ledger, it prints a line that the tables were not checked. `push` and
   `end --offline` check the order of the sections alone.
+- `feedback open`: prints each open note of `qory work-item show` that no version of
+  `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
+  line "Not asked: <point>, <question>" per question that the newest questions lack, and one
+  line "Waiting for an answer: <point>, <question>" per open one. The notes are those of the
+  kinds `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id
+  has the key of its time and text, and an answer to a question is left out. It exits with 1
+  for a source or a question not asked, with 0 for neither, and with 3 when the notes cannot
+  be read. A line of a source is not cut.
+- `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
+  in the newest `build-ledger`, then one JSON line per source and output with criterion
+  changes that have not ended, oldest source first: `decision`, `at`, `output` and `points`,
+  each with `id`, `quote`, `item` and `change`. A criterion change has ended when a version of
+  its output that counts, from a run, has the id of its source as `decision`. It exits with 1
+  when it prints one. It runs no git command and needs no network.
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
@@ -4675,12 +4724,12 @@ template that a software-factory workspace starts with. The file sets these keys
   `base_view: document`, `size_limit: 1048576` and `max_files: 1`: one Markdown file of at
   most 1 MiB. The custom types of Build and Verify follow, each with `max_files: 1`:
   `build-plan` and `build-report` with `base_view: document`, and `pull-request`,
-  `build-ledger`, `acceptance-lock`, `demo-script` and `demo-evidence` with
+  `build-ledger`, `acceptance-lock`, `demo-script`, `demo-evidence` and `feedback` with
   `base_view: structured`, each with `size_limit: 1048576`, the default of Qory Apiary,
   except `pull-request`, whose `size_limit` is 786432.
   Each structured type has the `json_schema` of
   `skills/running-a-software-workflow/schemas/<type>.schema.json`. The draft check of
-  `build-ledger` reads that size limit from `process.yaml` and refuses a file above it, as
+  `build-ledger` and of `feedback` reads that size limit from `process.yaml` and refuses a file above it, as
   the push does. `build-ledger` and
   `acceptance-lock` also have `withdrawable: false`, so a run cannot withdraw a name of
   either type and pushes a new version instead: Qory Apiary returns 422 for that push in a

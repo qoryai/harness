@@ -460,3 +460,73 @@ test('feedback takes open or points alone', () => {
     assert.match(result.err, /^Give feedback open or points\./);
   }
 });
+
+// ---- The skills, the agents and the stack ------------------------------------------------------
+
+const read = (...parts) => fs.readFileSync(path.join(MODULES, ...parts), 'utf8');
+const WORKFLOW = read('software-factory/skills/workflow-triage-review/SKILL.md');
+const SORTING = read('software-factory/skills/sorting-feedback/SKILL.md');
+const flat = (text) => text.replace(/\s+/g, ' ');
+
+test('the skill starts the triager, the questions writer and the reply writer in that order', () => {
+  const at = ['feedback-triager', 'questions-writer', 'reply-writer']
+    .map((name) => WORKFLOW.search(new RegExp(`start\\s+\\$\\{qory:agents/${name}\\}`, 'i')));
+  assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2], at.join(' '));
+  const push = ['push feedback', 'push questions'].map((what) => WORKFLOW.indexOf(`artifact ${what}`));
+  assert.ok(at[2] < push[0] && push[0] < push[1], push.join(' '));
+});
+
+test('the stack has the workflow, and the settings allow its skills and its agent', () => {
+  assert.match(fs.readFileSync(path.join(MODULES, '../stacks/software/qory-stack.yaml'), 'utf8'),
+    /\n {2}triage-review: \{tier: thinking, access: write, plan: build-plan\}\n/);
+  const settings = JSON.parse(read('software-factory/settings/claude/settings.json'));
+  for (const rule of ['Skill(harness:workflow-triage-review)', 'Skill(harness:sorting-feedback)',
+    'Agent(harness:feedback-triager)']) {
+    assert.ok(settings.permissions.allow.includes(rule), rule);
+  }
+  assert.match(read('software-factory/agents/feedback-triager.md'),
+    /\ntools: Read, Grep, Glob, Skill, Write\nmodel: \$\{qory:thinking\}\n/);
+});
+
+test('each text that the skill ends with passes the check of the text of a point', () => {
+  const { pointCheck, pointRules } = require(path.join(CORE, 'types/points.cjs'));
+  const rules = pointRules(registry.loadRegistry(path.join(MODULES, 'core')));
+  const fill = (text) => text.replace('<words>', wordsOf(P2.quote)).replace(/<kind>/g,
+    'a text that the product shows').replace(/<(?:the )?(?:cause|built part|reason)[^>]*>/g,
+    'the toolbar has 4 buttons').replace('<criterion text>', 'A member exports the open list');
+  const texts = [
+    ['The run could not sort the feedback "<words>".'],
+    ['The feedback "<words>" can be read 2 ways, and a user sees a different result for each.'],
+    ['The feedback "<words>" cannot be built as written: <the cause in one clause>.'],
+    ['The feedback removes "<criterion text>", and the change already has <the built part, in ' +
+      'one clause>.'],
+    ['The feedback "<words>" changes the approved criteria, so a member decides it.'],
+    ['The feedback "<words>" is not <kind>: <reason>.', 'Pick Switch to Standard to build this ' +
+      'change on the Standard track, because the Fast track is only for <kind>.'],
+  ];
+  for (const [text, fix] of texts) {
+    for (const one of [text, fix].filter(Boolean)) {
+      assert.ok(flat(WORKFLOW).includes(one), one);
+    }
+    const found = [];
+    pointCheck({ did() {}, find: (line) => found.push(line) }, { text: fill(text),
+      action: 'run_again', ...(fix ? { fix: fill(fix) } : {}) }, 1, new Set(), new Set(), rules);
+    assert.deepEqual(found, [], text);
+  }
+  for (const line of ['The run sorted the feedback: <k> to fix in Build.',
+    'The run found no new feedback, so it changed nothing.']) {
+    assert.ok(flat(WORKFLOW).includes(line), line);
+  }
+});
+
+test('each context form of sorting-feedback passes the rule of the question of a point', () => {
+  const contexts = [...flat(SORTING).matchAll(/Context: ("<words>" .+?\.) (?=The |Nothing )/g)]
+    .map((one) => one[1]);
+  assert.equal(contexts.length, 4);
+  for (const context of contexts) {
+    passes(asked((q) => {
+      q.context = context.replace('<words>', wordsOf(ASK.quote)).replace(/<[^>]*>/g, 'a part');
+    }));
+  }
+  assert.ok(flat(SORTING).includes(`the words are "${wordsOf(P2.quote)}"`));
+});
