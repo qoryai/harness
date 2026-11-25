@@ -1,7 +1,8 @@
 // The scan of added lines for keys, which freeze runs before it commits. It needs no tool and
 // no network. It looks for two things:
-// - the shapes of keys that Forager's masker replaces (forager mask/shape.go, Shapes), and a
-//   PEM private key;
+// - the key shapes of key-shapes.cjs: the default ones, which Forager's masker replaces
+//   (forager mask/shape.go, Shapes), and those that the deployment adds; and a PEM private
+//   key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
 //   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that
 //   qory passes to the agent of a run, and the values of a key file whose path such a
@@ -14,22 +15,12 @@
 
 const fs = require('node:fs');
 
-const SHAPES = [
-  { kind: 'an Anthropic key', pattern: /sk-ant-[A-Za-z0-9_-]{16,}/ },
-  { kind: 'a GitHub token', pattern: /gh[pousr]_[A-Za-z0-9]{36,}/ },
-  { kind: 'a GitHub fine-grained token', pattern: /github_pat_[A-Za-z0-9_-]{16,}/ },
-  { kind: 'an AWS access key id', pattern: /(?:AKIA|ASIA)[A-Z0-9]{16,}/ },
-  { kind: 'a bearer token', pattern: /bearer[ \t]{1,16}[A-Za-z0-9._~+/=-]{16,}/i },
-  { kind: 'a private key', pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/ },
-];
+const keyShapes = require('./key-shapes.cjs');
+const { FLOOR } = require('./run-lists.cjs');
+
+const PRIVATE_KEY = { kind: 'a private key', pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/ };
 
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL/i;
-// The name of a variable that qory or the runtime of an agent passes to a run, such as
-// QORY_RUN_KEY, ANTHROPIC_API_KEY or GITHUB_TOKEN, or a token of a code forge, such as
-// GITLAB_TOKEN: the run keeps its value from a script of the run, such as a demo script that
-// the preflight replays.
-const RUN_KEY = new RegExp('^(?:QORY|ANTHROPIC|CLAUDE|OPENAI|CODEX|GEMINI)_|' +
-  '^(?:GH|GITHUB|GH_ENTERPRISE|GITHUB_ENTERPRISE|GITLAB|GL|BITBUCKET)_TOKEN$');
 const MIN_VALUE = 12;
 // The most bytes of a key file that the scan reads.
 const MAX_KEY_FILE = 64 * 1024;
@@ -95,11 +86,11 @@ function fileValues(text) {
     .filter((value) => value.length >= MIN_VALUE && !COMMON.test(value));
 }
 
-// secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
+// valuesOf returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
 // of a value of more than one line, such as a key in JSON, since the scan reads one line at a
 // time. A value that is the path of an existing file is no key itself: the scan takes the
 // values that fileValues returns for that file instead, when keyFile reads it.
-function secretValues(env) {
+function valuesOf(env) {
   const values = new Set();
   for (const [name, value] of Object.entries(env || {})) {
     if (!SECRET_NAME.test(name) || typeof value !== 'string') continue;
@@ -115,13 +106,44 @@ function secretValues(env) {
   return [...values];
 }
 
-// scanLine returns the kind of the first key in line, or null.
+// withShapes returns values with shapes, the compiled key shapes, as the member shapes that
+// scanLine reads. The member is not enumerable, so the list compares as a plain list.
+function withShapes(values, shapes) {
+  Object.defineProperty(values, 'shapes', { value: shapes });
+  return values;
+}
+
+// secretValues returns the values of valuesOf for env, with the key shapes of env: the default
+// shapes and those of the file of the deployment when it passes, else the default ones alone.
+// It writes no line and throws for no file, so that a caller that only shows a path or a line
+// can use it.
+const secretValues = (env) => withShapes(valuesOf(env), keyShapes.load(env).shapes);
+
+// scanValues returns { values, problem, warning } for the scan for keys of freeze, scope and
+// the end check: values as secretValues returns them; problem null, or the fix and the cause
+// when qory.key_shapes of inputs.json names a file that cannot be used, and then no scan may
+// run; warning null, or the line that the caller prints once when a run, with QORY_RUN_ID set,
+// has no qory.key_shapes.
+function scanValues(env) {
+  const got = keyShapes.load(env);
+  return { values: withShapes(valuesOf(env), got.shapes), problem: got.problem,
+    warning: got.none && env && env.QORY_RUN_ID ? keyShapes.WARNING : null };
+}
+
+// scanLine returns the kind of the first key in line, or null: the key shapes of values, the
+// default ones when values has none, then a private key, then a value of values.
 function scanLine(line, values) {
-  for (const shape of SHAPES) {
+  for (const shape of values.shapes || keyShapes.DEFAULT) {
     if (shape.pattern.test(line)) return shape.kind;
   }
+  if (PRIVATE_KEY.pattern.test(line)) return PRIVATE_KEY.kind;
   return values.some((value) => line.includes(value)) ? 'the value of a secret variable' : null;
 }
+
+// keyKind returns the kind of the first key shape or private key in text, of any number of
+// lines, with the key shapes of env as secretValues has them, or null. It looks for no value of
+// a variable.
+const keyKind = (text, env) => scanLine(text, withShapes([], keyShapes.load(env).shapes));
 
 // scanPatch returns { line, kind } for each added line of patch, the output of git diff -U0
 // for one file, that has a key. line is the line's number in the new file.
@@ -150,8 +172,15 @@ function scanPatch(patch, values) {
 // shows the key.
 const shown = (name, values) => (scanLine(name, values) ? 'a path with a key in its name' : name);
 
-// runKey reports whether name is the name of a variable of qory, of an agent or of a code
-// forge, as RUN_KEY matches it.
-const runKey = (name) => RUN_KEY.test(String(name));
+// runKey reports whether name is the name of a variable of a run's credentials, of qory, of an
+// agent or of a code forge: an entry of names, the list of credentialNames of run-lists.cjs,
+// is the name, or a prefix with * at its end that the name starts with. Without such a list,
+// such as in .map(runKey), names is the floor.
+function runKey(name, names) {
+  const text = String(name);
+  return (Array.isArray(names) ? names : FLOOR).some((entry) => (entry.endsWith('*')
+    ? text.startsWith(entry.slice(0, -1)) : text === entry));
+}
 
-module.exports = { SHAPES, runKey, secretValues, scanLine, scanPatch, shown };
+module.exports = { SECRET_NAME, keyKind, runKey, scanLine, scanPatch, scanValues, secretValues,
+  shown };

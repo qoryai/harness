@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Key shapes",
+  "description": "The shapes of keys that a scan for keys looks for: a prefix, then a token of min to max characters of the alphabet. The names are unique, and min is at most max.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["shapes"],
+  "properties": {
+    "shapes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "prefix", "alphabet", "min", "max"],
+        "properties": {
+          "name": {
+            "description": "Which key the shape is the form of, in at most 48 printable ASCII characters.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9](?:[ -~]{0,46}[!-~])?$"
+          },
+          "prefix": {
+            "description": "The text that every key of the shape starts with, in 1 to 32 printable ASCII characters without a space.",
+            "type": "string",
+            "pattern": "^[!-~]{1,32}$"
+          },
+          "any_case": {
+            "description": "true compares the ASCII letters of the prefix in any case. The alphabet is compared as it is.",
+            "type": "boolean"
+          },
+          "blank": {
+            "description": "true requires 1 to 16 spaces or tabs between the prefix and the token.",
+            "type": "boolean"
+          },
+          "alphabet": {
+            "description": "The characters of the token: single printable ASCII characters and ranges such as A-Z. A - that starts no range is the character itself.",
+            "type": "string",
+            "pattern": "^[ -~]{1,256}$"
+          },
+          "min": {
+            "description": "How many characters of the alphabet the token has at least.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          },
+          "max": {
+            "description": "How many characters of the token a find covers at most.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4096
+          }
+        }
+      }
+    }
+  }
+}
