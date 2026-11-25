@@ -5193,15 +5193,20 @@ cannot be read. The guard has no source for the name of the workflow, so it keys
 of a build plan in a session, which finds no record that is a link or has more than one link.
 In a run, `qory artifact pull <type>` writes `index.json` and a version folder of that type
 into `.qory/artifacts`, and the folders that earlier pulls or an agent left there stay. The lift
-pulls, each by version number, what `criteriaTarget` reads: the version of the questions that
-`index.json` counts, each lock that it compares a linked version with, each criteria version
-that an answer links, and the target version; the first pull of the criteria has no number, and
-the lift reads `index.json` from it only. The lift reads only the versions that these pulls
+pulls, each by version number, what `criteriaTarget` reads: the target version, and for each
+version above the approved one that a note links to an answer and no person wrote, the newest
+lock, the lock before it, that version, and the version of the questions that `index.json`
+counts; a person's version, a version linked to another kind of note, and the approved version
+need no other pull. The first pull of the criteria has no number, and the lift reads
+`index.json` from it only. The lift reads only the versions that these pulls
 returned: a folder, a name or a version that no pull of the call returned does not exist for
 it, so planted questions, a planted name, a withdrawn name, and the newest version of a
-cancelled run count for nothing. After the last pull it reads `index.json` again, and lifts nothing when that file
-needs a version that no pull returned, or has another target. A pull that fails, or has no
-time left, lifts nothing. Outside a run the lift reads the artifact folder. These limits stay:
+cancelled run count for nothing. After the last pull it reads `index.json` again, and lifts
+nothing when that file needs a version that no pull returned, or has another target. A pull
+that fails, or has no
+time left, lifts nothing, and the deny of the locked file then has a third line with the
+cause of the pull and the command to run again. Outside a run the lift reads the artifact
+folder. These limits stay:
 
 - Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
   store that no agent call can write.

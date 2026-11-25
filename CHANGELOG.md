@@ -43,8 +43,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   that an answer links, and the target version. It reads only the versions that these pulls
   returned, so a file or folder in `.qory/artifacts` that no pull returned counts for nothing,
   and it reads `index.json` again after the last pull. A pull that fails or has no time left
-  lifts nothing. Outside a run it reads the artifact folder, which an agent can write. A check
-  of a criterion that left Tests stays locked. A forged `.qory/build/changes.json` can steer
+  lifts nothing, and the deny of the locked file then has a third line with the cause of the
+  pull and the command to run again. A person's version, a version linked to another kind of
+  note and the approved version need no pull beyond the target version. Outside a run it reads
+  the artifact folder, which an agent can write. A check of a criterion that left Tests stays
+  locked. A forged `.qory/build/changes.json` can steer
   what `plan-the-build` plans: `keptFiles` and `lock --verify` reject a wrong result. The check
   of a build plan reads no `changes.json` that is a link or has more than one link. Two limits
   stay: a hard link outside the working folder to a locked file passes the file tools, which
