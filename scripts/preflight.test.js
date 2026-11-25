@@ -73,7 +73,8 @@ const p03Text = (names) => `The run could not sign in to the app with the values
 // link to it and a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done",
 // /popup posts the form to it in a new window, /popup-same opens /orders in a new window at
 // the submit, /leak sends the password as a host name of that port at the submit, and /alert
-// shows the form with an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
+// shows the form with an alert at its load and at each key. The other origin adds a line to
+// the file OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -1285,7 +1286,8 @@ test('preflight: a demo script that types a name of the credential list exits 3,
     return dir;
   };
   const here = checkout();
-  const setup = [...SIGN_IN.slice(0, 2), { do: 'type', target: '#password', variable: 'ACME_HOST' }];
+  const setup = [...SIGN_IN.slice(0, 2),
+    { do: 'type', target: '#password', variable: 'ACME_HOST' }];
   const parts = { serve: { command: 'node app/server.cjs', url: 'http://127.0.0.1:9/',
     cwd: here.dir }, scripts: [script('scenario-1', setup)] };
   assert.throws(() => run(here, parts, { browsers: [process.execPath],

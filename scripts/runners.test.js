@@ -1286,7 +1286,8 @@ test('secrets: a value that starts with / is a key unless it is a path, and a ke
 
 // ---- key shapes and credential names --------------------------------------------------------
 
-const { LIBRARY: CORE } = require(path.join(MODULES, 'core/skills/running-a-workflow/lib/registry.cjs'));
+const { LIBRARY: CORE } = require(path.join(MODULES,
+  'core/skills/running-a-workflow/lib/registry.cjs'));
 const keyShapes = require(path.join(SKILL, 'lib/key-shapes.cjs'));
 const runLists = require(path.join(SKILL, 'lib/run-lists.cjs'));
 const submission = require(path.join(SKILL, 'lib/submission-text.cjs'))(CORE);
@@ -1324,14 +1325,17 @@ test('credential names: the floor matches a prefix and an exact name, and a list
   assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE'].map((name) =>
     secrets.runKey(name)), [true, true, false, false]);
   // A list of the deployment adds ACME_*, and the floor stays without QORY_* in the list.
-  const env = { QORY_HARNESS_HOME: harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
+  const env = { QORY_HARNESS_HOME:
+    harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
   const { names } = runLists.credentialNames(env);
   assert.deepEqual(['ACME_KEY', 'DEPLOY_NAME', 'QORY_RUN_KEY', 'ACME'].map((name) =>
     secrets.runKey(name, names)), [true, true, true, false]);
   assert.equal(secrets.runKey('ACME_KEY'), false);
   // A module adds its names in credential-variables.json of its folder.
   const modules = path.join(tmp, `modules-${++homes}`, 'modules');
-  for (const name of ['core', 'vendor']) fs.mkdirSync(path.join(modules, name), { recursive: true });
+  for (const name of ['core', 'vendor']) {
+    fs.mkdirSync(path.join(modules, name), { recursive: true });
+  }
   fs.writeFileSync(path.join(modules, 'vendor', 'credential-variables.json'),
     JSON.stringify({ credential_variables: ['VENDOR_*'] }));
   const folders = workflow.preflight.moduleFolders({ plugin: path.join(modules, 'core') });
@@ -1421,7 +1425,8 @@ test('key shapes: word_start finds the generic sk- key only where a word starts'
 
 test('repository settings: a schema loads with $id as text, and not with $id of another form', () => {
   const file = path.join(tmp, `schema-${++homes}.json`);
-  fs.writeFileSync(file, JSON.stringify({ $id: 'https://example.com/a.schema.json', type: 'object' }));
+  fs.writeFileSync(file,
+    JSON.stringify({ $id: 'https://example.com/a.schema.json', type: 'object' }));
   assert.equal(extensions.loadSchema(file).schema.$id, 'https://example.com/a.schema.json');
   fs.writeFileSync(file, JSON.stringify({ $id: 1, type: 'object' }));
   assert.throws(() => extensions.loadSchema(file), /write \$id at # as text/);
@@ -1440,7 +1445,8 @@ test('key shapes: a qory.key_shapes whose file cannot be used is one end finding
       '"k.json", which fails key-shapes.schema.json at #/shapes/0/prefix'],
     [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [ACME, ACME] } }),
       '"k.json", which fails key-shapes.schema.json at #/shapes/1/name'],
-    [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ ...ACME, alphabet: 'f-a' }] } }),
+    [harnessHome({ key_shapes: 'k.json' },
+      { 'k.json': { shapes: [{ ...ACME, alphabet: 'f-a' }] } }),
       '"k.json", which fails key-shapes.schema.json at #/shapes/0/alphabet'],
     [harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [{ ...ACME, min: 70 }] } }),
       '"k.json", which fails key-shapes.schema.json at #/shapes/0/max'],
@@ -1454,7 +1460,8 @@ test('key shapes: a qory.key_shapes whose file cannot be used is one end finding
     assert.equal(typeof found[0].point, 'string');
   }
   // A file that passes, and no field, are no finding, also in a run.
-  assert.deepEqual(end(harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes: [ACME] } })), []);
+  assert.deepEqual(end(harnessHome({ key_shapes: 'k.json' },
+    { 'k.json': { shapes: [ACME] } })), []);
   assert.deepEqual(end(harnessHome({}), { QORY_RUN_ID: 'run-1' }), []);
   // A line that only shows a path uses the default shapes, and throws for no file.
   assert.equal(secrets.shown(TOKEN, secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] })),

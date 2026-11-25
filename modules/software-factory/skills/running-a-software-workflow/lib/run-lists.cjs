@@ -27,6 +27,8 @@ let last = { stamp: null, qory: null };
 // stampOf returns the words of the state of the file with stat, which change when it changes.
 const stampOf = (file, stat) => [file, stat.ino, stat.size, stat.mtimeMs].join('\0');
 
+// shortcut: qoryOf repeats qoryInputs of hooks/end-gate.cjs of core, which this module does
+// not require, so the two reads can drift apart; join them when the modules share a reader.
 // qoryOf returns the member qory of $QORY_HARNESS_HOME/inputs.json of env when it is an
 // object, or null: for no home, a relative home, no file, a link, a file that is no regular
 // file or no JSON, and a file of more than MAX_INPUTS bytes.
