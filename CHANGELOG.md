@@ -8,6 +8,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- `process.yaml` of `software-factory` declares `tracks` with the track `standard`
+  (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
+  plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.
+  Qory Apiary returns 422 for a verdict with any other track, so a proposal with the fast
+  track gets no verdict until the harness declares that track.
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
   a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
   the `App address:` of the build plan, signs in with the replay of `preflight`, and runs
