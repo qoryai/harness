@@ -2067,6 +2067,21 @@ function treeWrite(command, cwd, root, fold) {
   return null;
 }
 
+// The reason for a redirect to a brace list of more than one word.
+const MULTI = 'Write each file with its own redirect.\n';
+
+// multiRedirect returns the target of the first redirect of a simple command of command whose
+// word has a brace list of more than one word, as in `> checks/{a,b}.ts`, or null. zsh with
+// MULTIOS writes to each word of such a target, and the guard reads the redirect as one path.
+function multiRedirect(command, cwd) {
+  for (const one of segments(command, cwd)) {
+    const found = redirectWords(one.text).find((word) => braceGroups(word)
+      .some((group) => group.parts.length > 1));
+    if (found !== undefined) return found;
+  }
+  return null;
+}
+
 // countsAsWrite reports whether a call writes for the step count: it writes a file in
 // artifacts, the artifact folder, which may lie in root/.qory/, or below root, the working
 // folder, outside root/.qory/, or runs `qory artifact push`. cwd is the folder of the call,
@@ -2259,6 +2274,11 @@ function decideCall({ input, env = process.env, script = process.argv[1], locked
   if (refusedStart !== null) return `${refusedStart}The command is ${reviewShown(call.command)}.`;
   const treed = call.kind === 'shell' && agent ? treeWrite(call.command, cwd, root, fold) : null;
   if (treed !== null) return `${BUILT}The command ${treed}.`;
+  const multi = call.kind === 'shell' && agent ? multiRedirect(call.command, cwd) : null;
+  if (multi !== null) {
+    return `${MULTI}The redirect target ${reviewShown(multi)} has a brace list of more than one ` +
+      'word, and zsh writes to every word of it.';
+  }
   if (call.kind === 'shell' && !reads && !reportsGuard.runsChecks(call.command, env, script)) {
     const dirs = (name) => [...new Set([artifactFolder(root, env, runFolder),
       path.join(root, '.qory', 'artifacts')].filter(Boolean)

@@ -711,6 +711,21 @@ test('the guard denies a file of the index that no one reads, before a restore c
   assert.equal(fs.existsSync(path.join(dir, '.qory', 'build', 'steps.json')), false);
 });
 
+test('the guard denies a redirect to a brace list of more than one word, as zsh writes each word', () => {
+  const start = 'Write each file with its own redirect.';
+  for (const command of ['echo y > checks/{b,}.check.ts', 'echo y >> notes/{a,b}.txt',
+    'echo y 2> notes/{a,b}.txt', 'echo y > notes/{1..3}.txt', "sh -c 'echo y > notes/{a,b}.txt'",
+    'echo y | tee notes/x > notes/{a,b}.txt']) {
+    firstLine(guard(claude('Bash', { command }, 'implementer')), start);
+  }
+  // A brace group of one word, a quoted or escaped brace and no brace write one path.
+  for (const command of ['echo y > notes/{a}.txt', 'echo y > notes/{1..1}.txt',
+    'echo y > "notes/{a,b}.txt"', 'echo y > notes/\\{a,b\\}.txt', 'echo y > notes/a.txt',
+    'echo {a,b}']) {
+    assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
+  }
+});
+
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
   const start = 'Leave .qory/build/ as it is: the step limit keeps the step count of each ' +

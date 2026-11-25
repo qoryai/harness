@@ -2284,7 +2284,10 @@ there into the index of its repository. For the same reason an agent's `git stas
 `git stash apply`, `git reset --hard` and `git read-tree` in the working folder or above it, a
 `git update-index` with `--index-info` or `--stdin`, and a `git update-index` or
 `git hash-object -w` with `.qory` in the text are denied; `git checkout <name>` of a name that
-is no path passes. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+is no path passes. An agent's redirect to a brace list of more than one word, such as
+`> checks/{a,b}.ts`, is denied: zsh with MULTIOS writes to each word, and the guard reads the
+redirect as one path. A brace list of one word, a quoted brace and a command with no brace
+pass. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
