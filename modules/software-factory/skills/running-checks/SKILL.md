@@ -119,6 +119,10 @@ from a draft. With `--inputs`, they come from the newest version that qory pulle
 start of the run: a version pushed during the run counts from the next run on. Without
 `--inputs`, a change to the plan counts once the plan is pushed and pulled again.
 
+On the fast track, which has no build plan, `run lint` and `run build` read their commands
+from `## Commands` of the approved proposal that qory pulled at the start of the run. The
+proposal has no command for `run targeted` or `run types`: they exit 3.
+
 ## The locked checks
 
 `run locked` runs the checks of the acceptance lock that counts: the newest version of

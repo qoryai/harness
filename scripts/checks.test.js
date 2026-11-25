@@ -217,8 +217,18 @@ const fastLines = (change, kind) => [fastLine(change, kind), FAST_REASON];
 const FAST_LINE = fastLine();
 // FAST_TRACK is the track that a run sends with its verdict for a proposal with FAST_REASON.
 const FAST_TRACK = { id: 'fast', reason: FAST_REASON.slice('Reason: '.length) };
+// COMMANDS is the table of ## Commands of a proposal on the fast track, as the text layout of
+// the fast track gives it. trackLines adds it when the first line names the fast track.
+const COMMANDS = [
+  '| Kind  | Command         | Result file | Source                      |',
+  '|-------|-----------------|-------------|-----------------------------|',
+  '| lint  | `npm run lint`  | none        | repository: package.json:12 |',
+  '| build | `npm run build` | none        | repository: package.json:13 |',
+  '| full  | `npm test`      | none        | repository: package.json:14 |',
+].join('\n');
 const trackLines = (...lines) => ['proposal.md', '## Track\n\nStandard track.\n',
-  `## Track\n\n${lines.join('\n')}\n`];
+  `## Track\n\n${lines.join('\n')}\n${/^\s*fast track/i.test(lines[0] || '')
+    ? `\n## Commands\n\n${COMMANDS}\n` : ''}`];
 // FAST_SOURCE lists FAST_FILE under ## Sources; fastSource adds it to sources.json.
 const FAST_SOURCE = ['proposal.md', 'No public page and no file.', `- ${FAST_FILE}`];
 function fastSource(root) {
@@ -231,6 +241,100 @@ const checkFiles = (root) => check(root, 'proposal', ...FILES.proposal.map((f) =
 test('proposal: ## Track sits between ## Proposed solution and ## Sources', () => {
   fails(push(fixture(['proposal.md', '## Track\n\nStandard track.\n\n', '']), 'proposal'),
     /^Give proposal.md the 5 sections of its type, in their order\. They are ## Summary, ## Background, ## Proposed solution, ## Track, ## Sources\./);
+});
+
+test('proposal: the fast track has ## Commands between ## Track and ## Sources', () => {
+  const noTable = fastSource(fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\n${FAST_LINE}\n${FAST_REASON}\n`], FAST_SOURCE));
+  fails(push(noTable, 'proposal'),
+    /^Give proposal.md the 6 sections of its type, in their order\. They are ## Summary, ## Background, ## Proposed solution, ## Track, ## Commands, ## Sources\./);
+  // Another track has the five sections, and no ## Commands.
+  const standard = fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\nStandard track.\n\n## Commands\n\n${COMMANDS}\n`]);
+  fails(push(standard, 'proposal'),
+    /^Give proposal.md the 5 sections of its type, in their order\. They are .*proposal\.md has .*## Commands/);
+  passes(push(fast(FAST_LINE, FAST_REASON), 'proposal'));
+});
+
+// withCommands returns a fast-track proposal fixture whose ## Commands has rows.
+const withCommands = (...rows) => fastSource(fixture(['proposal.md', '## Track\n\nStandard track.\n',
+  `## Track\n\n${FAST_LINE}\n${FAST_REASON}\n\n## Commands\n\n` +
+  `| Kind | Command | Result file | Source |\n|---|---|---|---|\n${rows.join('\n')}\n`],
+FAST_SOURCE));
+const LINT = '| lint | `npm run lint` | none | repository: package.json:12 |';
+const BUILD = '| build | `npm run build` | none | module: node |';
+const FULL = '| full | `npm test` | none | found: `package.json:14` |';
+
+test('proposal: ## Commands has a row for lint, build and full, each with a Source', () => {
+  passes(push(withCommands(LINT, BUILD, FULL), 'proposal'));
+  // A command of none has its reason in Source.
+  passes(push(withCommands(LINT, '| build | none | none | The repository has no build. |', FULL), 'proposal'));
+  fails(push(withCommands(LINT, BUILD), 'proposal'),
+    /^Add the kind full to ## Commands of proposal\.md\.$/);
+  fails(push(withCommands(LINT, BUILD), 'proposal'), /^Add the kind full /);
+  fails(push(withCommands(LINT, BUILD, FULL, LINT), 'proposal'),
+    /^Give the kind lint one row in ## Commands of proposal\.md\.$/);
+  // The kinds of a build plan beyond these three are no kinds of a proposal.
+  fails(push(withCommands(LINT, BUILD, FULL, '| targeted | `npm test` | none | repository: x |'), 'proposal'),
+    /^Set the kind "targeted" in ## Commands of proposal\.md to one of the 3 kinds\. The kinds are lint, build, full\.$/);
+  fails(push(withCommands(LINT, BUILD, '| full | `npm test` | none | the manual |'), 'proposal'),
+    /^Write the Source of full in proposal\.md in one of its three forms\. The forms are "repository: <file>", "module: <name>" and "found: <file>:<line>"\. The Source is "the manual"\.$/);
+  fails(push(withCommands(LINT, '| build | none | none | |', FULL), 'proposal'),
+    /^Write in Source why build has no command in proposal\.md\.$/);
+  const noTable = fastSource(fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\n${FAST_LINE}\n${FAST_REASON}\n\n## Commands\n\nNone.\n`], FAST_SOURCE));
+  fails(push(noTable, 'proposal'),
+    /^Put a table with the columns Kind, Command, Result file, Source in ## Commands of proposal\.md\.$/);
+});
+
+test('proposal: a Source of the form plan: d-<N> is no form of a proposal', () => {
+  // A proposal has no steps to cite.
+  fails(push(withCommands(LINT, BUILD, '| full | `npm test` | none | plan: d-1 |'), 'proposal'),
+    /^Write the Source of full in proposal\.md in one of its three forms\. The forms are "repository: <file>", "module: <name>" and "found: <file>:<line>"\. The Source is "plan: d-1"\.$/);
+});
+
+test('proposal: a full row with no command returns the finding to choose the Standard track', () => {
+  const standard = /^Choose the Standard track: the repository has no full test suite, and its build plan adds one\.$/;
+  fails(push(withCommands(LINT, BUILD, '| full | none | none | The repository has no tests. |'),
+    'proposal'), standard);
+  fails(push(withCommands(LINT, BUILD, '| full | `none` | none | The repository has no tests. |'),
+    'proposal'), standard);
+  // An empty Command cell is no command either, also with a Source of a valid form.
+  fails(push(withCommands(LINT, BUILD, '| full |  | none | repository: package.json:14 |'),
+    'proposal'), standard);
+  // The finding is the only one for the row, and lint and build keep none with a reason.
+  const got = push(withCommands(LINT, '| build | none | none | The repository has no build. |',
+    '| full | none | none | The repository has no tests. |'), 'proposal');
+  assert.equal(got.findings.length, 2, got.out);
+  // A full row with a command, and a Result file, passes.
+  passes(push(withCommands(LINT, BUILD,
+    '| full | `npm test` | `reports/junit.xml` | found: `package.json:14` |'), 'proposal'));
+});
+
+test('proposal: a fenced line is no line of ## Track, as for the sections', () => {
+  // The code block comes first: the track is the first line outside it.
+  const track = `\`\`\`text\nStandard track.\n\`\`\`\n\n${FAST_LINE}\n${FAST_REASON}`;
+  const root = fastSource(fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\n${track}\n\n## Commands\n\n${COMMANDS}\n`], FAST_SOURCE));
+  passes(push(root, 'proposal'));
+});
+
+test('proposal: a standard proposal with ## Commands has the section finding and no other', () => {
+  // The section has no table: a check of the table would add a finding.
+  const standard = fixture(['proposal.md', '## Track\n\nStandard track.\n',
+    `## Track\n\nStandard track.\n\n## Commands\n\nNone.\n`]);
+  const got = push(standard, 'proposal');
+  assert.equal(got.status, 1, got.out);
+  assert.equal(got.findings.length, 2, got.out);
+});
+
+test('proposal: ## Commands counts toward no word limit, as ## Sources does', () => {
+  // A Source of 20 words breaks the limit of 12 words per cell, and one of 500 words the 450 of
+  // the proposal, in any other section.
+  for (const words of [20, 500]) {
+    passes(push(withCommands(LINT, BUILD,
+      `| full | \`npm test\` | none | repository: ${many(words)} |`), 'proposal'));
+  }
 });
 
 test('proposal: a track that takes no kind is the line "<Name> track." alone', () => {
@@ -2568,6 +2672,16 @@ test('words: the 450 words fail and pass at the limit', () => {
   const fill = (size) => fixture(beforeSources(parts(2) + parts(1, size).replace('Part 1', 'Part 3')));
   passes(push(fill(450 - own - 204 - 2), 'proposal'));
   fails(push(fill(451 - own - 204 - 2), 'proposal'), /^Cut proposal.md to 450 words: it has 451\./);
+});
+
+test('words: the heading and the table of ## Commands count no word', () => {
+  // The same fast-track proposal over the limit, with and without ## Commands: the finding
+  // states the same number of words.
+  const fill = (...more) => fastSource(fixture(
+    beforeSources(parts(1) + parts(1, 500).replace('Part 1', 'Part 2')),
+    trackLines(FAST_LINE, FAST_REASON), FAST_SOURCE, ...more));
+  const without = fill(['proposal.md', `\n## Commands\n\n${COMMANDS}\n`, '']);
+  assert.equal(total(push(fill(), 'proposal')), total(push(without, 'proposal')));
 });
 
 // itemized returns a proposal fixture whose ## Sources lists count pages, each an item of 20

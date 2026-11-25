@@ -578,28 +578,31 @@ the same for the questions whenever they change. The session decides on each fin
 pushes after the review. `reply-writer` drafts the replies, and the session pushes them
 last.
 
-The proposal has five sections: `## Summary`, the outcome in 1 or 2 sentences of at most 40
-words; `## Background`, whose first paragraph of at most 40 words states why the work
-exists, while Qory Apiary folds the rest, today's facts in at most 100 words, behind "Read
-more"; `## Proposed solution`, which opens with the recommendation in 1 sentence of at most
-30 words and a table of 0 to 3 alternatives with the columns "Alternative" and "Why not",
-then has a `###` heading for each part of the work; `## Track`, standard or fast, as the
-section "The track" of `writing-proposals` lists; and `## Sources`. Each part starts with
+The proposal has five sections, and six on the fast track: `## Summary`, the outcome in 1 or
+2 sentences of at most 40 words; `## Background`, whose first paragraph of at most 40 words
+states why the work exists, while Qory Apiary folds the rest, today's facts in at most 100
+words, behind "Read more"; `## Proposed solution`, which opens with the recommendation in 1
+sentence of at most 30 words and a table of 0 to 3 alternatives with the columns
+"Alternative" and "Why not", then has a `###` heading for each part of the work; `## Track`,
+standard or fast, as the section "The track" of `writing-proposals` lists; on the fast
+track, `## Commands`, a table of the commands of `lint`, `build` and `full`, as the section
+"The commands" of `writing-proposals` lists, which `checks.cjs run` reads from the approved
+proposal because the fast track has no build plan; and `## Sources`. Each part starts with
 one picture: a Mermaid diagram for a flow or a sequence of steps, an SVG wireframe for a
 screen, an email or a form, with today and after side by side, or a table with the columns
 "Today" and "After" for a change of values or rules. A Today/After table has 2 to 6 rows,
 each of which changes something, and a single change is one sentence instead. A part has at
 most 120 words and at most three short points after its picture. Each table cell has at most
 12 words, and a "Why not" cell at most 15. The proposal has at most 450 words: every word
-but those of Mermaid blocks, wireframe links and `## Sources`, so tables, the whole
-background, code blocks and headings count, and so does the reason of each decided question,
-because members read those reasons right under the proposal. The section "Limits" of
-`writing-proposals` lists these limits, and its section "Refused phrases" lists the phrases
-of a reply to a comment, such as "you are correct", that the proposal never contains outside
-code and text in double quotes. `checks.cjs` checks the counts and tables of these limits;
-the writer and the reviewer judge the rest, such as one outcome per point. The proposal
-states the outcome and the decisions that a person approves, in short plain points. Each
-screen state, each field and each edge case belongs in the spec that Shape writes, and
+but those of Mermaid blocks, wireframe links, `## Commands` and `## Sources`, so tables, the
+whole background, code blocks and headings count, and so does the reason of each decided
+question, because members read those reasons right under the proposal. The section "Limits"
+of `writing-proposals` lists these limits, and its section "Refused phrases" lists the
+phrases of a reply to a comment, such as "you are correct", that the proposal never contains
+outside code and text in double quotes. `checks.cjs` checks the counts and tables of these
+limits; the writer and the reviewer judge the rest, such as one outcome per point. The
+proposal states the outcome and the decisions that a person approves, in short plain points.
+Each screen state, each field and each edge case belongs in the spec that Shape writes, and
 `proposal-reviewer` flags such detail in a proposal as a finding marked `writer`,
 `no direction` and `no break`. An edge case or a field that the ticket or an answer settles,
 or that a decision rests on, stays in the proposal.
