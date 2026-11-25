@@ -49,15 +49,20 @@ description: >-
   debugging-failures and making-small-changes; the agents software-developer and
   software-debugger, which fill the roles developer and debugger; the skills
   checking-tampering and judging-criteria and the agents tamper-reviewer and
-  verification-reviewer, the reviewers of Verify; the verb matrix of the checks script,
-  which writes the draft verification of Verify from the records of the run; the skill
-  workflow-verify-a-ticket, which runs Verify as a review session; and the skill
-  workflow-capture-demos, which films the demo scenarios and stores their demo evidence, with
-  the skill checking-demos and the agent demo-reviewer, which judges the frames.
+  verification-reviewer, the reviewers of Verify; the skills writing-walkthroughs and
+  checking-walkthroughs and the agents walkthrough-writer and walkthrough-reviewer, which
+  write and review the walkthrough of Verify, where the group role walkthrough-reviewers has
+  the reviewer; the verb matrix of the checks script, which writes the draft verification of
+  Verify from the records of the run; the verb files, which writes the list of the changed
+  files of the pull request; the skill workflow-verify-a-ticket, which runs Verify as a
+  review session; and the skill workflow-capture-demos, which films the demo scenarios and
+  stores their demo evidence, with the skill checking-demos and the agent demo-reviewer,
+  which judges the frames.
 roles:
   agents:
     reviewers: many
     verify-reviewers: many
+    walkthrough-reviewers: many
 provides:
   agents:
     explorer: code-explorer
@@ -71,6 +76,7 @@ provides:
     reviewers: [code-reviewer, test-reviewer, acceptance-reviewer, security-reviewer,
       data-reviewer, failure-reviewer]
     verify-reviewers: [tamper-reviewer, verification-reviewer]
+    walkthrough-reviewers: [walkthrough-reviewer]
 push_checks:
   - type: proposal
     command: [skills/running-a-software-workflow/workflow-checks.cjs, push, proposal]

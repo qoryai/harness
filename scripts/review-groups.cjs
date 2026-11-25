@@ -1,5 +1,6 @@
 // Rule 13 of scripts/check.sh: prints a fix line for each -reviewer agent that the skill of a
-// workflow with a review_group starts and that is no member of that group, for each group
+// workflow with a review_group starts and that is no member of that group, unless every group
+// of the reviewer is one that no stack entry names as a review_group, for each group
 // member that no module defines as an agent, for a review_group that no module provides, and
 // for a group whose members differ from the agents whose description has "as an agent of the
 // <workflow> session". It reads the folder in its first argument and prints nothing when every
@@ -61,6 +62,17 @@ function main(root) {
   const agents = new Set(modules.flatMap((one) => dirs(path.join(root, 'modules', one, 'agents'))
     .filter((name) => name.endsWith('.md')).map((name) => name.slice(0, -3))));
   const groups = groupsOf(root);
+  // Groups that any stack text names as a `review_group`, in one-line or multi-line entries. A
+  // reviewer outside the workflow's group passes only when every group it is in is unnamed.
+  // shortcut: a reviewer moved by mistake to a group that no stack entry names passes, replace
+  // when a group needs an owner.
+  const named = new Set(dirs(path.join(root, 'stacks')).flatMap((stack) => [...read(path.join(
+    root, 'stacks', stack, 'qory-stack.yaml')).matchAll(/review_group: *([a-z0-9-]+)/g)]
+    .map((match) => match[1])));
+  const free = (name) => {
+    const own = [...groups].filter(([, { members }]) => members.includes(name));
+    return own.length > 0 && own.every(([group]) => !named.has(group));
+  };
   for (const [group, { members, from }] of groups) {
     for (const name of members) {
       if (!agents.has(name)) {
@@ -84,7 +96,8 @@ function main(root) {
         const skill = read(path.join(root, 'modules', one, 'skills', `workflow-${workflow}`,
           'SKILL.md'));
         for (const ref of skill.matchAll(/\$\{qory:agents\/([a-z0-9-]+)\}/g)) {
-          if (!ref[1].endsWith('-reviewer') || found.members.includes(ref[1])) continue;
+          if (!ref[1].endsWith('-reviewer') || found.members.includes(ref[1]) ||
+            free(ref[1])) continue;
           out.push(`Add ${ref[1]} to the group ${group}, or start no ${ref[1]} in ` +
             `workflow-${workflow}: qory expects a report only from a member.`);
         }
