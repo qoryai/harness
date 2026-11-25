@@ -41,7 +41,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   pulls, each by version number, what `criteriaTarget` reads: the version of the questions that
   `index.json` counts, each lock that it compares a linked version with, each criteria version
   that an answer links, and the target version. It reads only the versions that these pulls
-  returned, so a file or folder in `.qory/artifacts` that no pull returned counts for nothing,
+  returned, and in them only the files that `index.json` lists for the version, so a file or
+  folder in `.qory/artifacts` that no pull returned or the entry does not list counts for
+  nothing,
   and it reads `index.json` again after the last pull. A pull that fails or has no time left
   lifts nothing, and the deny of the locked file then has a third line with the cause of the
   pull and the command to run again. A person's version, a version linked to another kind of
