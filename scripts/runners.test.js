@@ -3951,7 +3951,7 @@ test('report-build: ## Replies has the reply of each done row of a fix, in the o
     '.qory/in/inputs.json'), path.join(dir, '.qory/artifacts/build-report.md')]);
   assert.equal(checked.status, 0, checked.out + checked.err);
   // The render takes rows in the order given, any id, and replaces a text that the check of
-  // the report refuses.
+  // the report rejects.
   const { LIBRARY } = require(path.join(MODULES,
     'core/skills/running-a-workflow/lib/registry.cjs'));
   const lib = { ...LIBRARY, ...require(path.join(SKILL, 'lib/documents.cjs'))(LIBRARY) };
@@ -4308,15 +4308,21 @@ test('report-build: a backslash before a pipe is escaped, an empty proof is none
   assert.ok(text.includes(`| f3: Third | code-reviewer | yes | ${'x'.repeat(497)}... |`));
 });
 
-test('report-build: a round with no open finding shows None., and criteria and scenarios name their kind', () => {
+test('report-build: a round with no open finding shows None., and criteria and scenarios name ' +
+  'their kind', () => {
   const { text } = reportFor(LEDGER(1, [{ id: 'f1', severity: 'blocking', point: 'Closed',
     state: 'dismissed' }]));
   assert.ok(text.includes('### Round 1\n\nNone.\n\nThe result'), text);
   const kinds = reportFor(LEDGER(1, [
-    { id: 'f1', severity: 'blocking', point: 'Not met', source: { kind: 'criterion', name: 'AC-3' } },
-    { id: 'f2', severity: 'blocking', point: 'Failed', source: { kind: 'scenario', name: 'scenario-2' } },
-    { id: 'f3', severity: 'blocking', point: 'Hook', source: { kind: 'hook', name: 'lint-hook' } }])).text;
-  assert.ok(kinds.includes('| f1: Not met | criterion AC-3 | yes | none |\n| f2: Failed | scenario scenario-2 | yes | none |\n| f3: Hook | lint-hook | yes | none |'), kinds);
+    { id: 'f1', severity: 'blocking', point: 'Not met',
+      source: { kind: 'criterion', name: 'AC-3' } },
+    { id: 'f2', severity: 'blocking', point: 'Failed',
+      source: { kind: 'scenario', name: 'scenario-2' } },
+    { id: 'f3', severity: 'blocking', point: 'Hook',
+      source: { kind: 'hook', name: 'lint-hook' } }])).text;
+  assert.ok(kinds.includes(['| f1: Not met | criterion AC-3 | yes | none |',
+    '| f2: Failed | scenario scenario-2 | yes | none |', '| f3: Hook | lint-hook | yes | none |']
+    .join('\n')), kinds);
 });
 
 test('report-build: the closing line of an earlier version is left out of the earlier rounds', () => {

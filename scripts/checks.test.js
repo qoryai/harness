@@ -5091,7 +5091,8 @@ test('panel: --group picks another group role', () => {
 
 test('panel: wrong arguments exit 2', () => {
   const { deps } = panelSetup({ members: [['a-reviewer']] });
-  const usage = /^Give panel --names and --files once each, and --group, --after and --previous at most once\.\n/;
+  const usage = new RegExp('^Give panel --names and --files once each, and --group, --after ' +
+    'and --previous at most once\\.\\n');
   for (const [argv, why] of [
     [['panel'], usage],
     [['panel', '--files', 'files.txt'], usage],

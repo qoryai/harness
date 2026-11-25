@@ -25,7 +25,7 @@ const REPLACED = "an item that the report cannot contain; see the row's report i
 // The item of ## Left out for a row with a list `Left out:` that leftOut cannot read.
 const UNREAD =
   "a list Left out: that the report cannot read; see the row's report in the ledger";
-// The text of a line of ## Replies that the check of the report refuses.
+// The text of a line of ## Replies that the check of the report rejects.
 const REPLY_REPLACED = "a reply that the report cannot contain; see the row's reply in the ledger";
 // The most characters of the text of a line of ## Replies.
 const REPLY_TEXT = 500;
@@ -242,7 +242,7 @@ module.exports = (lib) => {
 
   // repliesText returns the lines of ## Replies, one per row { id, word, text }, in the order
   // of rows: `- <id>, <word>: <text>`, the text cut at 500 characters and replaced when the
-  // check of the report refuses it, or "None." with no row.
+  // check of the report rejects it, or "None." with no row.
   function repliesText(rows, machine) {
     if (!rows.length) return ['None.'];
     return rows.map(({ id, word, text }) => {

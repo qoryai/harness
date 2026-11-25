@@ -148,7 +148,8 @@ test('reviewing-changes has the steps to write one file and, when the reviewer c
 // The report of a later round, the second fenced json block of "The report".
 const LATER_EXAMPLE = JSON.parse([...REVIEWING.matchAll(/```json\n([\s\S]*?)\n```/g)][1][1]);
 
-test('reviewing-changes repeats and closes earlier findings by id, and caps a report at 100', () => {
+test('reviewing-changes repeats and closes earlier findings by id, and caps a report at 100',
+  () => {
   assert.deepEqual(problems(LATER_EXAMPLE), []);
   assert.deepEqual(LATER_EXAMPLE.findings.map((one) => one.id), ['f3']);
   assert.deepEqual(LATER_EXAMPLE.closes.map((one) => one.state), ['fixed', 'dismissed']);
@@ -308,7 +309,8 @@ test('findings open: the point loses control characters and stops at 500 charact
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1);
   assert.equal(result.lines.length, 2, result.out);
-  assert.ok(/^Fix first: f3 \(blocking, from code-reviewer, a b\.js:12\): Fix the value\./.test(result.lines[0]));
+  assert.ok(/^Fix first: f3 \(blocking, from code-reviewer, a b\.js:12\): Fix the value\./
+    .test(result.lines[0]));
   assert.ok([...result.lines[0].slice(result.lines[0].indexOf('): ') + 3)].length <= 500);
   assert.ok(!/[\u0000-\u0008‮]/.test(result.out));
 });
@@ -375,7 +377,8 @@ test('findings open: 201 findings print 200, blocking first, and one line that c
   const result = call(['findings', 'open', file]);
   assert.equal(result.status, 1, result.out);
   assert.equal(result.lines.length, 202, result.out);
-  assert.match(result.lines[0], /^Fix first: f201 \(blocking, from code-reviewer, src\/main\.ts:12\): Fix the point 201\./);
+  assert.match(result.lines[0],
+    /^Fix first: f201 \(blocking, from code-reviewer, src\/main\.ts:12\): Fix the point 201\./);
   assert.match(result.lines[1], /^Fix first: f1 \(non-blocking/);
   assert.match(result.lines[199], /^Fix first: f199 /);
   assert.equal(result.lines[200], `Fix first: 1 more findings in ${quoted(file)}`);
@@ -532,7 +535,8 @@ test('findings open: a file name with control, refused and hidden characters pri
   // The file of a finding.
   const named = put(many(1, () => ({ file: HOSTILE })));
   const finding = call(['findings', 'open', named]);
-  assert.equal(finding.lines[0], 'Fix first: f1 (blocking, from code-reviewer, x [31m ]0;t Y z:12): Fix the point 1.');
+  assert.equal(finding.lines[0], 'Fix first: f1 (blocking, from code-reviewer, ' +
+    'x [31m ]0;t Y z:12): Fix the point 1.');
   for (const result of [absent, asFolder, tooBig, broken, finding]) {
     assert.ok(!BAD.test(result.out + result.err), JSON.stringify(result.out + result.err));
   }
@@ -881,7 +885,8 @@ function previousFile(rows) {
 const withPrevious = (dir, suite, names, previous) => call(['findings', 'round', dir,
   '--reviewers', names.join(','), '--suite', suite, '--previous', previous]);
 
-test('findings round --previous: a repeat, a close and a finding left out keep the left one open', () => {
+test('findings round --previous: a repeat, a close and a finding left out keep the left one open',
+  () => {
   const report = { reviewer: 'code-reviewer',
     findings: [{ ...REVIEWED, id: 'f1', point: 'Point f1, again.' }],
     closes: [{ id: 'f2', state: 'fixed', reason: 'The export returns the first limit rows.' }] };
@@ -907,7 +912,8 @@ test('findings round --previous: a repeat, a close and a finding left out keep t
     'non-blocking open findings; 2 closed.');
 });
 
-test('findings round --previous: a dismissal of an undisputed finding and a reopen are valid', () => {
+test('findings round --previous: a dismissal of an undisputed finding and a reopen are valid',
+  () => {
   // f4 is undisputed and open; f5 was closed by a run and is true again.
   const previous = previousFile([['f4', 'code-reviewer', 'open'],
     ['f5', 'code-reviewer', 'fixed'], ['f6', 'code-reviewer', 'dismissed']]);
@@ -924,7 +930,8 @@ test('findings round --previous: a dismissal of an undisputed finding and a reop
   ]);
 });
 
-test('findings round --previous: an id of another reviewer or repeated and closed is invalid', () => {
+test('findings round --previous: an id of another reviewer or repeated and closed is invalid',
+  () => {
   const previous = previousFile([['f1', 'code-reviewer', 'open'],
     ['f2', 'test-reviewer', 'open', LATER]]);
   const close = (id) => ({ id, state: 'fixed', reason: 'Fixed.' });
@@ -987,7 +994,7 @@ test('findings round: more than 100 findings or closes, and a bad close, are inv
     const { dir, suite } = sessionFolder({ [name]: data });
     const got = round(dir, suite, [name]);
     assert.equal(got.lines[0], `Blocking finding of code-reviewer: ${format}${clause}`);
-    // qory's schema refuses each of them too.
+    // qory's schema rejects each of them too.
     assert.notDeepEqual(problems(data), [], clause);
   }
   // 100 findings and 100 closes are the most that a report has.

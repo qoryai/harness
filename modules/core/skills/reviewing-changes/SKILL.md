@@ -211,7 +211,7 @@ In a later round, a report repeats and closes earlier findings, as in this examp
     }
   ],
   "closes": [
-    { "id": "f4", "state": "fixed", "reason": "<what the frozen state does now>" },
+    { "id": "f4", "state": "fixed", "reason": "<what the code at commit does>" },
     { "id": "f5", "state": "dismissed", "reason": "<why the finding is not true>" }
   ]
 }

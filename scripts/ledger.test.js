@@ -961,9 +961,9 @@ test('ledger: step end done of a fix of a finding needs one line Reply:, and rec
     [['fix:f3', false], ['fix:p1', true], ['fix:f4', true]]);
   // The next push keeps the row with its reply: the check of the type allows the member.
   assert.equal(begin(call, w, 'fix:f5').status, 0);
-  assert.equal(call('step', 'end', 'fix:f5', 'done', '--report',
-    report(call, 'software-developer-fix-f5', 'Reply: fixed: Export the first limit rows.\n')).status,
-  0);
+  const fixed = report(call, 'software-developer-fix-f5',
+    'Reply: fixed: Export the first limit rows.\n');
+  assert.equal(call('step', 'end', 'fix:f5', 'done', '--report', fixed).status, 0);
   assert.deepEqual(stored(w).ledger.steps.at(-1).reply,
     { kind: 'fixed', reason: 'Export the first limit rows.' });
 });

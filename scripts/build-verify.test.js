@@ -622,7 +622,7 @@ test('each JSON Schema of schemas/ is the json_schema of its type in process.yam
   }
 });
 
-test('both copies of the build-ledger schema take a reply of a fix, and refuse a bad one', () => {
+test('both copies of the build-ledger schema take a reply of a fix, and reject a bad one', () => {
   const entry = artifactEntries().find((one) => one.name === 'build-ledger');
   const copies = [schema.load('build-ledger'),
     { file: 'process.yaml', schema: entry.json_schema,
