@@ -453,7 +453,9 @@ section "Scope" describes for `scope`, then run `prove` again.
 commit where the work branch was cut, and moves HEAD to it. The commit has HEAD as its only
 parent, so the push needs no force. The index and the files match the new commit, so nothing is
 left uncommitted: each tracked file that `<commit>` lacks is removed, and an untracked ignored file
-that `<commit>` lacks stays. It exits 0 with the new commit on its last line. It exits 3, with the
+that `<commit>` lacks stays. It exits 0 with the new commit on its last line. When HEAD has the
+tree of `<commit>` already and the checkout is clean, it makes no commit and exits 0 with the line
+"Nothing to revert", so a rerun after a crash goes on. It exits 3, with the
 fix on the first line, when the checkout has a change that is not committed (commit or undo it
 first; this includes any tracked file under `.qory`), when the branch has no commit, when a
 rebase is in progress (end it first), when the checkout already has a path that `<commit>` adds
@@ -461,5 +463,4 @@ rebase is in progress (end it first), when the checkout already has a path that 
 out of the checkout, since the revert would overwrite it; the lookup uses the file system, so its
 case and normalisation rules apply), when a path that HEAD and `<commit>` have different is a
 submodule on either side (a revert across a submodule stops: report to a member), when `<commit>`
-is no commit of the checkout, and when HEAD has the tree of `<commit>` already. It exits 2 for a
-`--base` that is not a full commit id.
+is no commit of the checkout. It exits 2 for a `--base` that is not a full commit id.

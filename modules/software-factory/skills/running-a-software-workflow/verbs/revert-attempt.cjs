@@ -6,8 +6,9 @@
 // checks no ancestry: a checkout with the base at depth one has no history to check it against.
 // It stops when the checkout already has a path that the base adds, whatever the case or the
 // normalisation rules of the file system, because the reset would overwrite it.
-// It stops at a path that is a submodule in HEAD or in the base, at a tracked path under .qory
-// that has a change in the checkout, and during a rebase.
+// It stops at a submodule that differs between HEAD and the base, at a tracked path under .qory
+// that has a change in the checkout, and during a rebase. When HEAD has the tree of the base, it
+// makes no commit and exits 0.
 // shortcut: a revert across a submodule stops, replace it when a run needs submodules.
 // shortcut: a clean filter can hide a change from status, replace it when a run uses filters.
 'use strict';
@@ -143,9 +144,11 @@ module.exports = (lib) => {
       { env: io.env }).trim();
     const now = git.ok(Missing, work.top, ['rev-parse', `${work.commit}^{tree}`], fix,
       { env: io.env }).trim();
+    // After the checks of the checkout, so that a change in it is never taken for a done revert: a
+    // rerun after a crash finds a clean checkout with the tree of the base, and goes on.
     if (tree === now) {
-      throw new Missing('Leave the checkout as it is: HEAD has the tree of the base.',
-        [`HEAD and the base have the tree ${tree}, so there is nothing to revert.`]);
+      io.print([], `Nothing to revert: HEAD has the tree of ${commit.slice(0, 12)} already.`);
+      return 0;
     }
     const changes = differing(io, work.top, work.commit, commit);
     const modules = changes.filter((one) => one.old === '160000' || one.now === '160000');
@@ -174,7 +177,7 @@ module.exports = (lib) => {
       fix, { env: io.env, input: message, set: who }).trim();
     // reset --hard moves HEAD, the index and the files together, and removes each tracked file
     // that the tree lacks. When it fails, HEAD stays and some files may already differ from it.
-    git.ok(Missing, work.top, ['reset', '-q', '--hard', made],
+    git.ok(Missing, work.top, ['-c', 'submodule.recurse=false', 'reset', '-q', '--hard', made],
       'Run git status, then git reset --hard HEAD if the changes are only the revert\'s',
       { env: io.env, set: who });
     io.print([], `Reverted to the tree of ${commit.slice(0, 12)} in commit ${made}.`);

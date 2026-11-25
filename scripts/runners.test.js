@@ -1403,7 +1403,7 @@ test('revert-attempt: a --base that is no commit of the checkout exits 3, a shor
   }
 });
 
-test('revert-attempt: a HEAD with the tree of --base already exits 3 and makes no commit', () => {
+test('revert-attempt: a HEAD with the tree of --base already exits 0 and makes no commit', () => {
   const dir = checkout();
   const start = sh(dir, 'rev-parse', 'HEAD');
   for (const empty of [false, true]) {
@@ -1413,10 +1413,20 @@ test('revert-attempt: a HEAD with the tree of --base already exits 3 and makes n
     }
     const head = sh(dir, 'rev-parse', 'HEAD');
     const got = call(dir, ['revert-attempt', '--base', start]);
-    assert.equal(got.status, 3, got.out + got.err);
-    assert.equal(got.lines[0], 'Leave the checkout as it is: HEAD has the tree of the base.');
+    assert.equal(got.status, 0, got.out + got.err);
+    assert.deepEqual(got.lines,
+      [`Nothing to revert: HEAD has the tree of ${start.slice(0, 12)} already.`]);
     assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
   }
+});
+
+test('revert-attempt: a HEAD with the tree of --base and a change in the checkout still exits 3', () => {
+  const dir = checkout();
+  const start = sh(dir, 'rev-parse', 'HEAD');
+  write(dir, 'src/a.js', 'changed\n');
+  const got = call(dir, ['revert-attempt', '--base', start]);
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[0], 'Commit or undo each change, then run revert-attempt again.');
 });
 
 test('revert-attempt: the mode of a file and a symlink come back, and an ignored file stays', () => {
@@ -1698,28 +1708,51 @@ test('revert-attempt: a rebase in progress stops it, and HEAD stays', () => {
   assert.equal(call(dir, ['revert-attempt', '--base', start]).status, 0);
 });
 
-test('revert-attempt: the line of a failed reset is the first line of git that is no hint', () => {
-  const { dir, start, head } = attempted();
-  // A git that prints a hint and then the error for reset, and is the real git otherwise.
+// resetShim returns the PATH with a program git in front. It writes the arguments of reset to the
+// file of SHIM_LOG, prints the text of SHIM_FAIL on stderr and exits 128 when that is set, and is
+// the real git otherwise.
+function resetShim() {
   const real = childProcess.spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
   const bin = path.join(tmp, `shim-${count}`);
   write(bin, 'git', `#!/bin/sh
 for each in "$@"; do
   if [ "$each" = reset ]; then
-    echo 'hint: Support for <GIT_DIR>/info/grafts is deprecated' >&2
-    echo "error: Entry 'src/a.js' not uptodate. Cannot merge." >&2
-    echo 'fatal: Could not reset index file to revision.' >&2
-    exit 128
+    printf '%s\\n' "$@" > "$SHIM_LOG"
+    if [ -n "$SHIM_FAIL" ]; then printf '%b' "$SHIM_FAIL" >&2; exit 128; fi
   fi
 done
 exec ${real} "$@"
 `);
   fs.chmodSync(path.join(bin, 'git'), 0o755);
-  const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: `${bin}:${process.env.PATH}` } });
+  return `${bin}:${process.env.PATH}`;
+}
+
+test('revert-attempt: the line of a failed reset is the first line of git that is no hint', () => {
+  const { dir, start, head } = attempted();
+  const SHIM_FAIL = "hint: Support for <GIT_DIR>/info/grafts is deprecated\n" +
+    "error: Entry 'src/a.js' not uptodate. Cannot merge.\nfatal: Could not reset index file.\n";
+  const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: resetShim(),
+    SHIM_LOG: path.join(tmp, 'unused-log'), SHIM_FAIL } });
   assert.equal(got.status, 3, got.out + got.err);
   assert.equal(got.lines[0], RESET_FAILED);
   assert.equal(got.lines[1], "  git reset failed: error: Entry 'src/a.js' not uptodate. Cannot merge.");
   assert.equal(sh(dir, 'rev-parse', 'HEAD'), head);
+});
+
+test('revert-attempt: the line of a failed reset skips a blank line of git', () => {
+  const { dir, start } = attempted();
+  const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: resetShim(),
+    SHIM_LOG: path.join(tmp, 'unused-log'), SHIM_FAIL: "\n  \nerror: Entry 'src/a.js' not uptodate.\n" } });
+  assert.equal(got.status, 3, got.out + got.err);
+  assert.equal(got.lines[1], "  git reset failed: error: Entry 'src/a.js' not uptodate.");
+});
+
+test('revert-attempt: reset does not recurse into submodules', () => {
+  const { dir, start } = attempted();
+  const log = path.join(tmp, `reset-log-${count}`);
+  const got = call(dir, ['revert-attempt', '--base', start], { env: { PATH: resetShim(), SHIM_LOG: log } });
+  assert.equal(got.status, 0, got.out + got.err);
+  assert.ok(fs.readFileSync(log, 'utf8').includes('-c\nsubmodule.recurse=false\nreset\n'));
 });
 
 test('revert-attempt: a tracked file under .qory that HEAD and the base share, with a change, stops it', () => {
