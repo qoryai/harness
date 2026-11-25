@@ -1150,6 +1150,24 @@ test('secrets: each shape of Forager\'s masker and no false find on plain code',
   assert.deepEqual(secrets.secretValues({ A_TOKEN: 'short', C_SECRET: 'x'.repeat(12), PATH: 'y'.repeat(20) }), ['x'.repeat(12)]);
 });
 
+// The limit that docs/modules.md states: the scan finds a private key by its BEGIN line only,
+// so freeze commits the rest of the key in a file without that line.
+test('secrets: the body of a private key with no BEGIN line is no finding', () => {
+  const docs = fs.readFileSync(path.join(__dirname, '../docs/modules.md'), 'utf8');
+  assert.ok(docs.replace(/\s+/g, ' ').includes('The body of a private key with no `BEGIN` line ' +
+    'is no finding.'));
+  const [begin, end] = ['BEGIN', 'END'].map((edge) => `-----${edge} ${'RSA'} PRIVATE KEY-----`);
+  const body = ['MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu',
+    'KUpRKfFLfRYC9AIKjbJTWit8CqvjWYzvQwECAwEAAQJAIJLixBy2qpFoS4DSmoEm'];
+  assert.equal(secrets.scanLine(begin, []), 'a private key');
+  for (const line of [...body, end]) assert.equal(secrets.scanLine(line, []), null, line);
+  const dir = checkout();
+  write(dir, 'lib/key.txt', `${[...body, end].join('\n')}\n`);
+  const got = call(dir, ['freeze', 'deliverable:d-1']);
+  assert.equal(got.status, 0, got.out);
+  assert.equal(sh(dir, 'show', 'HEAD:lib/key.txt'), [...body, end].join('\n'));
+});
+
 test('secrets: a value that starts with / is a key unless it is a path, and a key file counts by its values', () => {
   const file = path.join(tmp, 'service-key.json');
   fs.writeFileSync(file, '{\n  "private": "k3Yv4lu3Of4F1l3"\n}\n');

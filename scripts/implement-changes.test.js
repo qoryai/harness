@@ -149,12 +149,11 @@ test('the session starts the developer twice and the debugger once per step, the
     '`<folder>/.reports/build-ledger.json`, the commit on which the failed step started.',
     '1. Run `git reset -q <base>`, never with `--hard`, so that no file is lost.',
     '2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of ' +
-    'the step printed.', '- A key: remove its line with a shell command that does not contain ' +
-    'the key. `freeze` and `scope` print the number of the line; with more than one line, ' +
-    'start at the last. - A new repository folder or a changed submodule: do what "The end" ' +
-    'lists for it. - A path outside the Files of every ' +
-    'deliverable, or a file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or ' +
-    'remove the path when `<base>` does not have it.',
+    'the step printed.', '- A new repository folder or a changed submodule: do what "The end" ' +
+    'lists for it. - A file with a key, a path outside the Files of every deliverable, or a ' +
+    'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
+    'when `<base>` does not have it.', 'When a line has no full path,',
+    'For a key in a line that starts with `Rewrite commit <c>`, run',
     '3. When the checkout has a change, commit it with the two commands of "The end".',
     '4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4 ' +
     'again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures" ' +
@@ -1037,6 +1036,44 @@ const RESET = commandOf('A step that fails', /Run `(git reset [^`]+)`/);
 const repositoryOf = (w, file) => git(w.repo, w.env, 'ls-tree', 'HEAD', '--', file)
   .startsWith('160000 ');
 
+// The commands of "The end" for a new repository folder inside the Files, and the command that
+// lists each repository folder inside it.
+const [UNSTAGE, UNMAKE] = /all inside the Files of a deliverable: run\s+`([^`]+)`, then\s+`([^`]+)`/
+  .exec(section(WORKFLOW, 'The end')).slice(1);
+const NESTED = commandOf('The end', /`(find <path> [^`]+)`/);
+
+// unmake runs the commands of "The end" that keep the files of the repository folder at folder
+// of w, then those for each repository folder inside it, unless inner is false.
+function unmake(w, folder, inner = true) {
+  const run = (command) => {
+    const ran = shell(w, command.replaceAll('<path>', folder));
+    assert.equal(ran.status, 0, `${command}: ${ran.stderr}`);
+    return ran.stdout;
+  };
+  run(UNSTAGE);
+  run(UNMAKE);
+  if (!inner) return;
+  for (const found of run(NESTED).split('\n').filter(Boolean)) {
+    unmake(w, path.dirname(found), false);
+  }
+}
+
+// The lines of a private key in PEM: its BEGIN and END lines are made here, so that this file
+// has no such line.
+const PEM = (edge) => `-----${edge} ${'RSA'} PRIVATE KEY-----`;
+const BODY = ['MIIBOgIBAAJBAKj34GkxFhD90vcNLYLInFEX6Ppy1tPf9Cnzj4p4WGeKLs1Pt8Qu',
+  'KUpRKfFLfRYC9AIKjbJTWit8CqvjWYzvQwECAwEAAQJAIJLixBy2qpFoS4DSmoEm'];
+const KEY_LINES = [PEM('BEGIN'), ...BODY, PEM('END')];
+
+// noLineIn asserts that the commit at the head of w has none of lines, as git grep finds them.
+function noLineIn(w, lines, what) {
+  for (const line of lines) {
+    const found = childProcess.spawnSync('git', ['-C', w.repo, 'grep', '-q', '-F', '-e', line,
+      'HEAD'], { env: w.env, encoding: 'utf8' });
+    assert.equal(found.status, 1, `${what}: HEAD has "${line}"`);
+  }
+}
+
 test('after one step done and one step failed, the session does "The submission"', () => {
   const w = work();
   const call = session(w);
@@ -1079,19 +1116,48 @@ test('after one step done and one step failed, the session does "The submission"
 
 test('after a step that fails, the session takes out what the check of the push finds', () => {
   const key = `ghp_${'A1b2C3d4E5'.repeat(4)}`;
+  const fails = section(WORKFLOW, 'A step that fails');
+  contains(fails, '- A file with a key, a path outside the Files of every deliverable, or a ' +
+    'file that `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path ' +
+    'when `<base>` does not have it. Both lose the other changes of the step to that file.');
+  contains(fails, 'When a line has no full path, such as for a key in the name of a file, a ' +
+    'long name or a name that is not UTF-8, take the path from');
+  contains(fails, 'When it exits with another status than 0, the file changed after that ' +
+    'commit: leave it. When the file still has the key, step 4 prints the key for the commit ' +
+    'of step 3.');
   const restore = commandOf('A step that fails', /run\s+`(git checkout [^`]+)`/);
+  const status = commandOf('A step that fails', /from\s+`(git status [^`]+)`/);
+  const same = commandOf('A step that fails', /run\s+`(git show <c>:<path> \| cmp [^`]+)`/);
   const scope = commandOf('A step that fails', /checks\.cjs (scope --plan[^`]+)`/).split(' ');
-  const unmake = commandOf('The end', /run\s+`(rm -rf [^`]+)`/);
   const passes = (w, command) => {
     const ran = shell(w, command);
     assert.equal(ran.status, 0, ran.stderr);
+  };
+  // takeKey takes the file with a key out as "A step that fails" lists it: it sets the file
+  // back to base, or removes it when base does not have it.
+  const takeKey = (w, base, file) => {
+    const had = childProcess.spawnSync('git', ['-C', w.repo, 'cat-file', '-e', `${base}:${file}`],
+      { env: w.env }).status === 0;
+    if (had) passes(w, restore.replace('<base>', base).replace('<path>', file));
+    else fs.rmSync(path.join(w.repo, file));
+  };
+  // changed runs the check of "A step that fails" for a key in commit and returns its status.
+  const changed = (w, commit, file) => shell(w, same.replaceAll('<c>', commit)
+    .replaceAll('<path>', file)).status;
+  // committed returns the commit of the line of red for line at of tests/key.txt.
+  const committed = (red, at) => new RegExp('Rewrite commit ([0-9a-f]{12}) without a [^\\n]+ ' +
+    `in "tests/key\\.txt", line ${at}\\.`).exec(red.out)[1];
+  const tracked = (w) => git(w.repo, w.env, 'ls-tree', '-r', '--name-only', 'HEAD').split('\n');
+  const twoLines = (w) => {
+    writeFile(w, 'tests/key.txt', `one\n${key}\n`);
+    assert.equal(commitChanges(w, 'Write the header').status, 0);
   };
   // Each case leaves something in the checkout, with a line of scope --plan on its commit,
   // and whether scope --plan prints a line for it before a commit has it.
   const cases = [
     ['a nested repository in a planned folder', (w) => repository(w, 'tests/nested'),
       /Rewrite commit [0-9a-f]{12} without the repository "tests\/nested"/, 0,
-      (w) => passes(w, unmake.replace('<path>', 'tests/nested')),
+      (w) => unmake(w, 'tests/nested'),
       (w) => assert.match(git(w.repo, w.env, 'ls-tree', '-r', 'HEAD', '--', 'tests/nested'),
         /^100644 blob \w+\ttests\/nested\/a\.txt$/)],
     ['a nested repository outside the plan', (w) => repository(w, 'notes/nested'),
@@ -1104,15 +1170,79 @@ test('after a step that fails, the session takes out what the check of the push 
       fs.rmSync(path.join(w.repo, 'notes/new.txt'));
       passes(w, restore.replace('<base>', base).replace('<path>', 'README.md'));
     }],
-    ['a key', (w) => writeFile(w, 'tests/key.txt', `one\n${key}\n`),
-      /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 0,
-      (w) => passes(w, "perl -ni -e 'print unless $. == 2' tests/key.txt"),
-      (w) => assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/key.txt'), 'one')],
+    ['a private key of 4 lines in a new file',
+      (w) => writeFile(w, 'tests/key.pem', `${KEY_LINES.join('\n')}\n`),
+      /Rewrite commit [0-9a-f]{12} without a private key in "tests\/key\.pem", line 1\./, 0,
+      (w, base) => takeKey(w, base, 'tests/key.pem'), (w, what) => {
+        noLineIn(w, KEY_LINES, what);
+        assert.equal(tracked(w).includes('tests/key.pem'), false, what);
+      }],
+    // The base has src/orders.cjs, so its other change of the step is lost too.
+    ['a private key with no END line in a file that the base has',
+      (w) => writeFile(w, 'src/orders.cjs', `${LINES}// One more line.\n/*\n` +
+        `${KEY_LINES.slice(0, 3).join('\n')}\n*/\n`),
+      /Rewrite commit [0-9a-f]{12} without a private key in "src\/orders\.cjs", line 5\./, 0,
+      (w, base) => takeKey(w, base, 'src/orders.cjs'), (w, what) => {
+        noLineIn(w, [...KEY_LINES, '// One more line.'], what);
+        assert.equal(git(w.repo, w.env, 'show', 'HEAD:src/orders.cjs'), LINES.trim(), what);
+      }],
+    // The scan finds the BEGIN line alone, so the file with the rest of the key stays.
+    ['a private key split over two files', (w) => {
+      writeFile(w, 'tests/a.pem', `${KEY_LINES.slice(0, 2).join('\n')}\n`);
+      writeFile(w, 'tests/b.txt', `${KEY_LINES.slice(2).join('\n')}\n`);
+    }, /Rewrite commit [0-9a-f]{12} without a private key in "tests\/a\.pem", line 1\./, 0,
+    (w, base) => takeKey(w, base, 'tests/a.pem'), (w, what) => {
+      noLineIn(w, KEY_LINES.slice(0, 2), what);
+      assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/b.txt'),
+        KEY_LINES.slice(2).join('\n'), what);
+    }],
+    ['a key in a binary file', (w) => writeFile(w, 'tests/blob.bin', Buffer.concat([
+      Buffer.from([0, 1, 2, 0]), Buffer.from(`\n${key}\n`), Buffer.from([0, 255, 0])])),
+    /Rewrite commit [0-9a-f]{12} without a GitHub token in "tests\/blob\.bin", line 2\./, 0,
+    (w, base) => takeKey(w, base, 'tests/blob.bin'),
+    (w, what) => assert.equal(tracked(w).includes('tests/blob.bin'), false, what)],
+    // The line has no path, so the session takes it from git status.
+    ['a key in the name of a new file', (w) => writeFile(w, `tests/${key}.txt`, 'one\n'),
+      /Rewrite commit [0-9a-f]{12} without a GitHub token in the name of a file\./, 0,
+      (w, base) => {
+        const listed = shell(w, status);
+        assert.equal(listed.status, 0, listed.stderr);
+        const file = listed.stdout.split('\n').find((one) => one.includes(key)).slice(3);
+        assert.equal(file, `tests/${key}.txt`);
+        takeKey(w, base, file);
+      }, (w, what) => assert.equal(tracked(w).some((one) => one.includes(key)), false, what)],
+    // Only the commit of the failed step has the key, so the other lines of the file stay.
     ['a commit of the failed step with a key', (w) => {
-      writeFile(w, 'tests/key.txt', `one\n${key}\n`);
-      assert.equal(commitChanges(w, 'Write the header').status, 0);
-      writeFile(w, 'tests/key.txt', 'one\n');
-    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1, () => {}],
+      twoLines(w);
+      writeFile(w, 'tests/key.txt', 'one\ntwo\n');
+    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
+    (w, base, red) => assert.equal(changed(w, committed(red, 2), 'tests/key.txt'), 1),
+    (w, what) => assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/key.txt'), 'one\ntwo',
+      what)],
+    ['a commit of the failed step with a key that the file still has', (w) => {
+      twoLines(w);
+      writeFile(w, 'tests/other.txt', 'other\n');
+    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
+    (w, base, red) => {
+      assert.equal(changed(w, committed(red, 2), 'tests/key.txt'), 0);
+      takeKey(w, base, 'tests/key.txt');
+    }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
+    // The file changed after the commit and still has the key: the commit of step 3 has it,
+    // and the repeat takes the file out.
+    ['a commit of the failed step with a key, and a later change that keeps it', (w) => {
+      twoLines(w);
+      writeFile(w, 'tests/key.txt', `zero\none\n${key}\n`);
+    }, /Rewrite commit [0-9a-f]{12} without a [^\n]+ in "tests\/key\.txt", line 2/, 1,
+    (w, base, red, plan) => {
+      assert.equal(changed(w, committed(red, 2), 'tests/key.txt'), 1);
+      assert.equal(commitChanges(w, 'Keep the files of the failed step').status, 0);
+      const again = plan();
+      assert.equal(again.status, 1);
+      assert.match(again.out, /without a [^\n]+ in "tests\/key\.txt", line 3/);
+      passes(w, RESET.replace('<base>', base));
+      assert.equal(changed(w, committed(again, 3), 'tests/key.txt'), 0);
+      takeKey(w, base, 'tests/key.txt');
+    }, (w, what) => assert.equal(tracked(w).includes('tests/key.txt'), false, what)],
   ];
   for (const [what, leave, line, before, takeOut, then = () => {}] of cases) {
     const w = work();
@@ -1141,7 +1271,7 @@ test('after a step that fails, the session takes out what the check of the push 
     passes(w, RESET.replace('<base>', base));
     assert.equal(git(w.repo, w.env, 'rev-parse', 'HEAD'), done, what);
     assert.deepEqual(files().map((one) => one.replace(/\/$/, '')), kept, what);
-    takeOut(w, base);
+    takeOut(w, base, red, plan);
     const again = commitChanges(w, 'Keep the files of the failed step');
     assert.equal(again.status, 0, `${what}: ${again.stderr}`);
     const green = plan();
@@ -1151,7 +1281,7 @@ test('after a step that fails, the session takes out what the check of the push 
     assert.equal(git(w.repo, w.env, 'show', 'HEAD:tests/header.test.cjs'), HEADER_TEST.trim(),
       what);
     assert.equal(call('end', w.artifacts, '--inputs', buildInputs(w)).status, 0, what);
-    then(w);
+    then(w, what);
   }
 });
 
@@ -1188,9 +1318,13 @@ test('the session sets a submodule back, the ones in it and one whose folder is 
   inOrder(section(WORKFLOW, 'The end'), 'No commit of the run can contain a new repository ' +
     'folder, or a new commit or changed files of a submodule', 'A commit that deletes a ' +
     'submodule inside the Files of a deliverable passes.',
-    '- A new repository folder whose files are inside the Files of a deliverable: run ' +
-    '`rm -rf <path>/.git`.', '- A new repository folder whose files are outside them: remove ' +
-    'the folder.', '- A submodule outside the Files whose folder is missing: run ' +
+    '- A new repository folder whose files are all inside the Files of a deliverable: run ' +
+    '`git reset -q -- <path>`, then `rm -rf <path>/.git`. Without the reset, `git commit` ' +
+    'exits with 128 when the index has the folder as a repository. Do the same for each ' +
+    'repository folder inside it, the folder of each `.git` that ' +
+    '`find <path> -mindepth 2 -name .git` prints.', '- A new repository folder with files ' +
+    'both inside and outside them:', '- A new repository folder whose files are all outside ' +
+    'them: remove the folder.', '- A submodule outside the Files whose folder is missing: run ' +
     '`git checkout HEAD -- <path>`.', '- Another changed submodule: set it back');
   const restore = commandOf('The end', /run `(git checkout HEAD [^`]+)`/);
   // added adds a submodule with a submodule deep, which has a submodule low, to w at folder,
@@ -1264,6 +1398,70 @@ test('the session sets a submodule back, the ones in it and one whose folder is 
   assert.equal(commitChanges(w, 'Remove the submodule').status, 0);
   assert.equal(repositoryOf(w, 'tests/sub'), false);
   assert.deepEqual([plan(), end()], [0, 0]);
+});
+
+test('the session keeps the files of a new repository folder that are inside the Files', () => {
+  contains(section(WORKFLOW, 'The end'), '- A new repository folder with files both inside ' +
+    'and outside them: run the same commands, then remove the files outside them.');
+  // check commits the change of w, and returns the exits of scope --plan and the end check.
+  const check = (w) => {
+    const done = commitChanges(w, 'Keep the folder');
+    assert.equal(done.status, 0, done.stderr);
+    const call = session(w);
+    const inputs = buildInputs(w);
+    return [call('scope', '--plan', '--inputs', inputs).status,
+      call('end', w.artifacts, '--inputs', inputs).status];
+  };
+  const entries = (w) => git(w.repo, w.env, 'ls-tree', '-r', 'HEAD', '--', 'tests', 'lib')
+    .split('\n').map((one) => one.replace(/ \w+\t/, ' '));
+  // The index has the folder as a repository: without the reset, git commit exits with 128.
+  const staged = (w) => {
+    repository(w, 'tests/n');
+    git(w.repo, w.env, 'add', '-A');
+    assert.match(git(w.repo, w.env, 'ls-files', '-s', '--', 'tests/n'), /^160000 /);
+  };
+  const bare = work();
+  staged(bare);
+  assert.equal(shell(bare, UNMAKE.replaceAll('<path>', 'tests/n')).status, 0);
+  assert.equal(commitChanges(bare, 'Keep the folder').status, 128);
+  const w = work();
+  staged(w);
+  unmake(w, 'tests/n');
+  assert.deepEqual(check(w), [0, 0]);
+  assert.deepEqual(entries(w), ['100644 blob tests/n/a.txt']);
+  // A repository folder inside it loses its .git too; without that, the commit has it as a
+  // repository, and scope --plan exits 1.
+  const nested = (inner) => {
+    const one = work();
+    repository(one, 'tests/n/sub');
+    repository(one, 'tests/n');
+    unmake(one, 'tests/n', inner);
+    return one;
+  };
+  const deep = nested(true);
+  assert.deepEqual(check(deep), [0, 0]);
+  assert.deepEqual(entries(deep), ['100644 blob tests/n/a.txt',
+    '100644 blob tests/n/sub/a.txt']);
+  const shallow = nested(false);
+  assert.deepEqual(check(shallow)[0], 1);
+  assert.equal(repositoryOf(shallow, 'tests/n/sub'), true);
+  // A folder with files inside and outside the Files keeps only those inside.
+  const wide = work();
+  const plan = path.join(wide.artifacts, 'build-plan/main/v1/build-plan.md');
+  fs.writeFileSync(plan, read(plan).replace('`tests/` | `tests/lines',
+    '`tests/`, `lib/a.txt` | `tests/lines'));
+  repository(wide, 'lib');
+  writeFile(wide, 'lib/b.txt', 'b\n');
+  unmake(wide, 'lib');
+  const kept = work();
+  fs.writeFileSync(path.join(kept.artifacts, 'build-plan/main/v1/build-plan.md'), read(plan));
+  repository(kept, 'lib');
+  writeFile(kept, 'lib/b.txt', 'b\n');
+  unmake(kept, 'lib');
+  assert.deepEqual(check(kept)[0], 1);
+  fs.rmSync(path.join(wide.repo, 'lib/b.txt'));
+  assert.deepEqual(check(wide), [0, 0]);
+  assert.deepEqual(entries(wide), ['100644 blob lib/a.txt']);
 });
 
 test('no hook and no signing key of the checkout stops the commit of the session', () => {

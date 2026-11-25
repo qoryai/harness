@@ -26,12 +26,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   and `qory@localhost`, as `freeze` sets it, because `git commit` exits with 128 where no
   identity is set, with no hook and no signature, and with no path under `.qory`. Before
   that commit, the session takes out of the checkout what makes `scope --plan` exit 1: a
-  key, a path outside the plan, a repository folder, a changed submodule and a file that
-  `freeze` cannot scan. After it, the session runs `scope --plan`, and repeats both at most
-  twice. While `scope --plan` prints no finding, qory pushes the commits of the done steps.
-  When a finding stays, the scope check of qory's push stops the push, qory pushes no
-  commit, and the run ends `push_scope_refused`. `git reset -q` ends a merge or a
-  cherry-pick in progress, and the session sets a changed submodule back.
+  file with a key, a path outside the plan, a new repository folder, a changed submodule and
+  a file that `freeze` cannot scan. It sets such a file back to the base of the step, or
+  removes it when the base does not have it, because the scan finds a private key by its
+  `BEGIN` line only. A new repository folder inside the Files loses only its `.git`, and so
+  does each repository folder inside it. After it, the session runs `scope --plan`, and
+  repeats both at most twice. While `scope --plan` prints no finding, qory pushes the
+  commits of the done steps. When a finding stays, the scope check of qory's push stops the
+  push, qory pushes no commit, and the run ends `push_scope_refused`. `git reset -q` ends a
+  merge or a cherry-pick in progress, and the session sets a changed submodule back.
 - The verb `film <scenario>` of `running-a-software-workflow`, which stores the evidence of
   a demo scenario from its pushed demo script, in `.film/<scenario>/`. It starts the app at
   the `App address:` of the build plan, signs in with the replay of `preflight`, and runs

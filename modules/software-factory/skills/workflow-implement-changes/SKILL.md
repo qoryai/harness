@@ -223,11 +223,17 @@ failed step started.
 2. Take out of the checkout each thing of this list that the last `scope` or `freeze` of the
    step printed. A commit with one of them fails the scope check of qory's push, and then
    qory pushes no commit of the run, those of the done steps included.
-   - A key: remove its line with a shell command that does not contain the key. `freeze` and
-     `scope` print the number of the line; with more than one line, start at the last.
    - A new repository folder or a changed submodule: do what "The end" lists for it.
-   - A path outside the Files of every deliverable, or a file that `freeze` cannot scan: run
-     `git checkout <base> -- <path>`, or remove the path when `<base>` does not have it.
+   - A file with a key, a path outside the Files of every deliverable, or a file that
+     `freeze` cannot scan: run `git checkout <base> -- <path>`, or remove the path when
+     `<base>` does not have it. Both lose the other changes of the step to that file.
+
+   When a line has no full path, such as for a key in the name of a file, a long name or a
+   name that is not UTF-8, take the path from
+   `git status --porcelain --untracked-files=all`. For a key in a line that starts with
+   `Rewrite commit <c>`, run `git show <c>:<path> | cmp -s - <path>` first. When it exits
+   with another status than 0, the file changed after that commit: leave it. When the file
+   still has the key, step 4 prints the key for the commit of step 3.
 3. When the checkout has a change, commit it with the two commands of "The end".
 4. Run `<skill folder>/checks.cjs scope --plan --inputs <inputs>`. With 1, do steps 1 to 4
    again with the lines that it printed, at most twice. With 2, 3 or 4, end as "Failures"
@@ -367,9 +373,15 @@ of a submodule: the scope check of qory's push scans no file of one for keys, so
 with 1, and qory pushes no commit of the run. A commit that deletes a submodule inside the
 Files of a deliverable passes. Before the two commands:
 
-- A new repository folder whose files are inside the Files of a deliverable: run
-  `rm -rf <path>/.git`. The commit then has its files, and the scope check scans them.
-- A new repository folder whose files are outside them: remove the folder.
+- A new repository folder whose files are all inside the Files of a deliverable: run
+  `git reset -q -- <path>`, then `rm -rf <path>/.git`. Without the reset, `git commit`
+  exits with 128 when the index has the folder as a repository. Do the same for each
+  repository folder inside it, the folder of each `.git` that
+  `find <path> -mindepth 2 -name .git` prints. The commit then has its files, and the scope
+  check scans them.
+- A new repository folder with files both inside and outside them: run the same commands,
+  then remove the files outside them.
+- A new repository folder whose files are all outside them: remove the folder.
 - A submodule outside the Files whose folder is missing: run `git checkout HEAD -- <path>`.
 - Another changed submodule: set it back to the commit that the checkout lists, and each
   submodule in it, with these commands:
