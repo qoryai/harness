@@ -484,7 +484,9 @@ An agent that the table does not list sets no `model` key.
   Write beside the four read tools and writes at one path, its report: the body has the
   line `Tool exception: Write, because it writes the one report file of a review round.`
   The tool guard denies each other write of that session, and each write of an agent of
-  that session. For an agent whose type ends in `-reviewer` it denies the write tools
+  that session. `check-reviewer` and `plan-reviewer`, agents of a session of Build, list
+  Write with the same line, for the report file that `step end` needs. For any other agent
+  whose type ends in `-reviewer` it denies the write tools
   (`Write`, `Edit`, `MultiEdit`, `NotebookEdit` and `apply_patch`) in any session. Outside
   a reviewer session the guard does not apply the read-only shell rule of a reviewer
   session to that agent; its shell is limited only by the other rules of the guard. The
@@ -696,7 +698,8 @@ third start, the session starts the writer once more with only the findings mark
 `sentence` that are left, and starts no review after it: the check before the push still
 runs. These findings get no point, so a run with no other finding left passes. The session
 skips that start when another finding left fails the push: nothing is pushed, so the fix
-would be lost, and the next round's review finds the sentence again. In every workflow,
+would be lost, and the next round's review finds the sentence again. It also skips it for a
+file that needs the report file of its reviewer, such as the build plan. In every workflow,
 Explore included, this start replaces a point or a finding kept with a reason, and Explore
 keeps no such finding before that start either. Nobody reviews the fix, so a pushed draft
 can still break a sentence rule.
@@ -1911,7 +1914,41 @@ tool's error. The first line of each reason starts with what to do. The guard de
   `MultiEdit`, `NotebookEdit` and `apply_patch`) of an agent, the report path included, when
   its type ends in `-reviewer`, in any session but a review session, and when it runs in a
   session of a reviewer, whatever its type: only the main session of a reviewer writes the
-  report. Outside a reviewer session the guard does not apply the read-only shell rule of a
+  report. The exception is a step's report: outside a session of `qory.review`,
+  `qory.review_session` or `qory.hook_session`, the agents `check-reviewer` and
+  `plan-reviewer` (`harness:<name>` on Claude Code, a role of the composed home on Codex)
+  write `.step-reports/<name>/<sha256>.json` of the artifact folder and no other file, with
+  a `Write` or an `apply_patch` that adds it, through no link and no `..`. Any other write
+  of one of them gets "Write only .step-reports/<agent name>/<sha256>.json in the artifact
+  folder, with Write." Every other agent and the main session get "Leave .step-reports/ to
+  check-reviewer and plan-reviewer." for a write whose path, after links and `..`, has a
+  folder `.step-reports` in any letter case. So does a shell command of any agent or of the
+  main session that writes there, or that has that folder in its text or in a word, other
+  than read-only commands and `checks.cjs` alone. With the artifact folder
+  `/tmp/qory-artifacts`, a copy or a move of a named file into a folder above it, such as
+  `mv a /tmp`, passes. As for `.reports/`, a copy or a move into such a folder is denied
+  when a source has the name of the folder below it, as in `cp -R qory-artifacts /tmp`, is
+  vague, as in `"$f"`, or ends with `/` or `/.`, as in `cp -R stage/. /tmp`, and so are
+  `cp -rT` and a copy that writes each source by its path below the destination:
+  `cp --parents`, also as `--path` or a prefix of either from `--pa`, and `rsync -R`,
+  `--relative` or `--files-from`, which implies `-R`. So is a move or a removal of such a
+  folder. A glob reaches the folder through a link to the artifact folder, as in
+  `rm -rf link/.step*`. A move whose source the guard cannot tell from its destination is
+  denied too: `find ... -exec mv {} /tmp \;`, `xargs -I{} mv {} /tmp`, `sh -c 'mv a /tmp'`
+  and `git mv a /tmp`. So is a move in `if` or `while`, with a comment after it, with a
+  quoted redirect file that has a space, as in `> "a b"`, with a quoted or `$` redirect file
+  after `2>&1`, or with the target in a combined or shortened option, as in `mv -vt /tmp a`.
+  The guard reads a shell command as it does for `.reports/`, so a script that a later call
+  runs still reaches the folder, and so do an archive that `tar`, `unzip` or `ditto`
+  extracts into the artifact folder, a copy of the sources that `find -exec` or `xargs` add,
+  as in `find src -exec cp -R {} /tmp \;`, a copy that the guard splits at a redirect, as in
+  `cp -R src/. /x 2>&1 /tmp`, a copy of `.`, as in `cp -R . /tmp`, a copy with `-t` in a
+  combined option, as in `cp -Rt /tmp stage/.` or `cp -at /tmp stage/.`, a copy by `ditto`,
+  as in `ditto stage /tmp`, a glob whose wildcard matches a link, as in
+  `cp x lin?/.step-report?/`, and a copy by `gcp`, the name of GNU cp in a Homebrew install,
+  as in `gcp --parents a/b /tmp`. On Gemini CLI, Cursor and Copilot CLI no guard protects
+  `.step-reports`, so any agent can write a report there.
+  Outside a reviewer session the guard does not apply the read-only shell rule of a
   reviewer session to a `-reviewer` agent; its shell is limited only by the other rules of
   the guard. An agent of any other type in a session that is no reviewer's writes as it does
   outside a review. The main session of a reviewer starts no agent (`Agent`, `Task` and
@@ -2261,11 +2298,13 @@ writes sets the count back to 0. The main session, whose input has no `agent_id`
 Claude Code, a read-only agent are exempt: their stop is the time limit and the end check. A
 read-only agent is one whose file `modules/<module>/agents/<name>.md` under
 `$QORY_HARNESS_HOME` has a `tools` key that lists tools, none of them `Write`, `Edit`,
-`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. The key lists them on its line or as a
-YAML list. `agent_type` must be `harness:<name>`: a bare name can also be an agent of the
-project, so it counts. An agent with no such file, such as a built-in agent or an agent of
-another plugin, counts, and so does an agent with an empty `tools` list. On Codex, every
-agent counts, because every role can run `apply_patch`, whatever its file lists.
+`MultiEdit`, `NotebookEdit`, `Bash` or `apply_patch`. `check-reviewer` and `plan-reviewer`,
+which write only the report of a step, are read-only agents with `Write` too. The key lists
+them on its line or as a YAML list. `agent_type` must be `harness:<name>`: a bare name can
+also be an agent of the project, so it counts. An agent with no such file, such as a
+built-in agent or an agent of another plugin, counts, and so does an agent with an empty
+`tools` list. On Codex, every agent counts, because every role can run `apply_patch`,
+whatever its file lists.
 
 When `$QORY_HARNESS_HOME` lies below the working folder, as `.qory/harness/` does, the
 guard denies each write below it, with the reason "Leave the composed harness as it is: the
@@ -2865,10 +2904,13 @@ call that exits 0. The guard of `.reports/*.json` denies an agent a write to eit
   has the cause: the number of parts, the agent or role that is no name, or the tier;
   `--pushed <type>/<name>/<version>`, once per version the step stored, at most 4 times; and
   `--script-sha256 <sha256>`, as `script_sha256`, which a `script:` step needs to end
-  `done`. A report over 8,192 characters, or over 8,192 bytes as written in the ledger, is a
-  finding of `done`, and so is a list `Left out:` in the report that `report-build` cannot
-  read, which `done` refuses with "Fix the list Left out: of your report." and the cause of
-  each such list. `done` also sets the head as `commit`; a `failed` row gets no `commit`.
+  `done`. It must be the SHA-256 of `.demo/<scenario>.json`, the reviewed file; another one
+  is the finding "Run demo run <scenario> again, and give --script-sha256 the SHA-256 it
+  prints." of `done`. A report over 8,192 characters, or over 8,192 bytes as written in the
+  ledger, is a finding of `done`, and so is a list `Left out:` in the report that
+  `report-build` cannot read, for which `done` prints "Fix the list Left out: of your
+  report." and the cause of each such list. `done` also sets the head as `commit`; a
+  `failed` row gets no `commit`.
   `step end failed` always records the row: a report that is too long or cannot be read is
   left out, with a line that says why, and the verb exits 0.
 
@@ -2906,6 +2948,44 @@ the head that `resume` recorded, and its first `step begin` gets the lines of a 
 the stash line for changed files, then the reset line for the crashed step's commits, with
 `base` as the commit to return to. A crashed step of another run gets neither line, because
 the commits of its checkout may be a person's.
+
+A step whose file a reviewer reviews ends `done` only with a passing report of that
+reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it is
+`check-reviewer` on `acceptance-lock.json`; and for a demo script, the first one
+`script:<scenario>` or a correction, it is `check-reviewer` on `.demo/<scenario>.json`, each
+in the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the
+review report format (`review-report.schema.json` of qory), which `step end` reads as
+`findings round` does. `<sha256>` is the SHA-256 of that file. For `checks` it is the
+SHA-256 of the content of the lock with no `commit`, with the `sha256` of each listed file
+from the working folder, and with the members of each object in the order of their names. So
+it is the same before and after `freeze` and `lock`, and an edit of the draft or of a check
+file after the review changes it. A listed file with no hash, such as a missing file or a
+link, is a finding of `step end`, and so is a lock that is no JSON: "Write
+acceptance-lock.json as valid JSON."
+
+With no report, an invalid one or one whose path has a link, the first line of the finding
+is "Start <reviewer> on <file>, then run step end <id> done again." With a blocking finding,
+it is "Fix the blocking findings on <file>, then start <reviewer> again." With no such file,
+a link or more than 262144 bytes, it is "Write <file> in the artifact folder, then end the
+step again.", and the next line has the full path. Any of these makes the verb exit 1 with
+the ledger unchanged, so any edit after the review needs a new review. Every other kind of
+step ends with no report.
+
+The session runs `step end <id> done` with no flag before each start of the reviewer and
+after each review. That call never records: for a plan or the checks with no `--report` it
+exits 1 with "Give --report with the writer's last report to end <id> as done.", and for a
+demo script with no `--script-sha256` with "Give --script-sha256 to end a script step as
+done." It prints "The report of this file is <path>.", with the path of the report from the
+artifact folder; a call with no report, an invalid one or a blocking finding prints that
+line too. After a review, the line "Start <reviewer> ..." means that the report file is
+missing or invalid: the session starts the same reviewer to write only that file, which is
+no start under its limit, at most twice. The session pushes, locks and runs no file before
+the call prints no such line. The limits: any agent with a shell can write the report with a
+script, as for `.reports`, and on Gemini CLI, Cursor and Copilot CLI any agent can write it.
+
+The reviewer maps its findings as "The report file" of `reviewing-drafts` lists: a finding
+marked `break`, or one that quotes a line of "Checks:", is `blocking`, and any other is
+`non-blocking`. It still returns its text report, from whose marks the session decides.
 
 `step end done` also checks for edits made outside a step. It records nothing, and exits 1,
 when a file of the checkout differs from the head, and when the head does not follow the
@@ -3331,8 +3411,9 @@ starts `code-explorer` first, with the question of "For a build plan" in `explor
 for each approved criterion, the files that the change touches, the tests of that area and
 the commands that run the tests, the linter, the type check, the build and the app. Then it
 starts `build-planner`, which drafts `build-plan.md` by `planning-builds`, and
-`plan-reviewer`, which reviews it read-only by `reviewing-drafts` and
-`checking-build-plans`.
+`plan-reviewer`, which reviews it by `reviewing-drafts` and `checking-build-plans` and
+writes the report file that `step end` needs. Each start of the planner is followed by a
+new review, and after the last review the session starts the planner no more.
 Both agents run on the tier `thinking`, and `code-explorer` on `balanced`. The stack lists
 the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
 
@@ -3417,8 +3498,9 @@ characters, the quote of the criterion is cut in both to its first 8 words and "
   check, such as `src/export/` for `src/export/export.test.ts`, is in scope, and
   `check-reviewer` reports a write there to code under test. Its other Files are not in it,
   and `check-reviewer` reports a write to code under test. Then the session starts
-  `check-reviewer`, which reads the checks, the draft and the records read-only by
-  `reviewing-drafts` and `checking-acceptance-checks`. The reviewer gets no "Checks:",
+  `check-reviewer`, which reads the checks, the draft and the records by
+  `reviewing-drafts` and `checking-acceptance-checks`, and writes the report file that
+  `step end` needs. The reviewer gets no "Checks:",
   because the draft has no `sha256` before `lock`. It gets "Changed paths:" instead, the
   output of `git status --porcelain --untracked-files=all` and of `git diff --name-only
   --no-renames <start commit>`, which the session runs in the working folder before each
@@ -3960,9 +4042,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     draft, `demo check` also compares the newest pushed version that counts with the newest
     done row, and a pushed script with another sha256 is a fault: "Push the frozen script of
     <id> again, or run the step script:<id>#<k> for the pushed one." `step end
-    --script-sha256` does not compare the hash with the file, so this check catches a
-    session that pushed a script and skipped the step. With no done row, nothing is
-    compared.
+    --script-sha256` compares the hash with `.demo/<id>.json`, not with the pushed version,
+    so this check catches a session that pushed another script or skipped the step. With no
+    done row, nothing is compared.
   - `demo write <scenario>` reads `.demo/<scenario>.actions.json` of the artifact folder, a
     regular file of at most 262144 bytes that is no link, and a JSON object with the lists
     `setup` and `steps`, one list of actions for each row of the scenario's table. It writes
@@ -3980,11 +4062,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     `preflight`: no page of another origin, no new window, the variables that the script
     types and no other. It exits 0 and prints "Ran <id> with video off: <n> steps passed.
     The sha256 of .demo/<id>.json is <hash>." The session passes the hash to `step end` as
-    the freeze. It exits 1 with the fix "Fix the setup in .demo/<id>.actions.json, then run
-    demo write <id>." or "Fix step <k> in ...", and a line with the failed action, with no
-    typed value. It exits 3 for a missing draft, a plan with no `serve` row, no browser, an
-    app that does not start or a browser that fails. It records no ledger row and pushes
-    nothing.
+    the freeze, and `step end` compares it with that file. It exits 1 with the fix "Fix the
+    setup in .demo/<id>.actions.json, then run demo write <id>." or "Fix step <k> in ...",
+    and a line with the failed action, with no typed value. It exits 3 for a missing draft,
+    a plan with no `serve` row, no browser, an app that does not start or a browser that
+    fails. It records no ledger row and pushes nothing.
 - `film <scenario> [--film] [--inputs <path>] [--artifacts <folder>]` and `film pages <path>...
   [--inputs <path>] [--artifacts <folder>]`: the evidence of a demo scenario, in
   `verbs/film.cjs`. One call takes one scenario and ends within 585 seconds (`CALL_MS` of
@@ -4955,10 +5037,15 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
   runs `demo check <id>`, starts the agent again with the printed lines at most twice,
-  runs `check demo-script`, runs `preflight` once for the session, runs `demo run <id>`,
-  pushes the script with `qory artifact push demo-script --name <scenario>
-  <folder>/.demo/<scenario>.json`, and ends the step with `--script-sha256` of the script
-  that passed.
+  starts `check-reviewer` on the script, once for the first review of the first script of a
+  scenario, at most 12 times for those reviews in a run together, and 3 times in a follow
+  for the later reviews of first scripts and the corrections of all scenarios together,
+  keeps the script as it was reviewed when a review after the last of those 3 starts has
+  only non-blocking findings, except in a session that started again after a lost
+  session, runs `check demo-script`, runs `preflight` once for the session, runs
+  `demo run <id>`, reads the report of the script again with `step end`, pushes the script
+  with `qory artifact push demo-script --name <scenario> <folder>/.demo/<scenario>.json`,
+  and ends the step with `--script-sha256` of the script that passed.
 
 The check and the freeze of a script:
 
@@ -4971,22 +5058,25 @@ The check and the freeze of a script:
   run, and it reads the drafts in `.demo/` as well as the pushed scripts.
 - A script is frozen at its first pass: the ledger step `script:<id>` is `done` with the
   `script_sha256` of the script. A script that differs from the newest done row is a
-  correction, the step `script:<id>#2` or `#3`; `check-reviewer` reads it, started by the
-  skill with the line "Review the change to a demo script", before the correction runs. A
-  third correction is refused by `demo check`, and the ledger refuses the id
-  `script:<id>#4`.
-  A draft that differs from the newest done row is a correction, also a copy of the pushed
-  file in `.demo/<id>.json`. A pushed script that differs from the newest done row is a
-  fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
-  file: the draft may be missing, or a draft of an earlier pass may stay in `.demo/`. The
-  fix is to copy the pushed file to `.demo/<id>.json` and run the correction step on it,
-  or to push the frozen script again. The push check of `demo-script` reads the newest
-  `build-ledger` too: a changed frozen script fails at the push, unless the ledger has the
-  step of the next correction, and a change after 2 corrections fails. A frozen
-  script that the newest `demo-evidence` of the scenario faults, with the verdict `failed`,
-  the class `script` and the version of the script that counts, is a fault of `demo check`
-  too, and its fix is a correction: "Fix the actions of <id>: Verify found the script at
-  fault in step <N>." The third correction fails as for any other fault.
+  correction, the step `script:<id>#2` or `#3`.
+- `check-reviewer` reviews each script before the script runs, and the step ends `done` only
+  with a passing report of it. For the first script, `scripting-demos` starts the agent with
+  the line "Review the first demo script", and the agent compares the script with the
+  scenario and the screens. For a correction, the line is "Review the change to a demo
+  script", and the agent compares the two scripts.
+- `demo check` exits 1 for a third correction, and `script:<id>#4` is no step id of the
+  ledger. A draft that differs from the newest done row is a correction, also a copy of the
+  pushed file in `.demo/<id>.json`. A pushed script that differs from the newest done row is
+  a fault of `demo check`, whatever the draft is, unless the draft is a copy of the pushed
+  file: the draft may be missing, or a draft of an earlier pass may stay in
+  `.demo/`. The fix is to copy the pushed file to `.demo/<id>.json` and run the correction
+  step on it, or to push the frozen script again. The push check of `demo-script` reads
+  the newest `build-ledger` too: a changed frozen script fails at the push, unless the
+  ledger has the step of the next correction, and a change after 2 corrections fails. A
+  frozen script that the newest `demo-evidence` of the scenario faults, with the verdict
+  `failed`, the class `script` and the version of the script that counts, is a fault of
+  `demo check` too, and its fix is a correction: "Fix the actions of <id>: Verify found
+  the script at fault in step <N>." The third correction fails as for any other fault.
 - `demo check` refuses a sign-in step, an `open` of the setup, that is no page under the
   `App address:` of the build plan, by origin or by path. The agent corrects the script in
   its session. With no readable build plan or no address, `demo check` compares nothing.
@@ -5051,9 +5141,11 @@ the rule passes on that file.
    No agent lists `Agent`, `NotebookEdit` or `MultiEdit`, with or without an exception. A
    `*-reviewer` agent, `code-explorer` or `shape-planner` lists only Read, Grep, Glob and
    Skill. A `*-reviewer` agent also lists Write when the body has the line `Tool exception:
-   Write, because it writes the one report file of a review round.`, exactly, outside a
-   code fence, and no other tool. An agent that lists Write has a `name` in its front matter
-   that equals its file name without `.md`.
+   Write, because it writes the one report file of a review round.`, exactly, outside a code
+   fence, and no other tool: the reviewers of a change, the reviewers of Verify
+   (`tamper-reviewer` and `verification-reviewer`), `check-reviewer` and `plan-reviewer` do.
+   An agent that lists Write has a `name` in its front matter that equals its file name
+   without `.md`.
    On Claude Code's native build, a `tools` key that lists Bash removes Grep and Glob, so an
    exception for Bash also drops those two tools or states how the agent searches.
    `designer`'s exception for Bash states `pack-mockups.cjs` and `render-mockups.cjs`, and

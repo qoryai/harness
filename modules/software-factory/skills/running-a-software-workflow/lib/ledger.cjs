@@ -1,7 +1,8 @@
 // The rules of the build ledger, which workflow-checks.cjs adds to the registry as ledger: the
 // frame of the verbs step and resume is in verbs/ledger.cjs of running-a-workflow, and this file
 // adds the type build-ledger, its ids, the members base, commit and script_sha256, the checks
-// of edits made outside a step, and the point of the full ledger.
+// of edits made outside a step, the check that a step's reviewer passed its file, and the point
+// of the full ledger.
 //
 // base, the commit a step started on, holds within one session only, because commits outside
 // a step happen between sessions, and a cancelled run can leave its commits on no branch. A
@@ -21,7 +22,7 @@ const path = require('node:path');
 const { SCHEMAS } = require('./template.cjs');
 
 module.exports = (lib) => {
-  const { Missing, quote, schema } = lib;
+  const { MAX_BYTES, Missing, isObject, quote, reviewerFindings, schema, sha256 } = lib;
 
   const TYPE = 'build-ledger';
   const LOADED = schema.load(SCHEMAS, TYPE);
@@ -39,11 +40,14 @@ module.exports = (lib) => {
     'planned changes that are not built.';
   const FIX_ALL = 'Pick Accept as it is, or close this work item.';
   // The longest text of a point, as
-  // running-a-workflow (SKILL.md:229-240: "one line of 1 to 500 characters") lists.
+  // running-a-workflow (SKILL.md:231-242: "one line of 1 to 500 characters") lists.
   const POINT_TEXT = 500;
   const MORE = (m) => `and ${m} more, listed in the acceptance criteria of this work item.`;
   // A file name, which the check of a point refuses in its text: FILE_NAME of types/points.cjs.
   const FILE_NAME = /(?:^|[^\w.-])[a-z0-9][a-z0-9_-]*\.(?:md|json|js|cjs|svg)(?![\w-])/;
+
+  const LOCK = 'acceptance-lock.json';
+  const REPORT_LINE = (file) => `The report of this file is ${file}.`;
 
   const brief = (commit) => commit.slice(0, 12);
   const starts = require('./start.cjs')(lib);
@@ -157,10 +161,84 @@ module.exports = (lib) => {
       `${brief(top)} has a change that no step of this session made.`], members: {} };
   }
 
-  // finish returns the commit of a done row, or the findings of edits made outside the step and
-  // of a list `Left out:` in the report that leftOut cannot read. A failed row gets no commit
-  // and no finding.
-  function finish(io, { ledger, place, state, report }) {
+  // reviewed returns { reviewer, file } of the step id, whose file a reviewer reviews, with the
+  // path of the file from the artifact folder, or null for any other step.
+  function reviewed(id) {
+    if (id === 'plan') return { reviewer: 'plan-reviewer', file: 'build-plan.md' };
+    if (id === 'checks') return { reviewer: 'check-reviewer', file: LOCK };
+    const script = /^script:(scenario-\d+)/.exec(id);
+    return script ? { reviewer: 'check-reviewer', file: `.demo/${script[1]}.json` } : null;
+  }
+
+  // sorted returns value, a value of JSON, with the members of each object in the order of
+  // their names.
+  function sorted(value) {
+    if (Array.isArray(value)) return value.map(sorted);
+    if (!isObject(value)) return value;
+    return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sorted(value[key])]));
+  }
+
+  // lockSha returns { sha, problems } of the lock of text: the SHA-256 of its content with no
+  // commit and with the sha256 of each listed file from the working folder, so that it is the
+  // same before and after freeze and lock, and the findings of a text or a file with no hash.
+  function lockSha(io, text) {
+    const { lockType, fill } = lib.lockReader;
+    let data;
+    try {
+      data = lib.parseJson(text, LOCK);
+    } catch (error) {
+      if (!(error instanceof Missing)) throw error;
+      return { sha: null, problems: [error.message] };
+    }
+    const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
+    if (isObject(data)) delete data.commit;
+    return { sha: sha256(JSON.stringify(sorted(data))), problems };
+  }
+
+  // unpassed returns { findings, report, sha } of row: sha is the SHA-256 of its file, report the
+  // path of its report from root, the artifact folder, each null with no such file, and findings
+  // are those of a file with no valid report of its reviewer, or with a blocking finding.
+  function unpassed(io, row, root) {
+    // shortcut: any agent with a shell can write the report with a script, as for .reports, and
+    // on Gemini CLI, Cursor and Copilot CLI any agent can; replace when qory runs these
+    // reviewers as sessions.
+    const found = reviewed(row.id);
+    if (!found) return { findings: [], report: null, sha: null };
+    const { reviewer, file } = found;
+    const bytes = lib.lockReader.fileBytes(root, file, MAX_BYTES);
+    if (bytes === null) {
+      return { report: null, sha: null, findings: [`Write ${file} in the artifact folder, then ` +
+        `end the step again.\n${path.join(root, file)} is missing, is a link, or is not a ` +
+        `regular file of at most ${MAX_BYTES} bytes.`] };
+    }
+    const { sha, problems } = row.kind === 'checks' ? lockSha(io, bytes.toString('utf8'))
+      : { sha: sha256(bytes), problems: [] };
+    if (problems.length) {
+      return { report: null, sha: null,
+        findings: problems.map((one) => [].concat(one).join('\n')) };
+    }
+    const report = `.step-reports/${reviewer}/${sha}.json`;
+    // reviewerFindings reads the last part of the path only, so place reads the folders.
+    const linked = lib.lockReader.place(root, { path: report }).problem;
+    const blocking = linked ? [{ proof: null, point: `Reviewer ${reviewer} wrote no valid ` +
+      'report: its path has a link, or is not a regular file.' }]
+      : reviewerFindings(path.join(root, report), reviewer)
+        .filter((one) => one.severity === 'blocking');
+    if (!blocking.length) return { findings: [], report, sha };
+    // A finding with no proof is the reader's: the report is missing or invalid.
+    const line = blocking[0].proof === null
+      ? `Start ${reviewer} on ${file}, then run step end ${row.id} done again.\n` +
+        blocking[0].point
+      : `Fix the blocking findings on ${file}, then start ${reviewer} again.\n` +
+        `${lib.plural(blocking.length, 'blocking finding')} in the report, such as: ` +
+        blocking[0].point;
+    return { report, sha, findings: [`${line}\n${REPORT_LINE(report)}`] };
+  }
+
+  // finish returns the commit of a done row, or the findings of edits made outside the step, of
+  // a list `Left out:` in the report that leftOut cannot read, of a file that its reviewer did
+  // not pass, and of a flag that is missing. A failed row gets no commit and no finding.
+  function finish(io, { ledger, place, state, report, reported, root, values }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
     const top = head(io);
@@ -180,6 +258,27 @@ module.exports = (lib) => {
         `\n${row.id} started on ${brief(row.base)}, and the head ${brief(top)} does not follow ` +
         'it.');
     }
+    const review = unpassed(io, row, root);
+    // The call for the path of the report has no result of the step yet, so it records nothing.
+    let missing = null;
+    if (row.kind === 'script') {
+      const given = values.script_sha256;
+      const { file } = reviewed(row.id);
+      if (given === undefined) {
+        missing = 'Give --script-sha256 to end a script step as done.';
+      } else if (review.sha !== null && given !== review.sha) {
+        findings.push(`Run demo run ${path.basename(file, '.json')} again, and give ` +
+          `--script-sha256 the SHA-256 it prints.\n${file} has the SHA-256 ${review.sha}, not ` +
+          `${given}.`);
+      }
+    } else if (reviewed(row.id) && !reported) {
+      missing = `Give --report with the writer's last report to end ${row.id} as done.`;
+    }
+    if (missing) {
+      findings.push(review.findings.length || !review.report ? missing
+        : `${missing}\n${REPORT_LINE(review.report)}`);
+    }
+    findings.push(...review.findings);
     return { findings, members: findings.length ? {} : { commit: top } };
   }
 
@@ -314,9 +413,6 @@ module.exports = (lib) => {
         wrong: 'Give --script-sha256 64 lower-case hex digits',
       },
     },
-    needs: (id, state, values) => (id.startsWith('script:') && state === 'done' &&
-      values.script_sha256 === undefined ? 'Give --script-sha256 to end a script step as done.'
-      : null),
     origin,
     start,
     replay: (io, row) => follows(io, row.commit, head(io)),

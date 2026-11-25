@@ -146,7 +146,7 @@ test('each new agent has guardrails, stop conditions, expected output and tier t
     }
     assert.match(text, /\nmodel: \$\{qory:thinking\}\n/, name);
   }
-  assert.match(agent('check-reviewer'), /\ntools: Read, Grep, Glob, Skill\n/);
+  assert.match(agent('check-reviewer'), /\ntools: Read, Grep, Glob, Skill, Write\n/);
   const writer = agent('acceptance-check-writer');
   assert.match(writer, /\ntools: Read, Skill, Write, Edit, Bash\n/);
   for (const tool of ['Bash', 'Write', 'Edit']) {
@@ -484,8 +484,8 @@ const writerReport = (items, files) => `What you read:\n- /tmp/qory-artifacts/in
   `Files:\n${files.map((one) => `- ${one}`).join('\n')}\n- acceptance-lock.json\n\n` +
   `Checks:\n${items.join('\n')}\n\ndone\n`;
 
-// begin starts the step checks, after resume, as the skill lists.
-function begin(w, call) {
+// begin starts the step checks, after resume, as the skill lists, as pass 1 unless given.
+function begin(w, call, pass = 1) {
   const resumed = call('resume');
   assert.equal(resumed.status, 0, resumed.out);
   const files = [path.join(w.artifacts, 'acceptance-criteria/main/v1/acceptance-criteria.json'),
@@ -495,7 +495,7 @@ function begin(w, call) {
   const begun = call('step', 'begin', 'checks', 'write-acceptance-checks', '--inputs', w.inputs,
     ...files);
   assert.equal(begun.status, 0, begun.out);
-  assert.match(begun.lines[0], /^Run checks as pass 1: start its agent, then run step end\.$/);
+  assert.equal(begun.lines[0], `Run checks as pass ${pass}: start its agent, then run step end.`);
 }
 
 // lockChecks does steps 5 to 8 of the skill after a clean review: scope, freeze, the commit in
@@ -514,6 +514,55 @@ function lockChecks(w, call) {
   return { commit: commit[1], locked: call('lock', file) };
 }
 
+// reviewFile runs the call of step end with no flag and returns its lines and the report file.
+function reviewFile(w, call) {
+  const named = call('step', 'end', 'checks', 'done');
+  assert.equal(named.status, 1, named.out);
+  return { lines: named.lines,
+    file: path.join(w.artifacts, /The report of this file is (\S+)\./.exec(named.out)[1]) };
+}
+
+test('an invalid report at the third review stores no lock, and the next session locks', () => {
+  const w = work();
+  const first = session(w);
+  begin(w, first);
+  const items = writeChecks(w, first);
+  const writer = report(w, 'acceptance-check-writer-1',
+    writerReport(items, ['tests/lines.check.cjs', 'tests/header.check.cjs']));
+  const started = () => first('starts', first.run, 'write-acceptance-checks-1-check-reviewer',
+    '3').status;
+  const bad = () => {
+    const { file } = reviewFile(w, first);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, 'clean');
+    const { lines } = reviewFile(w, first);
+    const at = lines.indexOf('Start check-reviewer on acceptance-lock.json, then run step end ' +
+      'checks done again.');
+    assert.ok(at >= 0, lines.join('\n'));
+    assert.equal(lines[at + 1], '  Reviewer check-reviewer wrote a report that is not one JSON ' +
+      'object: it is no JSON.');
+  };
+  assert.deepEqual([started(), started(), started(), started()], [0, 0, 0, 1]);
+  // The third review, and its two starts to write the report file, which run no `starts`.
+  for (let write = 0; write < 3; write += 1) bad();
+  assert.equal(first('step', 'end', 'checks', 'failed', '--report', writer).status, 0);
+  assert.equal(newest(w, 'build-ledger', 'build-ledger.json').steps[0].state, 'failed');
+  assert.ok(!fs.existsSync(path.join(w.store, 'acceptance-lock')));
+  // The next session, on a new checkout, writes the same checks, reviews and locks them.
+  git(w.repo, w.env, 'stash', 'push', '-q', '--include-untracked', '--', ':/', ':!/.qory');
+  const next = session(w);
+  begin(w, next, 2);
+  writeChecks(w, next);
+  const { file } = reviewFile(w, next);
+  fs.writeFileSync(file, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
+  assert.deepEqual(reviewFile(w, next).lines.filter((line) => /^(?:Start|Fix) /.test(line)), []);
+  const { locked } = lockChecks(w, next);
+  assert.equal(locked.status, 0, locked.out);
+  const ended = next('step', 'end', 'checks', 'done', '--report', writer, '--pushed',
+    'acceptance-lock/main/1');
+  assert.equal(ended.status, 0, ended.out);
+});
+
 test('a session on a test work item stores the checks and acceptance-lock and ends passed', () => {
   const w = work();
   const call = session(w);
@@ -528,6 +577,9 @@ test('a session on a test work item stores the checks and acceptance-lock and en
     'then run targeted again."')), items.join('\n'));
   assert.equal(call('report', 'check-reviewer',
     report(w, 'check-reviewer-1', 'What you read:\n- acceptance-lock.json\n\nclean\n')).status, 0);
+  const { file: reviewed } = reviewFile(w, call);
+  fs.mkdirSync(path.dirname(reviewed), { recursive: true });
+  fs.writeFileSync(reviewed, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));
   const { commit, locked } = lockChecks(w, call);
   assert.equal(locked.status, 0, locked.out);
   assert.equal(locked.lines.at(-1), 'Locked 3 files in acceptance-lock: Pushed acceptance-lock ' +
@@ -1002,7 +1054,7 @@ test('a Check cell of none, N/A, - or TBD is no check path, and its Files stay o
     skill('checking-acceptance-checks'), read(ROOT, 'docs/modules.md')]) says(text, phrase);
 });
 
-test('check-reviewer gets the changed paths, stays read-only and marks each missing path', () => {
+test('check-reviewer gets the changed paths, writes one file and marks each missing path', () => {
   const order = oneLine(section(WORKFLOW, 'The order of the run'));
   says(order, 'Run these two commands in the working folder, each in a separate Bash call: ' +
     '`git status --porcelain --untracked-files=all`, and `git diff --name-only --no-renames ' +
@@ -1011,10 +1063,22 @@ test('check-reviewer gets the changed paths, stays read-only and marks each miss
   says(order, 'the writer\'s newest report, unchanged, and the two outputs under "Changed ' +
     'paths:", unchanged');
   const reviewer = agent('check-reviewer');
-  assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill\n/);
+  assert.match(reviewer, /\ntools: Read, Grep, Glob, Skill, Write\n/);
   says(reviewer, '"Changed paths:", the output of `git status --porcelain ' +
     '--untracked-files=all` and of `git diff --name-only --no-renames <start commit>`');
   says(reviewer, 'You run neither command');
+  says(reviewer, 'You write one file: the report file, at the path that the run gives you');
+  says(reviewer, 'Write it as the section "The report file" of `reviewing-drafts` lists');
+  says(order, '`<skill folder>/checks.cjs step end checks done` for the path of the report file');
+  says(order, 'lists, also when no file changed. The SHA-256 in the path covers the draft, but ' +
+    'for `commit` and each `sha256`, and the files that it lists, so any other edit of them ' +
+    'needs a new review.');
+  says(order, 'a line on the draft or on a listed file, such as "Write acceptance-lock.json as ' +
+    'valid JSON." or `Write "tests/orders.check.cjs", then end the step again.`');
+  says(order, 'After each review, run the same call again for the report that the reviewer ' +
+    'wrote, as "The build ledger" lists, and do no step 7 or 8 while it prints a line that ' +
+    'starts with "Start check-reviewer" or "Fix the blocking findings".');
+  says(order, 'With no start of the reviewer left, start no writer');
   const checking = oneLine(skill('checking-acceptance-checks'));
   says(checking, 'So is each path of "Changed paths:" that the writer\'s "Files:" does not ' +
     'list');
