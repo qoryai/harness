@@ -9,12 +9,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - The tool guard denies an agent's redirect to a brace list of more than one word, such as
-  `> checks/{a,b}.ts`, because zsh writes to each word. A brace list of one word, a quoted
+  `> checks/{a,b}.check`, because zsh writes to each word. A brace list of one word, a quoted
   brace, a command with no brace and a brace list in the body of a here-document that `cat` or
   `tee` reads pass, up to the first body line with `$(`, a backtick, a backslash or a final `$`.
 - The tool guard reads each locked file once in a call, so 500 locked files and a command of 300
-  words stay within its limit of work. The time that its reads of the lock take, which run
-  `qory artifact pull`, moves its time limit of 20 s later, by 60 s at most in all.
+  words stay within its limit of work. The pulls of one call share one budget and end 80 s
+  after the call started at the latest, and a pull that has no time left fails, so the write
+  is denied. The time of the pulls moves the guard's time limit of 20 s later, by 60 s at most.
 - The tool guard compares the device and the inode of a written path with each locked file
   that has more than one link, so a hard link to a locked file is denied as that file, also
   when a lift of the check ended. A path that does not exist yet, or whose parent is a file, is
@@ -37,12 +38,17 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file when the target cannot be read. `lock.writable` of the type `acceptance-lock` decides
   this from the lock and the criteria, and the guard reads no `changes.json`; it keeps every
   file locked when the type has no `lock.writable` or the function throws. In a run, the lift
-  pulls the criteria and reads `index.json` and the target version from the pull, as the lock
-  read does, so a file in `.qory/artifacts` changes nothing; outside a run it reads the artifact
-  folder, which an agent can write. A check of a criterion that left Tests stays locked. A
-  forged `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
+  pulls what `criteriaTarget` reads before it computes the target: the criteria, the questions,
+  each lock that it compares a linked version with, each criteria version that an answer
+  links, and the target version. A file in `.qory/artifacts` changes nothing, and a pull that
+  fails or has no time left lifts nothing. Outside a run it reads the artifact folder, which an
+  agent can write. A check of a criterion that left Tests stays locked. A forged
+  `.qory/build/changes.json` can steer what `plan-the-build` plans: `keptFiles` and
   `lock --verify` reject a wrong result. The check of a build plan reads no `changes.json`
-  that is a link or has more than one link.
+  that is a link or has more than one link. Two limits stay: a hard link outside the working
+  folder to a locked file passes the file tools, which `keptFiles`, the push check and
+  `lock --verify` catch, and a brace range of one word, such as `{b..b}`, passes the brace rule,
+  which skips the main session.
 - Each check of an acceptance lock has `criterion_sha256`, the SHA-256 of the text and the
   check of its criterion in the criteria version that the lock locks. `lock` fills it, and
   the push check recomputes it. A new lock keeps `sha256`, `path`, `command` and

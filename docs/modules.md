@@ -2274,18 +2274,23 @@ that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
 folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
 `rm -rf .qory`, as a write of that file. A path that is a hard link of a locked file is that
 file: the guard compares the device and the inode of a written path with each locked file that
-has more than one link, so `ln checks/a.ts notes.txt` and a later write to `notes.txt` is a
-write of `checks/a.ts`. A path that does not exist yet, or whose parent is a file, is no locked
+has more than one link, so `ln checks/a.check notes.txt` and a later write to `notes.txt` is a
+write of `checks/a.check`. A path that does not exist yet, or whose parent is a file, is no locked
 file, and a locked file that is gone is no link; any other failed read of either path denies
-the call. The guard reads each locked file once in a call, and the time that its reads of the
-lock take, which run `qory artifact pull`, moves its limit of 20 s later, by 60 s at most. It reads a `restore` of a folder above a locked
-file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+the call. The guard reads each locked file once in a call. Its reads of the lock and of the
+lift run `qory artifact pull`: the pulls of one call share one budget, and none runs past 80 s
+after the call started (20 s of work and 60 s of waiting), so the hook ends before the runtime
+ends it at 120 s. A pull that has no time left, or does not finish in the time left, fails: the
+lock cannot be read, or nothing lifts, and the write is denied. The time of the pulls moves the
+limit of 20 s of the guard later, by 60 s at most. It reads a `restore` of a folder above a
+locked file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
 `git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
-agent's redirect to a brace list of more than one word, such as
-`> checks/{a,b}.ts`, is denied: zsh with MULTIOS writes to each word, and the guard reads the
-redirect as one path. A brace list of one word, a quoted brace and a command with no brace
-pass, and so does a brace list in the body of a here-document that `cat` or `tee` reads, up to
-the first line with `$(`, a backtick, a backslash or a final `$`. A path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+agent's redirect to a brace list of more than one word, such as `> checks/{a,b}.check`, is
+denied: zsh with MULTIOS writes to each word, and the guard reads the redirect as one path. A
+brace list of one word, a quoted brace and a command with no brace pass, and so does a brace
+list in the body of a here-document that `cat` or `tee` reads, up to the first line with `$(`,
+a backtick, a backslash or a final `$`. A path with the wildcards `*`, `?` or `[...]` counts
+as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
@@ -5186,18 +5191,28 @@ every other agent and the main session stay denied, and so does every file when 
 cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
 `changes.json` is written by the verb `changes`, printed by the workflows and read by the check
 of a build plan in a session, which finds no record that is a link or has more than one link.
-In a run, the lift pulls `index.json` and the target version of the criteria with
-`qory artifact pull acceptance-criteria`, and then with `--version <N>`, as the lock read pulls
-the lock, so a file that an agent writes in `.qory/artifacts` changes nothing. Outside a run it
-reads the artifact folder. These limits stay:
+In a run, a pull writes `index.json` and the folder of its type only, so the lift pulls what
+`criteriaTarget` reads before it computes the target: the criteria, the questions, each lock
+that it compares a linked version with, each criteria version that an answer links, and the
+target version. A pull that fails, or has no time left, lifts nothing. A file that an agent
+writes in `.qory/artifacts` before the call changes nothing. Outside a run the lift reads the
+artifact folder. These limits stay:
 
 - Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
   store that no agent call can write.
-- A criteria version that a note links counts only when the criteria pull has the lock
-  documents that `criteriaTarget` compares it with.
+- A pull refreshes the files of its type, so an agent call that writes the file of another type
+  between two pulls of one hook is not stopped. The limit ends when the pulls make one folder
+  that no agent call can write.
 - A forged `.qory/build/changes.json` can steer what `plan-the-build` plans, and the guard no
   longer reads it. `keptFiles` and `lock --verify` reject a wrong result. The limit ends when
   the record is written where no agent call can write.
+- The lock check, `sameFile` included, applies to paths inside the working folder only, so a
+  hard link outside it to a locked file passes the file tools; `keptFiles`, the push check and
+  `lock --verify` catch it. The limit ends when every written path is compared by device and
+  inode.
+- A brace range of one word, such as `{b..b}`, writes the file that it expands to, and the brace
+  rule skips the main session. The limit ends when ranges are expanded like lists and the main
+  session is read.
 
 The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
 has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The
