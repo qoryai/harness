@@ -2513,11 +2513,18 @@ newest version of each type that the check reads.
 `build-plan`, `verification`, `walkthrough` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
 writer of kind `person` in `index.json`), or the newest version that a note links and that
-the lock check passes. A run's version never counts. A version is linked to a note when its
+the check passes. A run's version never counts. A version is linked to a note when its
 `decision` is a non-empty string and its `decision_at` parses as a time; it counts when
 `decision_at` is later than the newest lock that is older than the version, and the kind of
-the `decision` and the question rule of the lock check (see `acceptance-lock` below) pass
-it, so a refused link is never the target. The plan, the verification and the walkthrough
+the `decision` passes. For an answer (`an_`), `acceptance-lock` also applies the question
+rule (see `acceptance-lock` below). `build-plan`, `verification` and `walkthrough` read no
+`questions`: they count that version only when the newest lock locks it, because that lock
+passed the question rule when it was pushed. They read `acceptance-lock` for that, and the
+check stops with "Report to a member: the store lacks acceptance-lock version <N>." when the
+store lacks that lock. Before that lock the target stays at the earlier version, and the
+finding is "Then push the build plan again: Version 2 is linked to an answer, and no
+acceptance lock locks it." A check and a push give the same result for the same facts, and a
+refused link is never the target. The plan, the verification and the walkthrough
 may read an older version than the one that Qory Apiary feeds the run; a check that finds a
 newer version stops with a finding for a member.
 One function, `criteriaTarget` of
@@ -2649,7 +2656,8 @@ find:
   `questions`.
   A version's `note` never counts, because the run that stores the version writes the note.
   `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
-  lock that is older than the version. Each check of a lock has a `criterion_sha256`, the
+  lock that is older than the version, and applies the question rule for `acceptance-lock`
+  alone, as above. Each check of a lock has a `criterion_sha256`, the
   SHA-256 of the criterion's text and check in the version that the lock locks, which `lock`
   fills and the check recomputes. A new lock keeps the checks of each criterion that did not
   change, as a whole list, because the push store has only the newest lock and the newest
@@ -3002,10 +3010,11 @@ push_checks:
 ```
 
 `decision-record` reads `[acceptance-criteria, questions]`, `review-comments` reads
-`[questions]`, `build-plan`, `acceptance-lock` and `verification` read
-`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios, build-ledger]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
-`[verification, acceptance-criteria]`, and the other types read nothing. A module without
+`[questions]`, `acceptance-lock` reads `[acceptance-criteria, questions]`, `build-plan` and
+`verification` read `[acceptance-criteria, acceptance-lock]`, `demo-script` reads
+`[demo-scenarios, build-ledger]`, `demo-evidence`, `demo-video` and `screenshot` read
+`[demo-script]`, `walkthrough` reads `[verification, acceptance-criteria, acceptance-lock]`,
+and the other types read nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
 the entries of its 16 types, with the program `workflow-checks.cjs`. Neither declares one

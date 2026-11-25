@@ -33,8 +33,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   other prefix is refused. For an answer, each live criterion that the version changes or
   removes, a Demo criterion included, needs an answered question about it after the lock;
   a lock without `/criteria/sha256` counts every criterion as changed. A free-text note
-  binds to no criterion, a known gap. The check and the push apply the same rule.
-  `criteriaTarget` uses the same test, so a refused link is never the target.
+  binds to no criterion, a known gap. The check and the push of `acceptance-lock` apply the
+  same rule, and `criteriaTarget` uses the same test, so a refused link is never the target.
+- `build-plan`, `verification` and `walkthrough` read `acceptance-lock` in a push, and
+  count a version that is linked to an answer only when the newest acceptance lock locks it:
+  that lock passed the question rule when it was pushed, so these types need no `questions`.
+  Before that lock, the target stays at the earlier version and the finding is "Version <N>
+  is linked to an answer, and no acceptance lock locks it." When the store lacks the newest
+  lock, the check stops with "Report to a member: the store lacks acceptance-lock version
+  <N>." A check and a push of these types give the same result for the same facts.
 - An acceptance lock has `/criteria/sha256`, an object of the SHA-256 of the text and the
   check of each live criterion of the locked version, by criterion id. `lock` fills it, and
   the check recomputes it. The question rule compares it with the criteria version that is

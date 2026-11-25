@@ -134,7 +134,14 @@ module.exports = (lib) => {
     if (record && record.mode === 'changes') {
       const locks = countedOf(context, 'acceptance-lock').map((one) => one.number);
       const top = locks.length ? Math.max(...locks) : null;
-      const target = criteriaTarget(context, 'the build plan');
+      let target;
+      try {
+        target = criteriaTarget(context, 'the build plan');
+      } catch (error) {
+        // criteriaText has reported the missing lock as a finding.
+        if (error instanceof lib.LockMissing) return;
+        throw error;
+      }
       if (record.lock !== top || record.target !== target) {
         run.find('Run checks.cjs changes again: its record is out of date.\n' +
           `The record is from acceptance-lock version ${short(String(record.lock), 12)} and ` +

@@ -651,11 +651,13 @@ test('qory-module.yaml has a push check per type, with the types that each check
   const manifest = fs.readFileSync(MANIFEST, 'utf8');
   const program = 'skills/running-a-software-workflow/workflow-checks.cjs';
   const reads = {
-    'pull-request': null, 'build-plan': 'acceptance-criteria', 'build-report': null,
+    'pull-request': null, 'build-plan': 'acceptance-criteria, acceptance-lock',
+    'build-report': null,
     'build-ledger': null, 'acceptance-lock': 'acceptance-criteria, questions',
     'demo-script': 'demo-scenarios, build-ledger', 'demo-evidence': 'demo-script',
-    'demo-video': 'demo-script', screenshot: 'demo-script', verification: 'acceptance-criteria',
-    walkthrough: 'verification, acceptance-criteria',
+    'demo-video': 'demo-script', screenshot: 'demo-script',
+    verification: 'acceptance-criteria, acceptance-lock',
+    walkthrough: 'verification, acceptance-criteria, acceptance-lock',
   };
   for (const [type, read] of Object.entries(reads)) {
     const entry = `  - type: ${type}\n    command: [${program}, push, ${type}]\n` +
@@ -3118,6 +3120,60 @@ test("build-plan, verification, walkthrough and acceptance-lock: a run's version
   for (const mode of [check, push]) {
     for (const [type, file] of READERS) passes(mode(person(), type, file), type);
     passes(mode(person(), 'acceptance-lock', lockFile(LOCK_2)), 'acceptance-lock');
+  }
+});
+
+// answerStore returns a fixture in which lock 1 locks version 1, a member answered a question
+// about ac-4, and the run's version 2 changes ac-4 and is linked to `decision`. With locked,
+// lock 2 locks version 2, as the lock check passed it after the answer.
+function answerStore(decision, locked2) {
+  const folder = inVerify();
+  const second = criteriaDoc((list) => { criterionOf(list, 'ac-4').text += ' Within a day.'; });
+  version(folder, 'acceptance-lock', 'main', 1, 'acceptance-lock.json', LOCK_DOC);
+  listed(folder, 'acceptance-lock', 1, 'av_lock1', { at: LOCKED });
+  version(folder, 'acceptance-criteria', 'main', 2, 'acceptance-criteria.json', second);
+  listed(folder, 'acceptance-criteria', 2, 'av_ac2',
+    { at: LATER, decision, decision_at: LATEST });
+  version(folder, 'questions', 'main', 1, 'questions.json', { questions: [{ id: 'q-1',
+    question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
+    state: 'answered', answer: { option: 'A', by: PERSON, at: LATEST } }] });
+  listed(folder, 'questions', 1, 'av_q1', { at: LATEST });
+  if (locked2) {
+    const lock = lockOf(LOCK_DOC, 2);
+    lock.criteria.sha256 = hashesOf(second);
+    version(folder, 'acceptance-lock', 'main', 2, 'acceptance-lock.json', lock);
+    listed(folder, 'acceptance-lock', 2, 'av_lock2', { at: '2026-11-15T13:00:00Z' });
+  }
+  return folder;
+}
+
+test('build-plan, verification, walkthrough: an answer counts after the newest lock locks it', () => {
+  for (const mode of [check, push]) {
+    for (const [type, file, what] of READERS) {
+      // Before lock 2 the target stays version 1, and the finding is the one for a version
+      // that no lock locks: the push has no questions, and needs none.
+      exactly(mode(answerStore('an_1', false), type, file), `${REQUEST}\nThen push ${what} ` +
+        'again: Version 2 is linked to an answer, and no acceptance lock locks it.');
+      // After lock 2 the target is version 2.
+      passes(mode(answerStore('an_1', true), type, file), type);
+      // A free-text note counts with no lock, as before.
+      passes(mode(answerStore('gd_1', false), type, file), type);
+    }
+  }
+});
+
+test('build-plan, verification, walkthrough: a missing newest lock stops the check', () => {
+  const missing = () => {
+    const folder = answerStore('an_1', true);
+    fs.rmSync(path.join(folder, 'acceptance-lock', 'main', 'v2'), { recursive: true });
+    return folder;
+  };
+  for (const mode of [check, push]) {
+    for (const [type, file] of READERS) {
+      exactly(mode(missing(), type, file), 'Report to a member: the store lacks ' +
+        'acceptance-lock version 2.\nThe check cannot tell which criteria version that lock ' +
+        'locks, so it stops.');
+    }
   }
 });
 

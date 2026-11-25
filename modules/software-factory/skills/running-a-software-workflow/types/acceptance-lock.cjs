@@ -256,7 +256,7 @@ module.exports = (lib) => {
     // value, so they run before the schema check. Two criteria versions of one number, and a
     // lock that index.json and the store do not both have, exit 3 with the line to pull;
     // else, with no approved criteria version, UNAPPROVED is the one finding.
-    const target = criteriaTarget(context, 'the lock');
+    const target = criteriaTarget(context, 'the lock', true);
     const { all, same, locks } = history(context, files.get(FILE));
     const approved = approvedNumber(context, 'acceptance-criteria');
     if (approved === null) {
@@ -277,7 +277,7 @@ module.exports = (lib) => {
     const older = listed && highest !== null && version < highest.criteria;
     if (state.top > target) {
       run.find(askAbove(context, 'lock that version', target, state.top,
-        state.whyOf(state.top)));
+        state.whyOf(state.top), true));
     } else if (version === target || !reachable) {
       run.find(ask(state, version));
     } else if (!listed) {
@@ -316,7 +316,7 @@ module.exports = (lib) => {
     if (top !== version) {
       if (top !== target) {
         // A linked version that no lock opens for gets its reason, as the note that links it.
-        run.find(askAbove(context, 'lock that version', target, top, state.whyOf(top)));
+        run.find(askAbove(context, 'lock that version', target, top, state.whyOf(top), true));
       } else if (!reachable) {
         run.find(ask(state, null));
       } else {

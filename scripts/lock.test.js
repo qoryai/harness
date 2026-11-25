@@ -2095,7 +2095,8 @@ test('a hash record with a key that is a name of Object or has a line break is s
 });
 
 test('criteriaTarget leaves out a refused link, and takes an answer that its question binds', () => {
-  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the lock');
+  // The lock check applies the question rule: withQuestions is true.
+  const target = (root) => LIB.criteriaTarget(contextOf(root), 'the lock', true);
   const make = (decision, ...questions) => {
     const root = linkedRoot({ decision, edit: REWORDED });
     return questions.length ? questionsVersion(root, 1, questions) : root;

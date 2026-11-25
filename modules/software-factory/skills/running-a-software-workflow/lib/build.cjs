@@ -321,6 +321,16 @@ module.exports = (lib) => {
   const pullAgain = (words) => new Missing(`Run \`qory artifact pull\`, then check ${words} ` +
     'again.');
 
+  // LockMissing is the error of criteriaTarget when the store lacks the newest lock, which it
+  // must read to count a version that is linked to an answer. A type turns it into a finding.
+  class LockMissing extends Missing {
+    constructor(number) {
+      super(`Report to a member: the store lacks acceptance-lock version ${num(number)}.`,
+        ['The check cannot tell which criteria version that lock locks, so it stops.']);
+      this.finding = `${this.message}\n${this.more[0]}`;
+    }
+  }
+
   // The ids of a `decision` that are free text, and the id of an answer to a question.
   const FREE = /^(?:gd|es|rc)_/;
   const ANSWER = /^an_/;
@@ -415,9 +425,10 @@ module.exports = (lib) => {
   // newest lock before it ({ number, at, time, criteria, doc }, or null for none), or the
   // reason that it does not: the kind of its `decision` (gd_, es_ and rc_ are free text, an_
   // is an answer, any other kind is refused), its `decision_at` not later than since, the time
-  // in milliseconds of the newest lock, and for an answer the question rule of boundProblem.
-  // The lock check and criteriaTarget both call it, so a refused link is never a target.
-  function linkProblem(context, version, last, since) {
+  // in milliseconds of the newest lock, and for an answer, with withQuestions, the question
+  // rule of boundProblem. The lock check and criteriaTarget both call it, so a refused link
+  // is never a target. A check that has no `questions` passes withQuestions false.
+  function linkProblem(context, version, last, since, withQuestions = true) {
     const id = version.decision;
     if (!FREE.test(id) && !ANSWER.test(id)) {
       return `Version ${num(version.number)} is linked to ${short(id, 40)}, and no lock ` +
@@ -427,7 +438,7 @@ module.exports = (lib) => {
       return `Version ${num(version.number)} is linked to a note from ${version.decision_at}, ` +
         `and acceptance-lock version ${num(last.number)} is from ${last.at}.`;
     }
-    return ANSWER.test(id) ? boundProblem(context, version, last) : null;
+    return ANSWER.test(id) && withQuestions ? boundProblem(context, version, last) : null;
   }
 
   // criteriaTarget returns the number of the criteria version that acceptance-lock,
@@ -444,7 +455,11 @@ module.exports = (lib) => {
   // check that asks a member then fails closed. An approval of a version that a cancelled run
   // wrote is no approval. Two criteria versions of one number in index.json exit 3 with the
   // line of pullAgain for words, because a number then matches two versions.
-  function criteriaTarget(context, words) {
+  // The question rule needs `questions`, which only the lock check reads, so withQuestions
+  // is true for the lock check alone. Every other reader counts a version that is linked to
+  // an answer only when the newest lock locks it: that lock passed the question rule when
+  // it was pushed. When the store lacks that lock, it throws a LockMissing.
+  function criteriaTarget(context, words, withQuestions = false) {
     const versions = versionsOf(context.index, 'acceptance-criteria');
     if (new Set(versions.map((one) => one.number)).size !== versions.length) {
       throw pullAgain(words);
@@ -452,6 +467,14 @@ module.exports = (lib) => {
     const approvedVersion = approvedNumber(context, 'acceptance-criteria');
     if (approvedVersion === null) return null;
     const locks = countedOf(context, 'acceptance-lock');
+    // lockedByNewest returns the criteria version that the newest lock locks, or null.
+    const lockedByNewest = () => {
+      if (!locks.length) return null;
+      const top = locks.reduce((a, b) => (b.number > a.number ? b : a));
+      const doc = lockDoc(context, top.number);
+      if (doc === null) throw new LockMissing(top.number);
+      return isObject(doc.criteria) ? doc.criteria.version : null;
+    };
     const opens = (version) => {
       const at = timeOf(version.at);
       if (Number.isNaN(at)) return false;
@@ -464,7 +487,9 @@ module.exports = (lib) => {
         last = { number: top.number, at: top.at, time: timeOf(top.at), criteria, doc };
       }
       const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
-      return linkProblem(context, version, last, since) === null;
+      if (linkProblem(context, version, last, since, withQuestions) !== null) return false;
+      return withQuestions || !ANSWER.test(version.decision) ||
+        lockedByNewest() === version.number;
     };
     const counted = countedOf(context, 'acceptance-criteria')
       .filter((one) => byPerson(one) || (linked(one) && opens(one))).map((one) => one.number);
@@ -498,7 +523,7 @@ module.exports = (lib) => {
   // person stored newest, because the target is the newest version that a person stored, or
   // the approved version above it. step is the action after it, such as "lock that version".
   // The first line has the action of the member alone, so that the run can pass it to a member.
-  function askAbove(context, step, target, newest, detail = '') {
+  function askAbove(context, step, target, newest, detail = '', withQuestions = false) {
     const why = target === approvedNumber(context, 'acceptance-criteria')
       ? `the approved version ${num(target)}` : `version ${num(target)}, which a member wrote`;
     const entry = versionsOf(context.index, 'acceptance-criteria')
@@ -515,7 +540,11 @@ module.exports = (lib) => {
         last.criteria = last.doc.criteria.version;
       }
       const since = last === null ? -Infinity : (Number.isNaN(last.time) ? Infinity : last.time);
-      because = linkProblem(context, entry, last, since) || '';
+      because = linkProblem(context, entry, last, since, withQuestions) || '';
+      if (!because && !withQuestions && ANSWER.test(entry.decision)) {
+        because = `Version ${num(newest)} is linked to an answer, and no acceptance lock ` +
+          'locks it.';
+      }
     }
     const reason = because.replace(/\.$/, '') || (byRun
       ? `the run stored version ${num(newest)} after ${why}`
@@ -542,13 +571,21 @@ module.exports = (lib) => {
   // one number, the check exits 3 with the line of pullAgain. With no approved version, the
   // finding is to write the type after a person approves the criteria. When index.json lists
   // a newer version than the target, the push gets that version in place of the target, and
-  // a check and a push both get the line of askAbove. what is the type in words, such as
-  // "the build plan".
+  // a check and a push both get the line of askAbove. When the store lacks the newest lock,
+  // which a version linked to an answer needs, the finding is the one of LockMissing. what is
+  // the type in words, such as "the build plan".
   function criteriaText(run, what) {
     const { context } = run;
     run.did('criteria');
     if (!context.index) throw pullAgain(what);
-    const target = criteriaTarget(context, what);
+    let target;
+    try {
+      target = criteriaTarget(context, what);
+    } catch (error) {
+      if (!(error instanceof LockMissing)) throw error;
+      run.find(error.finding);
+      return null;
+    }
     if (target === null) {
       run.find(context.withdrawn('acceptance-criteria')
         ? `Write ${what} after a member approves the acceptance criteria again.\nThey are ` +
@@ -725,7 +762,7 @@ module.exports = (lib) => {
     newestNamed, scenarioFile, sectionTitles,
     inOrder, sectionTable, commitLine, verifiedCommit, approvedNumber, approved, num, byPerson,
     versionsOf, countedOf, timeOf, linked, criterionHash, criterionHashes, CRITERIA_HASHES,
-    pullAgain, criteriaTarget, criteriaFile,
+    pullAgain, LockMissing, criteriaTarget, criteriaFile,
     newestCriteria, askAbove, noCriteria, linkProblem, lockDoc,
     pullCriteria, criterionList, criterionWords, wrongWords, wrongQuotes, liveIn, criteriaDiff,
     liveCriteria,
