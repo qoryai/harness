@@ -1408,6 +1408,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The scan for keys of `scope`, `freeze` and the pull request text reads its key shapes from
+  `key-shapes.json`, a copy of Forager's default list, plus the shapes that the deployment
+  adds in the file of `qory.key_shapes`; the names of the run's credentials come from
+  `credential-variables.json` of the skill, of each module and `qory.credential_variables`.
+  A finding names its key as "the <name>" of its shape. A file of `qory.key_shapes` that
+  cannot be used stops `scope`, `freeze` and the end check. The app of the preflight gets no
+  variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL.
 - The check of the type `walkthrough` replaces the sections `## Summary` and one
   `## AC-<N>` section per criterion with the layout that the entry "The walkthrough has this
   layout" lists. The walkthrough states no state of a criterion: the Evidence cell links to

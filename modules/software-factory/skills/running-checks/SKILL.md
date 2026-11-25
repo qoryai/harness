@@ -166,9 +166,11 @@ first demo:
    brackets. When another process already returns a response at the address, the app
    counts as not started, and the command does not run. A command
    that starts the app in the background and exits 0 works. The command gets no variable
-   of qory or of an agent, no token of a code forge, such as `QORY_RUN_KEY` or
-   `GITHUB_TOKEN`, and no variable that a demo script types, in a setup or a step, such as
-   `DEMO_PASSWORD`; of the names of qory, it gets only the mark `QORY_CHECK_MARK`. In a
+   of the run's credential list, such as `QORY_RUN_KEY` or `GITHUB_TOKEN`, no variable whose
+   name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, such as
+   `AWS_SECRET_ACCESS_KEY` or `DATABASE_PASSWORD`, and no variable that a demo script types,
+   in a setup or a step, such as `DEMO_PASSWORD`; of the names of qory, it gets only the
+   mark `QORY_CHECK_MARK`. In a
    walled run, a secret of the run reaches `preflight` only as a placeholder of the
    gateway. In a walled run on Linux, the command can still read the environment of the
    runner of the check in `/proc/$PPID/environ`.
