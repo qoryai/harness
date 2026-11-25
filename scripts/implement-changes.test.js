@@ -1177,6 +1177,8 @@ test('after a step that fails, the session takes out what the check of the push 
     'a submodule: leave it. The second command takes the path out of the index again. When ' +
     'the file still has the key, step 4 prints a line for the key in the commit of step 3.');
   // The docs and the CHANGELOG state the same rules.
+  contains(read(ROOT, 'docs/modules.md'), 'It sets a file with a key, a path outside the plan ' +
+    'and a file that `freeze` cannot scan back to its version at `base`');
   contains(read(ROOT, 'docs/modules.md'), 'The session leaves a file as it is when a line names ' +
     'a commit of the failed step and the file changed after that commit; when the file still ' +
     'has the key, the next `scope --plan` finds it in the commit of step 3.');
