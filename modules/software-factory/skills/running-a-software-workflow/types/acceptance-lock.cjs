@@ -181,9 +181,9 @@ module.exports = (lib) => {
     // linkedWhy returns null when version, linked to a note, opens a lock beside the locks of
     // list, else the reason that it does not. A new lock follows every lock, so the reason
     // compares the version with the newest lock of list.
-    // shortcut: the reason names the newest lock, where the target of a reader names the lock
-    // before the version (lockBefore of lib/build.cjs); replace it when a lock check that
-    // refuses a version older than the newest lock needs the pull of that other lock.
+    // shortcut: the reason shows the newest lock; the target of a reader is the lock before
+    // the version (lockBefore of lib/build.cjs). Replace it when a lock check must refuse a
+    // version older than the newest lock with the pull of that other lock.
     function linkedWhy(version, list) {
       return linkProblem(context, version, newestOf(list), latest(list));
     }

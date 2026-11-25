@@ -64,9 +64,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   file they reviewed, in the review report format, besides their text. With no such report
   for the file as it is, an invalid one or one with a blocking finding, `step end done`
   exits 1 with the reviewer to start, the path of its report and the ledger unchanged. The
-  SHA-256 of the checks leaves out `commit` and takes the `sha256` of each listed file from
-  the working folder, so `freeze` and `lock` keep it, and an edit of a check file after the
-  review does not. The call with no flag records nothing and prints the path of the report,
+  SHA-256 of the checks leaves out `commit`, `/criteria/sha256` and each `criterion_sha256`
+  (`lock` fills the last two again, and the lock check and the push check verify them
+  exactly) and takes the `sha256` of each listed file from the working folder, so `freeze`
+  and `lock` keep it, and an edit of a check file after the review does not. The call with
+  no flag records nothing and prints the path of the report,
   so the session runs it before each start of the reviewer and after each review. `step end`
   of a demo script compares `--script-sha256` with the reviewed file. `check-reviewer`
   starts once for the first review of the first script of each demo scenario, and at most 12

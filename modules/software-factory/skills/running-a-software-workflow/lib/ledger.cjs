@@ -195,7 +195,7 @@ module.exports = (lib) => {
     const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
     if (isObject(data)) {
       delete data.commit;
-      if (isObject(data.criteria)) delete data.criteria.sha256;
+      if (isObject(data.criteria)) delete data.criteria[lib.CRITERIA_HASHES];
       if (Array.isArray(data.checks)) {
         for (const check of data.checks.filter(isObject)) delete check.criterion_sha256;
       }

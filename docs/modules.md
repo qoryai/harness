@@ -3028,10 +3028,13 @@ reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it
 in the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the
 review report format (`review-report.schema.json` of qory), which `step end` reads as
 `findings round` does. `<sha256>` is the SHA-256 of that file. For `checks` it is the
-SHA-256 of the content of the lock with no `commit`, with the `sha256` of each listed file
-from the working folder, and with the members of each object in the order of their names. So
-it is the same before and after `freeze` and `lock`, and an edit of the draft or of a check
-file after the review changes it. A listed file with no hash, such as a missing file or a
+SHA-256 of the content of the lock with no `commit`, no `/criteria/sha256` and no
+`criterion_sha256` of a check, with the `sha256` of each listed file from the working
+folder, and with the members of each object in the order of their names. `lock` fills the
+two hash members again, and the lock check and the push check verify them exactly, so the
+review leaves them out. So it is the same before and after `freeze` and `lock`, and an edit
+of the draft or of a check file after the review changes it. A listed file with no hash,
+such as a missing file or a
 link, is a finding of `step end`, and so is a lock that is no JSON: "Write
 acceptance-lock.json as valid JSON."
 
