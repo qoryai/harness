@@ -6397,7 +6397,7 @@ test('each hook command of the five runtimes starts node through env -u of the s
   }
 });
 
-test('Gemini CLI settings list excludedEnvVars and clear the 21 names in each hook', () => {
+test('Gemini CLI settings list excludedEnvVars and clear the 22 names in each hook', () => {
   const settings = JSON.parse(fs.readFileSync(path.join(MODULES,
     'core/settings/gemini/settings.json'), 'utf8'));
   assert.deepEqual(settings.advanced.excludedEnvVars,
@@ -6407,7 +6407,7 @@ test('Gemini CLI settings list excludedEnvVars and clear the 21 names in each ho
   assert.equal(hooks.length, 2);
   for (const hook of hooks) {
     assert.deepEqual(hook.env, { BASH_ENV: '', ENV: '', SHELLOPTS: '', BASHOPTS: '', PS4: '',
-      LD_PRELOAD: '', LD_AUDIT: '', LD_LIBRARY_PATH: '', DYLD_INSERT_LIBRARIES: '',
+      LD_PRELOAD: '', LD_AUDIT: '', LD_LIBRARY_PATH: '', GCONV_PATH: '', DYLD_INSERT_LIBRARIES: '',
       DYLD_LIBRARY_PATH: '', DYLD_FRAMEWORK_PATH: '', DYLD_FALLBACK_LIBRARY_PATH: '',
       DYLD_FALLBACK_FRAMEWORK_PATH: '', DYLD_IMAGE_SUFFIX: '', DYLD_VERSIONED_LIBRARY_PATH: '',
       DYLD_VERSIONED_FRAMEWORK_PATH: '', DYLD_SHARED_REGION: '', DYLD_SHARED_CACHE_DIR: '',
