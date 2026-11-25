@@ -2048,3 +2048,104 @@ test('lock writes criterion_sha256 of each check from the criteria version of th
   exitsWith(refused1, 1, /^Set the criterion of check 1 of acceptance-lock\.json to a criterion/);
   assert.equal(readJson(refused1.file).checks[0].criterion_sha256, undefined);
 });
+
+// ---- changes: the criteria that changed since the newest lock ----------------------------
+
+// The change that the tests of changes make: ac-4 is reworded, ac-2 is removed, and ac-5 is
+// planned as Tests.
+const MIXED = (doc) => {
+  REWORDED(doc);
+  doc.criteria.find((one) => one.id === 'ac-2').removed = { reason: 'The hours no longer differ.' };
+  doc.criteria.push({ id: 'ac-5', text: 'The reply has a footer.', check: 'Tests' });
+};
+
+// planned adds a build plan to root, which changes needs to know that one exists.
+function planned(root) {
+  listed(root, 'build-plan', 1, { at: LOCKED });
+  return root;
+}
+
+// changes runs changes in a new working folder with root as the artifact folder.
+function changes(root, qory = fakeQory(), extra = []) {
+  const work = working();
+  const result = call({ cwd: work, artifacts: [root], env: qory.env }, ['changes', ...extra]);
+  const file = path.join(work, '.qory', 'build', 'changes.json');
+  return { ...result, calls: qory.calls(), record: fs.existsSync(file) ? readJson(file) : null };
+}
+
+test('changes lists the added, changed and removed criteria, and the paths of the changed checks', () => {
+  const result = changes(planned(twoRoot(MIXED)));
+  exitsWith(result, 0);
+  assert.deepEqual(result.lines, ['Changed: ac-4.', 'Added: ac-5.', 'Removed: ac-2.',
+    'Checks to write: ac-4, ac-5.',
+    'Changes since acceptance-lock version 1: 1 changed, 1 added, 1 removed.']);
+  assert.deepEqual(result.record, { mode: 'changes', lock: 1, criteria: 1, target: 2,
+    changed: ['ac-4'], added: ['ac-5'], removed: ['ac-2'], unchanged: ['ac-1', 'ac-3'],
+    tests: ['ac-4', 'ac-5'], leaves: ['ac-2'], paths: [CHECK_PATH] });
+});
+
+test('changes lifts no path that another check or a support file shares', () => {
+  const share = (doc) => {
+    doc.checks[1].path = CHECK_PATH;
+    return doc;
+  };
+  const result = changes(planned(twoRoot(MIXED, share)));
+  exitsWith(result, 0);
+  assert.deepEqual(result.record.paths, []);
+  const support = (doc) => {
+    doc.support = [{ path: CHECK_PATH, sha256: sha(CHECK_TEXT) }];
+    return doc;
+  };
+  assert.deepEqual(changes(planned(twoRoot(MIXED, support))).record.paths, []);
+});
+
+test('changes with no changed criterion says so and writes mode none', () => {
+  const same = () => planned(twoRoot(() => {}));
+  const result = changes(same());
+  exitsWith(result, 0);
+  assert.deepEqual(result.lines, ['No criterion changed since acceptance-lock version 1.']);
+  assert.equal(result.record.mode, 'none');
+  assert.deepEqual([result.record.changed, result.record.added, result.record.removed,
+    result.record.paths], [[], [], [], []]);
+  // A change of the summary, or of the order, is no change of a criterion.
+  const summary = changes(planned(twoRoot((doc) => { doc.summary = 'Another summary.'; })));
+  assert.equal(summary.record.mode, 'none');
+});
+
+test('changes is a full run with no lock, no build plan or no approved criteria', () => {
+  const no = (root, reason) => {
+    const result = changes(root);
+    exitsWith(result, 0);
+    assert.deepEqual(result.lines, [`Full run: ${reason}.`]);
+    assert.deepEqual(result.record, { mode: 'full', reason });
+  };
+  no(planned(artifacts()), 'no acceptance lock counts, so every criterion is new');
+  no(twoRoot(), 'the work item has no build plan, so every criterion is new');
+  const unapproved = planned(twoRoot());
+  indexed(unapproved, (index) => {
+    index.artifacts.find((one) => one.type === 'acceptance-criteria').approved_version = null;
+  });
+  no(unapproved, 'no version of the acceptance criteria is approved');
+});
+
+test('changes in a run pulls the criteria version of the lock', () => {
+  const root = planned(twoRoot(MIXED));
+  const store = next('store');
+  const result = changes(root, fakeQory({ run: true, server: root, store }));
+  exitsWith(result, 0);
+  assert.equal(result.record.mode, 'changes');
+  assert.ok(result.calls.includes('artifact pull acceptance-criteria --version 1'), result.calls);
+  assert.ok(result.calls.includes('artifact pull acceptance-lock'), result.calls);
+});
+
+test('changes exits 3 for a locked criteria version that the folder lacks, and 2 for an argument', () => {
+  const root = planned(twoRoot(MIXED));
+  fs.rmSync(path.join(root, 'acceptance-criteria', 'main', 'v1'), { recursive: true });
+  const missing = changes(root);
+  assert.equal(missing.status, 3, missing.out);
+  assert.equal(missing.lines[0], 'Pull version 1 of the acceptance criteria, then run changes ' +
+    'again.');
+  assert.equal(missing.record, null);
+  const extra = changes(planned(twoRoot(MIXED)), fakeQory(), ['now']);
+  assert.equal(extra.status, 2, extra.err);
+});
