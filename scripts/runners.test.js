@@ -462,7 +462,8 @@ test('run: on the fast track, a kind that ## Commands lacks exits 3', () => {
   const bare = proposed(dir, '## Track\n\n' + FAST_TRACK + '\n');
   const got = call(dir, ['run', 'lint', '--inputs', bare]);
   assert.equal(got.status, 3, got.out);
-  assert.deepEqual(got.lines.slice(0, 2), ['Push a new version of the proposal with the table.',
+  assert.deepEqual(got.lines.slice(0, 2), ['Push a new version of the proposal with the table, get it approved, ' +
+    'then pull the artifacts.',
     '  The approved proposal has no table with the columns Kind, Command, Result file, Source ' +
     'under ## Commands.']);
 });

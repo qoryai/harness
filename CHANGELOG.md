@@ -16,16 +16,16 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   A kind of a build plan other than these three is a finding in a proposal. The heading
   and the words of `## Commands` count toward no limit. A proposal with another track has
   the five sections and no `## Commands`. `writing-proposals` lists how `proposal-writer`
-  writes the table, and `checking-proposals` lists that `proposal-reviewer` checks each
+  writes the table, and `checking-proposals` lists what `proposal-reviewer` checks: each
   command and Source against the code explorer's report and the files.
 - `run lint` and `run build` read their commands from `## Commands` of the approved version
   of `proposal` when the folder of `--artifacts` or `qory.start_artifacts` has one whose
   `## Track` is the fast track, which has no build plan. `run targeted` and `run types`
   exit 3 there with "Run lint or build: the fast track has no <kind> command.", and the
   record of a run has `build_plan` set to null. A proposal that is not approved, has no file
-  in the folder, or has another track leaves the build plan as the source. The track comes
-  from `## Track` of the approved proposal, which says "Fast track" also after a switch to
-  the standard track.
+  in the folder, or has another track leaves the build plan as the source. The track is the
+  one in `## Track` of the approved proposal: it is still "Fast track" after a switch to
+  the standard track, until the track comes from `inputs.json`.
 - `process.yaml` of `software-factory` declares `tracks` with the track `standard`
   (name "Standard", description "Shape writes a spec and acceptance criteria. Build then
   plans, tests and reviews the change in up to 3 rounds."), and Explore's gate offers it.

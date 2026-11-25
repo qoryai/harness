@@ -90,8 +90,8 @@ module.exports = (lib) => {
   // The fix and the subject of the cause of a Commands table that sectionRows does not find.
   const BUILD_PLAN_LACK = { fix: 'Push a build plan that passes its check.',
     has: 'The newest version has' };
-  const PROPOSAL_LACK = { fix: 'Push a new version of the proposal with the table.',
-    has: 'The approved proposal has' };
+  const PROPOSAL_LACK = { fix: 'Push a new version of the proposal with the table, get it ' +
+    'approved, then pull the artifacts.', has: 'The approved proposal has' };
 
   // sectionRows returns the rows of the first table of the ## section title of text, each an
   // object by the header's names, or throws when the table has another header, with the fix
@@ -169,9 +169,9 @@ module.exports = (lib) => {
   // --artifacts or qory.start_artifacts gives (io.pinned) counts, as for scope --plan. A
   // proposal with no approved version, or a store without that version, is no fast track:
   // the build plan is read then.
-  // shortcut: the track is read from ## Track of the approved proposal, which says the fast
-  // track after a switch to the standard track too; replace it with the track of inputs.json
-  // when the harness reads that member.
+  // shortcut: the track is the one in ## Track of the approved proposal, which is still Fast
+  // after a switch to the standard track; replace it with the track of inputs.json when the
+  // harness reads that member.
   function fastProposal(io, root) {
     if (!io.pinned) return null;
     const context = new Context(root, 'check', io.home);
