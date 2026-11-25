@@ -523,7 +523,7 @@ test('the guard does not count the time of a pull against its time limit', () =>
   assert.equal(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() + 400 }), null);
   firstLine(slow.call(writeOf(slow.b), 'claude', {}, { deadline: Date.now() + 400 }),
     LOCKED_START);
-  // A deadline that was over 3 s before the call stays over: the move is the time of the pulls.
+  // A deadline that was over 3 s before the call still denies it.
   firstLine(slow.call(writeOf(slow.a), 'claude', {}, { deadline: Date.now() - 3000 }),
     'Split this command into smaller calls');
 });
