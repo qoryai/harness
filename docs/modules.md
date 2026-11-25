@@ -1874,15 +1874,16 @@ On a Linux host where `node` needs `LD_LIBRARY_PATH` to start, the hooks stop, a
 Code and Codex every tool call in a run is then blocked.
 
 A shell and the loader read some variables before the shell runs the first word of its
-command, so `/usr/bin/env -u` cannot clear them:
+command, and glibc reads `GCONV_PATH` later, at the first `iconv_open`, so `/usr/bin/env -u`
+cannot clear them:
 
 - bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
 - `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
   bash expands `PS4` before each command, so a `$(...)` in `PS4` runs.
 - On Linux, the loader loads the library in `LD_PRELOAD` or `LD_AUDIT` into bash, and again
   into `/usr/bin/env`. `LD_LIBRARY_PATH` contains folders, and a library in one of them
-  replaces a library that bash or `env` loads. `GCONV_PATH` contains a folder of glibc
-  modules, and glibc loads a module from it when a program calls `iconv_open`.
+  replaces a library that bash or `env` loads. `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads a module from them when a program calls `iconv_open`.
 - On macOS, the loader reads the `DYLD_` names when a shell outside the system folders
   starts. `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
   `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,

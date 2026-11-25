@@ -2319,10 +2319,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   some variables before `env` runs: bash runs the file in `BASH_ENV`, and sh can run the
   file in `ENV`. `SHELLOPTS=xtrace` runs a `$(...)` in `PS4`. On Linux, `LD_PRELOAD` and
   `LD_AUDIT` load a library into bash and `env`, `LD_LIBRARY_PATH` contains folders, where a
-  library replaces one that bash or `env` loads, and `GCONV_PATH` names a folder of glibc
-  modules. On macOS, the `DYLD_` names load a library, replace the shared cache or the root
-  folder of the loader, or write a file, in a bash outside the system folders, such as
-  `/opt/homebrew/bin/bash`, which System Integrity Protection does not cover. So the `env`
+  library replaces one that bash or `env` loads, and `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads one when a program calls `iconv_open`. On macOS, the `DYLD_`
+  names load a library, replace the shared cache or the root folder of the loader, or write
+  a file, in a bash outside the system folders, such as `/opt/homebrew/bin/bash`, which
+  System Integrity Protection does not cover. So the `env`
   field of each hook of Gemini CLI sets 22 names to `""`: `BASH_ENV`, `ENV`, `SHELLOPTS`,
   `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH`,
   `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
