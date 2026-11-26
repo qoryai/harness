@@ -512,6 +512,8 @@ test('feedback open pairs each answer with one question by its text and its time
   assert.deepEqual(pairs([ask('q1', given('2026-11-25T09:00:01Z'))], [notes[0]]), []);
   assert.deepEqual(pairs([ask('q1', given(AT, 'Raise it.'))], [notes[0]]), []);
   assert.deepEqual(pairs([{ ...ask('q1', given(AT)), id: undefined }, Q5], [notes[0]]), []);
+  assert.deepEqual(pairs([ask('q1', { option: null, by: SAM, at: AT }),
+    ask('q2', { option: keep, by: SAM })], [notes[0]]), []);
   // The answer of a note alone is its text.
   assert.deepEqual(pairs([ask('q1', { note: keep, by: SAM, at: AT })], [notes[0]]),
     ['Question of an_1: q1']);

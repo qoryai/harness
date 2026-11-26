@@ -4797,7 +4797,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   A question has no member for the agent that asked it. The session then ends with an
   `answer` point on it, not with `passed`. The notes are those of the kinds
   `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
-  key of its time and text, and an answer to a question is left out. It exits with 1 for a
+  key of its time and text. An answer to a question has the id `an_` of its note, and after
+  its words comes the line "Question of <id>: <question>", with the question in the newest
+  questions whose answer, or an earlier answer in its history, has the text of the note and
+  its time to the second; each answer pairs with one note. It exits with 1 for a
   source or a question not asked, with 0 for neither, and with 3 when the notes cannot be
   read. A line of a source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`

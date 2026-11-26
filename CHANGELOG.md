@@ -100,8 +100,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   answer to a question is a source with the id `an_` of its note. `feedback open` prints after
   it a line `Question of <id>: <question>` with the question in the newest questions whose
   answer, or an earlier answer in its history, has the text of the note and its time to the
-  second; each answer pairs with one note. A note of an answer with no id is a review comment
-  or a reply, and is a comment.
+  second; each answer pairs with one note. A note of the kind `answer` with no id is a review
+  comment or a reply, and is a comment.
 - The verb `feedback amended <output> --decision <id> [--same <point>]...`, which checks a
   draft of the acceptance criteria or the demo scenarios for the points of one source byte for
   byte against the newest version: it changes only the item of each point, adds one item at
