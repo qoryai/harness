@@ -22,8 +22,9 @@ Write `feedback.json` at the top of the artifact folder. It has two lists:
 
 The text of an answer is the title of the option that the member picked, else the member's
 note. A line "Question of <id>: <question>" follows the source line of an answer: read that
-question in the newest `questions`, because its `answer` also has any note that the member
-wrote beside the option.
+question in the newest `questions` for what the member answered. When the member also wrote a
+note beside the option, a line "Note of <id>: <note>" follows, with the note as a JSON string.
+The note is part of the answer: a point may quote it.
 
 Start from the newest `feedback`, when the work item has one. Keep each source and each
 point of it as it is, in its place. Add the new ones after them. The line "The next ids are"
@@ -33,7 +34,8 @@ A point has these members, and no other:
 
 - `id`: `p` and the next number.
 - `source`: the `id` of its source.
-- `quote`: the part of the source's `text` that the point is about, word for word.
+- `quote`: the part of the source's `text` that the point is about, word for word, or, for an
+  answer, the part of the note on its line "Note of <id>:".
 - `sort`: `fix`, `criterion-change` or `question`.
 - `output` and `item`: only as "The sort" lists.
 - `change`: one sentence on one line with what changes, without an id of an item. For a
@@ -164,7 +166,8 @@ as the agent's "Expected output" lists.
   version.
 - Each thing that the person asks for in a note is in one point, or the note is under "Left
   out:".
-- Each `quote` is a part of the text of its source, word for word.
+- Each `quote` is a part of the text of its source, or of the note of its answer, word for
+  word.
 - Each `fix` stays inside the approved criteria. Each `criterion-change` has an `output`.
 - Each `question` has an item in your list, with the words, each reading or the cause, and 2
   to 4 options.

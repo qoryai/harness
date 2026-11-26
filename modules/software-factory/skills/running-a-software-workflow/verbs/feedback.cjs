@@ -1,6 +1,7 @@
 // feedback open: prints each note of the work item that no version of feedback lists, as its
 // source in JSON, with the words of it that a text of the run may quote and, for an answer, the
-// question in the newest questions that has the whole answer, then each point whose
+// question in the newest questions that has the whole answer and any note beside its option,
+// then each point whose
 // question is not in the newest questions and each whose question waits for an answer, and each
 // open question that a group of criterion changes waits for, with the point it is about and the
 // words of that point. Exit 1 when a note is open or a question is missing.
@@ -30,6 +31,14 @@ module.exports = (lib) => {
     const newest = context.newest(type, `${type}.json`);
     if (!newest) return [];
     return parseJson(newest.text, `${type} version ${newest.number}`, key)[key].filter(isObject);
+  }
+
+  // answerLines returns the lines after the words of the source id of an answer: its question,
+  // and the note beside the option as a JSON string, so that a note of many lines is one line.
+  function answerLines(id, answer) {
+    if (!answer) return [];
+    return [`Question of ${id}: ${answer.question}`,
+      ...(answer.note === undefined ? [] : [`Note of ${id}: ${JSON.stringify(answer.note)}`])];
   }
 
   // print writes lines uncut, then last, and returns 1 when a line is work for the run.
@@ -98,8 +107,7 @@ module.exports = (lib) => {
     return print(io, [
       ...sources.flatMap((source) => [JSON.stringify(source),
         `Words of ${source.id}: ${wordsOf(source.text)}`,
-        ...(answers.has(source.id) ? [`Question of ${source.id}: ${answers.get(source.id)}`]
-          : [])]),
+        ...answerLines(source.id, answers.get(source.id))]),
       ...missing.map(({ point }) => `Not asked: ${point.id}, ${point.question}`),
       ...waiting.flatMap(({ point, question, words }) => (question === undefined
         ? [`Waiting for an answer: ${point.id}, ${point.question}`]

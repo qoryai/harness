@@ -28,7 +28,8 @@ person asks for in a source.
 1. Pull, then run `<qory> work-item show`.
 2. Run `<skill folder>/checks.cjs feedback open`. It prints one JSON line per source that no
    run sorted, with one line "Words of <id>: <words>" after each. After the words of an
-   answer, a line "Question of <id>: <question>" is the question that the answer is to. A
+   answer, a line "Question of <id>: <question>" is the question that the answer is to, and a
+   line "Note of <id>: <note>" is a note that the member wrote beside the option. A
    line "Not asked: <point>, <question>" is a question that an earlier run did not push. A
    line "Waiting for an answer: <point>, <question>" is a question with no answer. Its last
    line starts with "Open feedback:".

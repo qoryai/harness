@@ -519,6 +519,47 @@ test('feedback open pairs each answer with one question by its text and its time
     ['Question of an_1: q1']);
 });
 
+test('feedback open prints the note beside the option of an answer, which a point may quote', () => {
+  const title = Q5.options[0].title;
+  const beside = 'Only on the export page.\nNot in settings.';
+  const ask = (answer, more = {}) => ({ ...clone(Q5), id: 'q1', state: 'answered', answer,
+    ...more });
+  const given = (more = {}) => ({ option: title, by: SAM, at: AT, ...more });
+  const an1 = note('an_1', 'answer', title);
+  const lines = (questions, notes = [an1]) => open(store({ questions: [{ data: { questions } }] }),
+    [GD1, ...notes]).lines.filter((line) => /^(Question|Note) of/.test(line));
+  // An option with a note: the note follows, as a JSON string on one line.
+  assert.deepEqual(lines([ask(given({ note: beside }))]), ['Question of an_1: q1',
+    `Note of an_1: ${JSON.stringify(beside)}`]);
+  // An option with no note, or a blank one, and a note with no option, which is the text.
+  assert.deepEqual(lines([ask(given())]), ['Question of an_1: q1']);
+  assert.deepEqual(lines([ask(given({ note: ' \n' }))]), ['Question of an_1: q1']);
+  assert.deepEqual(lines([ask({ note: 'Both.', by: SAM, at: AT })],
+    [note('an_1', 'answer', 'Both.')]), ['Question of an_1: q1']);
+  // A reopened question: the earlier answer, in its history, has the note.
+  const later = '2026-11-25T10:00:00Z';
+  const reopened = ask({ option: Q5.options[1].title, by: SAM, at: later },
+    { history: [given({ note: beside })] });
+  assert.deepEqual(lines([reopened], [an1, note('an_3', 'answer', Q5.options[1].title, later)]),
+    ['Question of an_1: q1', `Note of an_1: ${JSON.stringify(beside)}`, 'Question of an_3: q1']);
+  // A point quotes the text of the source or the note, in a check and a push.
+  const answer = sourceOf('an_1', 'answer', title);
+  const quoting = (quote) => ({ sources: [S1, answer], points: [P1, P2,
+    { ...P1, id: 'p3', source: 'an_1', quote }] });
+  const types = (questions) => ({ questions: [{ data: { questions } }] });
+  const notes = [GD1, an1];
+  const sorted = (quote, questions = [ask(given({ note: beside }))]) =>
+    check(quoting(quote), { notes, types: types(questions) });
+  passes(sorted('Not in settings.'));
+  passes(sorted('The toolbar shows Export'));
+  passes(push(quoting('Not in settings.'), { notes, before: CASE,
+    types: types([ask(given({ note: beside }))]) }));
+  fails(sorted('Not on the home page.'), 'Quote point p3 word for word from the text of its ' +
+    'source or the note of its answer.');
+  fails(sorted('Not in settings.', [ask(given())]), 'Quote point p3 word for word from the ' +
+    'text of its source.');
+});
+
 test('feedback open exits 3 when the notes cannot be read', () => {
   const result = open(store(), null);
   assert.equal(result.status, 3);

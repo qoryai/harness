@@ -51,13 +51,13 @@ module.exports = (lib) => {
     return [...out.values()];
   }
 
-  // questionsOf returns, for each source of an answer in sources, oldest first, the id of the
-  // question in questions, the objects of the newest questions, that has the answer: one whose
-  // answer, or an earlier answer in its history, has the text of the source and its time, to
-  // the second. A missing or unreadable time matches no source. The text of an answer note is
-  // the title of the option, else the note of the answer, so the question has the whole
-  // answer. Each answer of a question pairs with one source. A source with no such question
-  // has none.
+  // questionsOf returns, for each source of an answer in sources, oldest first, { question,
+  // note }: question is the id of the question in questions, the objects of the newest
+  // questions, that has the answer: one whose answer, or an earlier answer in its history, has
+  // the text of the source and its time, to the second. A missing or unreadable time matches
+  // no source. The text of an answer note is the title of the option, else the note of the
+  // answer, so note is the note that the person wrote beside an option, when it is not blank.
+  // Each answer of a question pairs with one source. A source with no such question has none.
   // shortcut: two answers with one time and one text pair with their questions in the order
   // of the questions, which can differ from the order in which the person gave them; replace
   // when a note has the id of its question.
@@ -68,14 +68,17 @@ module.exports = (lib) => {
       .flatMap((question) => [question.answer,
         ...(Array.isArray(question.history) ? question.history : [])]
         .filter((answer) => isObject(answer) && words(answer))
-        .map((answer) => ({ id: question.id, at: second(answer.at), text: clean(words(answer)) })));
+        .map((answer) => ({ id: question.id, at: second(answer.at), text: clean(words(answer)),
+          note: typeof answer.option === 'string' && typeof answer.note === 'string' &&
+            answer.note.trim() ? clean(answer.note) : undefined })));
     const out = new Map();
     for (const source of sources) {
       if (source.kind !== 'answer') continue;
       const place = given.findIndex((one) => one.text === source.text &&
         one.at === second(source.at));
       if (place < 0) continue;
-      out.set(source.id, given[place].id);
+      const { id, note } = given[place];
+      out.set(source.id, { question: id, ...(note === undefined ? {} : { note }) });
       given.splice(place, 1);
     }
     return out;
