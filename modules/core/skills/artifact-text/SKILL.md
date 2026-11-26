@@ -118,6 +118,8 @@ For the writer before it reports, and for a reviewer:
 - Every count and length is within its bounds.
 - No text contains an assumption.
 - No text contains a refused character, and each link address follows the rule above.
+- No text contains a reply to its reviewer, by rule 21 "No reply to the reviewer" of
+  `simple-communication`.
 - No text that members read has a word of the system that runs you.
 - No text that the run wrote contains a secret, access key, token, password or credential.
 - Each block of code and each script is one that the skill for that artifact allows and the

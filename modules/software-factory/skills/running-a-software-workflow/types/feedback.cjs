@@ -309,6 +309,9 @@ module.exports = (lib) => {
       // Its check reads the version that Context.history reads, which end --offline needs.
       history: true,
       check: feedback,
+      // Its sources and quotes are a person's words, and each reply is written to that person
+      // by design, so replyCheck of core skips the type.
+      replies: true,
     },
   };
 };

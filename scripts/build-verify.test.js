@@ -882,8 +882,10 @@ test('each JSON type fails each invalid sample in its push', () => {
       // reads the criteria first.
       const before = { 'acceptance-lock': 'approval, ', verification: 'criteria, ' }[type] ||
         '(compact JSON, )?';
+      // feedback skips the reply phrases: it quotes and replies to a person.
+      const phrases = type === 'feedback' ? '' : ', phrases';
       assert.match(result.lines.at(-1),
-        new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema; `));
+        new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema${phrases}; `));
     }
   }
 });

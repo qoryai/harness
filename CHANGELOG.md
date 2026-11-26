@@ -1519,6 +1519,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The check of reply phrases, such as "you are correct", runs on every artifact type, where
+  it ran on `proposal.md` alone. Core lists the 16 phrases in
+  `simple-communication/references/reply-phrases.json`, and the check stops when the stack
+  composes no `simple-communication`. A skill folder with `workflow-checks.cjs` adds more in
+  its `reply-phrases.json`, and removes none. The check reads each string of a JSON file,
+  such as the `why` of a source, and an SVG or WebVTT file as plain text. Text in double
+  quotes on one line passes in every file, and so do code blocks and code spans in a
+  Markdown file. A phrase may cross a line break, but no blank line and no skipped line. A
+  type with `replies: true` skips the check, as `questions`, `review-comments` and
+  `feedback` do. `uncheckedSections` skips `##` sections with their `###` subsections, as
+  `## Sources` and `## Commands` of a proposal. A missing or bad list stops the verb that
+  runs the check, such as `push`, `check`, `lock` or `end`. So does a phrase with a double
+  quote or a control character. The verb prints `Fix <file>: …`. Other verbs and the tool
+  guard work as before. The rule is rule 21 of `simple-communication`, and
+  `writing-proposals` has no section "Refused phrases".
 - The first line of a lock finding that no lock of the target can pass is "Ask a member to
   write the change in a request for changes.", where it was "Ask a member to upload the
   acceptance criteria they accept as a new version." The question of a locked check that

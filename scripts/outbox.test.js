@@ -58,7 +58,8 @@ function session(outputs, files = {}) {
 }
 
 // end runs the end check of the session, as the hook does, and returns the status and the lines.
-function end({ work, artifacts, inputs }, env = {}) {
+// deps replaces the plugin and adds the trusted hashes of a call.
+function end({ work, artifacts, inputs }, env = {}, deps = {}) {
   let out = '';
   let err = '';
   const first = watch();
@@ -69,6 +70,7 @@ function end({ work, artifacts, inputs }, env = {}) {
     firstLine: first.firstLine,
     cwd: work,
     env: { ...process.env, QORY_RUN_ID: 'run-1', ...env },
+    ...deps,
   });
   first.check(status, err);
   return { status, text: `${out}${err}` };
@@ -192,6 +194,26 @@ test('outbox: the file of a type with schema null is checked as JSON, with no sc
     { 'review-comments': '{"comments":[]}' }));
   assert.equal(typed.status, 1);
   assert.match(typed.text, /^Pull the artifacts first\.\n\s+The check of review-comments /m);
+});
+
+test('outbox: a reply phrase in a string of a file of a module type is a finding', () => {
+  // The phrase is in the list of a further module alone.
+  const home = path.join(tmp, `home-${++folders}`, 'modules');
+  fs.mkdirSync(home, { recursive: true });
+  for (const module of ['core', 'software-factory']) {
+    fs.symlinkSync(path.join(MODULES, module), path.join(home, module));
+  }
+  const extra = path.join(home, 'phrases', 'skills', 'extra');
+  fs.mkdirSync(extra, { recursive: true });
+  fs.writeFileSync(path.join(extra, 'workflow-checks.cjs'), 'module.exports = () => ({});\n');
+  fs.writeFileSync(path.join(extra, 'reply-phrases.json'), JSON.stringify({ phrases: ['per your note'] }));
+  const { readTrusted, treeHash } = require(path.join(CORE, 'skills/running-a-workflow/lib/registry.cjs'));
+  const found = end(session([entry('pull-request', true)],
+    { 'pull-request': JSON.stringify({ title: 'Per your note, add export to CSV' }) }), {},
+  { plugin: path.join(home, 'core'), trusted: [...readTrusted(), treeHash(extra)] });
+  assert.equal(found.status, 1, found.text);
+  assert.match(found.text,
+    /^Remove "per your note" from \/title of pull-request\.json and state the outcome\.$/m);
 });
 
 test('outbox: with no qory.outputs, an empty list or no inputs file, the check passes', () => {
