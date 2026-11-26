@@ -1,6 +1,6 @@
 // The rule that no text of an artifact replies to its reviewer, rule 21 of simple-communication.
-// The phrases are in references/reply-phrases.json. A skill folder whose workflow-checks.cjs the
-// registry loads may add a reply-phrases.json. checkFiles of lib/drafts.cjs runs replyCheck after
+// The phrases are in references/reply-phrases.json of simple-communication. A skill folder whose
+// workflow-checks.cjs the registry loads may add a reply-phrases.json. checkFiles of lib/drafts.cjs runs replyCheck after
 // the check of each type.
 'use strict';
 
@@ -11,9 +11,10 @@ const { CONTROL_ALL, isObject, jsonKind, quote, short } = require('./base.cjs');
 const { codeSpans, headingLevel, lines } = require('./markdown.cjs');
 const { pointerKey } = require('./raw-json.cjs');
 
-// The name of a file of phrases, and the list that core ships beside this skill's files.
+// The name of a file of phrases, and the list of core. The list is in the skill
+// simple-communication, which a stack composes into the skills folder of this skill.
 const FILE = 'reply-phrases.json';
-const CORE = path.join(__dirname, '..', 'references', FILE);
+const CORE = path.join(__dirname, '..', '..', 'simple-communication', 'references', FILE);
 
 // The most characters of a phrase.
 const MOST = 60;
@@ -72,6 +73,11 @@ function pattern(words) {
 // as { phrase, pattern }. A file adds phrases and removes none. A phrase that an earlier file
 // has, by its words in any case and with ’ as ', counts once.
 function phraseList(extensions = []) {
+  // The check never runs with no list: a stack without simple-communication stops it.
+  if (!fs.existsSync(CORE)) {
+    throw new Error("Add simple-communication to the stack's core skills.\n" +
+      `The check of reply phrases reads ${CORE}, which does not exist.`);
+  }
   const seen = new Set();
   const out = [];
   for (const file of [CORE, ...extensions]) {

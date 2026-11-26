@@ -6576,14 +6576,21 @@ test('reply phrases: a bad reply-phrases.json is a fault of the harness', () => 
     fs.writeFileSync(file, CLEAN);
     passes(call(deps, ['report', 'questions-reviewer', file]));
   }
-  // A missing core list stops the check alone: the registry loads without it.
-  const copy = path.join(tmp, `core-copy-${++folders}`, 'running-a-workflow');
+  // A stack without simple-communication stops the check alone: the registry loads without the
+  // list of core.
+  const skills = path.join(tmp, `core-copy-${++folders}`, 'skills');
+  const copy = path.join(skills, 'running-a-workflow');
   fs.cpSync(path.dirname(SCRIPT), copy, { recursive: true });
-  fs.rmSync(path.join(copy, 'references', 'reply-phrases.json'));
   const loaded = require(path.join(copy, 'lib', 'registry.cjs')).loadRegistry(corePlugin());
   assert.deepEqual(loaded.phraseFiles, []);
-  assert.throws(() => require(path.join(copy, 'lib', 'reply-phrases.cjs')).phraseList([]),
-    { message: /^Fix .*running-a-workflow\/references\/reply-phrases\.json: reading it failed: / });
+  const list = path.join(skills, 'simple-communication', 'references', 'reply-phrases.json');
+  const { phraseList } = require(path.join(copy, 'lib', 'reply-phrases.cjs'));
+  assert.throws(() => phraseList([]), { message: "Add simple-communication to the stack's core " +
+    `skills.\nThe check of reply phrases reads ${list}, which does not exist.` });
+  // A list of core that exists and is bad stops it with the fix of the file.
+  fs.mkdirSync(path.dirname(list), { recursive: true });
+  fs.writeFileSync(list, '{');
+  assert.throws(() => phraseList([]), { message: /^Fix .*simple-communication\/references\/reply-phrases\.json: reading it failed: / });
 });
 
 test('reply phrases: check finds them as push does, and skips a JSON file that does not parse', () => {
