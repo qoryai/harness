@@ -1420,7 +1420,7 @@ test('key shapes: an alphabet has Forager\'s form of ranges and single character
   assert.deepEqual(keyShapes.alphabetOf('a-'), [45, 97]);
   // A reversed range, a range that ends in -, a - before the end, a space, a byte that is no
   // printable ASCII, and an empty alphabet are no alphabet.
-  for (const text of ['z-a', 'a--', '-a', 'a-b-c', 'a b', 'aé', '']) {
+  for (const text of ['z-a', 'a--', '!--', '-a', 'a-b-c', 'a b', 'aé', '']) {
     assert.equal(keyShapes.alphabetOf(text), null, JSON.stringify(text));
   }
 });
