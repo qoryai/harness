@@ -5700,8 +5700,10 @@ the rule passes on that file.
     matter that strict YAML reads, as GitHub reads it. A plain value, of a key or of a list
     item, has no `: ` and no ` #` in it, no `:` at its end, and no first character that
     starts other YAML, such as `*`, `@`, or `-` with a space after it. A value in quotes, a
-    flow list such as `paths: [...]` and a block scalar such as `>-` pass. Each finding
-    starts with its fix: "Put the value of description in double quotes in <path>".
+    flow list such as `paths: [...]` and a block scalar such as `>-` pass. A folder below
+    the root with a `.git` entry is another checkout, such as a worktree, and the rule skips
+    it. Each finding starts with its fix: "Put the value of description in double quotes in
+    <path>".
 
 Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

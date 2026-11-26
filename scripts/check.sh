@@ -1187,6 +1187,9 @@ $reason sets \"type\": \"module\"."
 # plain value, of a key or a list item, with ": " or " #" in it, a ":" at its end, or a first
 # character that starts other YAML. A quoted value, a flow list and a block scalar pass, and
 # the lines of a block scalar are skipped.
+# shortcut: the rule reads only the line of a key or a list item, so a continuation line of a
+# plain value and a quoted value with no closing quote pass; replace it with a YAML parser
+# when a value of front matter spans lines.
 PLAIN_AWK='
 BEGIN { block = -1 }
 block >= 0 && (/^[ \t]*$/ || match($0, /^[ \t]*/) && RLENGTH > block) { next }
@@ -1203,19 +1206,22 @@ rest ~ /: |:$|[ \t]#/ || rest ~ /^[],}#&*!%@`]/ || rest ~ /^[-?:]([ \t]|$)/ { pr
 '
 
 # rule_front_matter DIR: rule 15, each .md and .mdc file under DIR, of every module, folder
-# and runtime, has front matter that strict YAML reads, as GitHub reads it. Each finding
-# starts with its fix: double quotes around the value.
+# and runtime, has front matter that strict YAML reads, as GitHub reads it. A folder below
+# DIR with a .git entry is another checkout, such as a worktree, and the rule skips it. Each
+# finding starts with its fix: double quotes around the value.
 rule_front_matter() {
 	OUT=
 	why="strict YAML reads ': ', ' #', a final ':' or a first character such as '*' in a"
-	find "$1" -name .git -prune -o -type f \( -name '*.md' -o -name '*.mdc' \) -print |
+	(CDPATH= cd -- "$1" && find . -name .git -prune -o -type d ! -name . \
+		-exec sh -c 'test -e "$1/.git"' sh {} \; -prune -o \
+		-type f \( -name '*.md' -o -name '*.mdc' \) -print) |
 		LC_ALL=C sort >"$TMP/front-files" || return 1
 	while IFS= read -r file; do
 		while IFS= read -r key; do
 			[ -z "$key" ] ||
-				add "Put the value of $key in double quotes in ${file#"$1"/}: $why plain value as syntax."
+				add "Put the value of $key in double quotes in ${file#./}: $why plain value as syntax."
 		done <<EOF
-$(front_matter "$file" | awk "$PLAIN_AWK")
+$(front_matter "$1/${file#./}" | awk "$PLAIN_AWK")
 EOF
 	done <"$TMP/front-files"
 	[ -z "$OUT" ]
@@ -2758,6 +2764,10 @@ fixture
 printf -- '---\nname: page #1\n---\n\nText.\n' >"$FIX/docs/page.md" || exit 1
 expect_broken_first "rule 15 fails on a space and a # in a value of a page outside modules/" \
 	'Put the value of name in double quotes in docs/page.md' rule_front_matter "$FIX"
+mkdir -p "$FIX/docs/other/.git" || exit 1
+mv "$FIX/docs/page.md" "$FIX/docs/other/page.md" || exit 1
+expect_passes "rule 15 skips a folder with a .git entry, another checkout" \
+	rule_front_matter "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
