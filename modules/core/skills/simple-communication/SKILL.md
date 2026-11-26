@@ -188,9 +188,9 @@ list](references/word-list.md).
     - "As requested, the form has a phone field." becomes "The form has a phone field."
 
     The checks script of a run fails on each phrase in
-    `running-a-workflow/references/reply-phrases.json`, outside code and text in double
-    quotes. A question and a reply to a review comment are written to a person by design,
-    so the check skips them.
+    `running-a-workflow/references/reply-phrases.json`, and on each phrase that a module
+    adds. It skips text in double quotes, and code in a Markdown file. A question and a
+    reply to a review comment are written to a person by design, so the check skips them.
 
 ## Length per kind of text
 

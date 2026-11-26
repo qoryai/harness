@@ -105,8 +105,9 @@ const UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
 // A line that starts a list item, which an underline of - follows as a break, not a heading.
 const ITEM = /^\s*([-*+]|\d+[.)])(\s|$)/;
 
-// headingOf returns the level and title of the heading that starts at list[index], as ATX or
-// setext, and how many lines it has, or null. A closing sequence of # is no part of the title.
+// headingOf returns the level, the title and the count of lines of the heading, # or setext,
+// that starts at list[index]. It returns null for no heading. A closing # is no part of the
+// title.
 function headingOf(list, index) {
   const line = list[index];
   if (line.fenced) return null;
@@ -230,13 +231,13 @@ function findIn(run, phrases, list, place) {
   }
 }
 
-// replyCheck finds each phrase of CORE and of the files of extensions in the files of a
-// version of def, a type of the registry. files maps each name to its text, or to null for a
-// file that def.binary accepts, which it skips. A type with replies set to true gets no check,
+// replyCheck finds each phrase of CORE and of the files of extensions in the files of a version
+// of def. def is a type of the registry. files maps each name to its text, or to null for a file
+// that def.binary accepts, which it skips. A type with replies set to true gets no check,
 // because its text replies by design, and no list is read for it. A list that cannot be read
-// stops the check with the Error of readList. A Markdown file is read as markdownLines reads
-// it, with the titles of def.uncheckedSections. A JSON file is read by each string value, and
-// any other file as plain text. The case of the extension does not count.
+// stops the verb that runs the check, with the Error of readList. A Markdown file is read as
+// markdownLines reads it, with the titles of def.uncheckedSections. A JSON file is read by each
+// string value, and any other file as plain text. The case of the extension does not count.
 function replyCheck(run, def, files, extensions) {
   if (def.replies === true) return;
   const phrases = phraseList(extensions);
