@@ -131,11 +131,11 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   The group of a `Change AC-N` pick has `wording`: the member's edit of the criterion in the
   note beside the option, after "Change AC-N: " up to a blank line, else the option's
   `proposal`, and the writer writes it. Limit: the member's edited wording of a Change pick
-  is read after the English label "Change AC-N:" that Qory Apiary writes in the answer's
-  note; a translated label makes the option's proposal apply in place of the member's edited
-  wording. The group of an answer changes only the criterion that its question is about, and
-  none when the question's `about` has no item, and `feedback amended` fails a change of
-  another criterion with "Remove the change of ac-4."
+  is read after the English label "Change AC-N:", which Qory Apiary writes in the answer's
+  note. With a translated label, the option's proposal applies in place of the member's
+  edited wording. The group of an answer changes only the criterion that its question is
+  about, and none when the question's `about` has no item, and `feedback amended` fails a
+  change of another criterion with "Remove the change of ac-4."
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,
