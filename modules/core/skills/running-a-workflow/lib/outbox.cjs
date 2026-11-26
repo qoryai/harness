@@ -295,7 +295,7 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
     try {
       lines.push(...checkFiles('check', dir, def, [full], io.home, io.plugin, dir, null,
         { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
-          phrases: io.registry().phrases }).findings);
+          phraseFiles: io.registry().phraseFiles }).findings);
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines.push([error.message, ...(error.more || [])].join('\n'));

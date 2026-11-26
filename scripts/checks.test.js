@@ -6468,6 +6468,8 @@ test('reply phrases: a type with no check of its text gets them in each text fil
   ].join('\n'));
   assert.match(result.lines.at(-1), /^Checked notes \(notes\.md, notes\.svg, notes\.png\): phrases; 2 findings\.$/);
   passes(pushNotes(notes, [['notes.md', '## Hours\n\nThe shop opens at 8:00, as `as discussed` reads.\n']]));
+  passes(pushNotes(notes, [['notes.md', 'Fine.\n'],
+    ['notes.svg', '<svg>\n<text>"Good point"</text>\n</svg>\n']]));
 });
 
 test('reply phrases: a JSON file is checked by each string, with its JSON pointer', () => {
@@ -6483,6 +6485,11 @@ test('reply phrases: a JSON file is checked by each string, with its JSON pointe
     '  The line is "Good point.".',
   ].join('\n'));
   passes(pushNotes(notes, [['notes.json', '"The shop opens at 8:00."']]));
+  // Quoted copy passes in a JSON member, as in Markdown; a code span is no mark outside it.
+  passes(pushNotes(notes, [['notes.json', JSON.stringify({ text: 'The button reads "As requested".',
+    other: 'The reply reads “Good point”.' })]]));
+  fails(pushNotes(notes, [['notes.json', JSON.stringify({ text: 'The button reads `as asked`.' })]]),
+    /^Remove "as asked" from \/text of notes\.json/);
 });
 
 test('reply phrases: a type with replies set to true gets none', () => {
@@ -6499,14 +6506,24 @@ test('reply phrases: a type with replies set to true gets none', () => {
   const pushed = push(root, 'review-comments');
   assert.match(pushed.lines.at(-1), /^Checked review-comments \(review-comments\.json\): (?!.*phrases)/);
   assert.doesNotMatch(pushed.out, /^Remove "you are right"/m);
+  // So do the points of feedback, which quote and reply to a person.
+  const { loadRegistry } = require(path.join(path.dirname(SCRIPT), 'lib', 'registry.cjs'));
+  const types = loadRegistry(path.join(MODULES, 'software-factory')).types;
+  assert.deepEqual(types.filter((def) => def.replies === true).map((def) => def.type).sort(),
+    ['feedback', 'questions', 'review-comments']);
 });
 
-test('reply phrases: uncheckedSections skips each ## section of its titles, up to the next ##', () => {
+test('reply phrases: uncheckedSections skips each ## section of its titles, up to the next # or ##', () => {
   const notes = phrasePlugin("uncheckedSections: ['Quotes']");
   const result = pushNotes(notes, [['notes.md', ['## Quotes', '', 'As discussed.', '', '### More', '',
     'Good point.', '', '## Hours', '', 'As discussed, 8:00.', ''].join('\n')]]);
   exactly(result, 'Remove "as discussed" from line 11 of notes.md and state the outcome.\n' +
     '  The line is "As discussed, 8:00.".');
+  // A # heading also ends the section.
+  const top = pushNotes(notes, [['notes.md', ['## Quotes', '', 'Good point.', '', '# Top', '',
+    'Good point.', ''].join('\n')]]);
+  exactly(top, 'Remove "good point" from line 7 of notes.md and state the outcome.\n' +
+    '  The line is "Good point.".');
 });
 
 test('reply phrases: a reply-phrases.json adds phrases and removes none', () => {
@@ -6547,7 +6564,23 @@ test('reply phrases: a bad reply-phrases.json is a fault of the harness', () => 
   ]) {
     const notes = phrasePlugin('', text);
     assert.throws(() => pushNotes(notes, [['notes.md', 'The shop opens at 8:00.\n']]), { message: pattern });
+    // Only the check of a type with the phrases reads the list: report and questions pass.
+    const root = fixture();
+    const deps = { cwd: tmp, artifacts: [root], ...notes };
+    passes(call(deps, ['check', 'questions', path.join(root, 'questions.json')]));
+    fs.mkdirSync(path.join(root, '.reports'), { recursive: true });
+    const file = path.join(root, '.reports', 'questions-reviewer-1.md');
+    fs.writeFileSync(file, CLEAN);
+    passes(call(deps, ['report', 'questions-reviewer', file]));
   }
+  // A missing core list stops the check alone: the registry loads without it.
+  const copy = path.join(tmp, `core-copy-${++folders}`, 'running-a-workflow');
+  fs.cpSync(path.dirname(SCRIPT), copy, { recursive: true });
+  fs.rmSync(path.join(copy, 'references', 'reply-phrases.json'));
+  const loaded = require(path.join(copy, 'lib', 'registry.cjs')).loadRegistry(corePlugin());
+  assert.deepEqual(loaded.phraseFiles, []);
+  assert.throws(() => require(path.join(copy, 'lib', 'reply-phrases.cjs')).phraseList([]),
+    { message: /^Fix .*running-a-workflow\/references\/reply-phrases\.json: reading it failed: / });
 });
 
 test('reply phrases: check finds them as push does, and skips a JSON file that does not parse', () => {

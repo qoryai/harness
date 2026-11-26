@@ -15,9 +15,9 @@ function typeOf(io, verb, type) {
   return io.registry().types.find((def) => def.type === type) || null;
 }
 
-// phrasesOf returns the reply phrases of the registry for def, or null for points, which is
-// no type of the registry.
-const phrasesOf = (io, def) => (def === pointsType ? null : io.registry().phrases);
+// phraseFiles returns the reply-phrases.json files of the registry for def, or null for
+// points, which is no type of the registry.
+const phraseFiles = (io, def) => (def === pointsType ? null : io.registry().phraseFiles);
 
 // args returns the fix for wrong arguments of verb, or null.
 function args(verb) {
@@ -37,7 +37,8 @@ module.exports = {
         const def = typeOf(io, 'check', what);
         const { findings, last, told } = checkFiles('check', folderOf(io, rest[0]), def, rest,
           io.home, io.plugin, undefined, null,
-          { workingFolder: path.resolve(io.cwd), inputs: io.inputs, phrases: phrasesOf(io, def) });
+          { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
+            phraseFiles: phraseFiles(io, def) });
         io.print(findings, last);
         // io.print wrote the findings to stdout and the line of what the script checked to
         // stderr. The lines that the check of the type tells follow that line on stderr.
@@ -53,7 +54,7 @@ module.exports = {
         // The plugin gives the prefixes of ids, as the registry of typeOf reads them.
         const def = typeOf(io, 'push', what);
         const { findings, last } = checkFiles('push', cwd, def, rest, io.home, io.plugin, cwd,
-          null, { workingFolder: cwd, inputs: io.inputs, phrases: phrasesOf(io, def) });
+          null, { workingFolder: cwd, inputs: io.inputs, phraseFiles: phraseFiles(io, def) });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

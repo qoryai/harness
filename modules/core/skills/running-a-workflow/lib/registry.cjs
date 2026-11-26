@@ -230,8 +230,8 @@ function part(file) {
 
 // loadRegistry returns the registry of the skills of the folders that skillsFolders
 // returns: the types of each workflow-checks.cjs, in the order of the folders and of the
-// skill names, then CORE_TYPES, and phrases, the reply phrases of core and of the
-// reply-phrases.json beside each loaded workflow-checks.cjs, in the same order. It loads a
+// skill names, then CORE_TYPES, and phraseFiles, the path of each reply-phrases.json beside a
+// loaded workflow-checks.cjs, in the same order, which it does not read. It loads a
 // workflow-checks.cjs only when trustedFile accepts its folder for trusted, by default the
 // list of TRUSTED, and throws the refusal of the first folder that trustedFile refuses
 // before any file loads. A skill name that two folders have counts once, from the first. A
@@ -239,7 +239,7 @@ function part(file) {
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    points: [], ledger: null, suite: null, end: null, phrases: [],
+    points: [], ledger: null, suite: null, end: null, phraseFiles: [],
   };
   const seen = new Set();
   const files = [];
@@ -258,10 +258,10 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
       files.push(trustedFile(path.join(folder, skill), trusted));
     }
   }
-  // Each folder of files passed trustedFile, so the hash covers each reply-phrases.json.
-  registry.phrases = replyPhrases.phraseList(files
-    .map((file) => path.join(path.dirname(file), replyPhrases.FILE))
-    .filter((file) => fs.existsSync(file)));
+  // Each folder of files passed trustedFile, so the hash covers each reply-phrases.json. The
+  // check of a type reads them, so a bad list stops only that check.
+  registry.phraseFiles = files.map((file) => path.join(path.dirname(file), replyPhrases.FILE))
+    .filter((file) => fs.existsSync(file));
   for (const file of files) {
     const added = part(file);
     registry.types.push(...(added.types || []));

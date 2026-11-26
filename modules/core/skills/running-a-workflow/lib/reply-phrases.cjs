@@ -73,8 +73,12 @@ function phraseList(extensions = []) {
   return out;
 }
 
-// masked returns text with each code span and each text in double quotes, "…" or “…”, on one
-// line, replaced by spaces of the same length, so that replyCheck skips them.
+// unquoted returns text with each text in double quotes, "…" or “…”, on one line, replaced by
+// spaces of the same length, so that replyCheck skips quoted copy in every file.
+const unquoted = (text) => text.replace(/"[^"\n]*"|“[^“”\n]*”/g,
+  (found) => ' '.repeat(found.length));
+
+// masked returns text as unquoted does, with each code span of Markdown also replaced.
 function masked(text) {
   let out = '';
   let from = 0;
@@ -82,20 +86,21 @@ function masked(text) {
     out += text.slice(from, span.start) + ' '.repeat(span.end - span.start);
     from = span.end;
   }
-  const quoted = /"[^"\n]*"|“[^“”\n]*”/g;
-  return (out + text.slice(from)).replace(quoted, (found) => ' '.repeat(found.length));
+  return unquoted(out + text.slice(from));
 }
 
 // markdownLines returns the lines of a Markdown text that the check reads, each { number,
 // text, read }: every line but those of a code block, and those of each section whose title
-// unchecked has, from its ## heading up to the next ## heading, as sections of lib/markdown.cjs
-// reads them. read is the line as masked returns it.
+// unchecked has, from its ## heading up to the next heading of level 1 or 2, with its ###
+// subsections. read is the line as masked returns it.
 function markdownLines(text, unchecked) {
   const out = [];
   let skip = false;
   lines(text).forEach((line, index) => {
-    if (!line.fenced && headingLevel(line.text) === 2) {
-      skip = unchecked.has(line.text.replace(/^ {0,3}##\s*/, '').trim().toLowerCase());
+    const level = line.fenced ? 0 : headingLevel(line.text);
+    if (level === 1 || level === 2) {
+      skip = level === 2 && unchecked.has(line.text.replace(/^ {0,3}##\s*/, '').trim()
+        .toLowerCase());
     }
     if (skip || line.fenced) return;
     out.push({ number: index + 1, text: line.text, read: masked(line.text) });
@@ -103,9 +108,10 @@ function markdownLines(text, unchecked) {
   return out;
 }
 
-// plainLines returns each line of text as markdownLines does, with read the line as it is.
+// plainLines returns each line of text as markdownLines does, with read the line as unquoted
+// returns it.
 const plainLines = (text) => text.split('\n')
-  .map((line, index) => ({ number: index + 1, text: line, read: line }));
+  .map((line, index) => ({ number: index + 1, text: line, read: unquoted(line) }));
 
 // jsonTexts returns each string value of the JSON text, in the order of the document, as
 // { at, text }, where at is its JSON pointer. It walks with a list, so a deep document does not
@@ -169,14 +175,17 @@ function findIn(run, phrases, list, place) {
   }
 }
 
-// replyCheck finds each phrase of phrases, as phraseList returns them, in the files of a
-// version of def, a type of the registry: files maps each name to its text, or to null for a
-// file that def.binary accepts, which it skips. A type with replies set to true, whose text
-// replies by design, gets no check. A .md file is read as markdownLines reads it, with the
+// replyCheck finds each phrase of CORE and of the files of extensions, as phraseList reads
+// them, in the files of a version of def, a type of the registry: files maps each name to its
+// text, or to null for a file that def.binary accepts, which it skips. A type with replies set
+// to true, whose text replies by design, gets no check, and no list is read for it. A list that
+// cannot be read stops the check with the Error of readList, and no verb that only loads the
+// registry reads a list. A .md file is read as markdownLines reads it, with the
 // titles of def.uncheckedSections, a .json file by each string value, and any other file as
 // plain text.
-function replyCheck(run, def, files, phrases) {
+function replyCheck(run, def, files, extensions) {
   if (def.replies === true) return;
+  const phrases = phraseList(extensions);
   run.did('phrases');
   const unchecked = new Set((def.uncheckedSections || []).map((title) => title.toLowerCase()));
   for (const [name, text] of files) {
