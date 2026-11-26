@@ -6561,6 +6561,8 @@ test('reply phrases: a bad reply-phrases.json is a fault of the harness', () => 
     ['{"phrases": [" "]}', /^Fix .*reply-phrases\.json: write phrase 1 as text of 1 to 60 characters, not ""\.$/],
     [JSON.stringify({ phrases: ['as asked', 'a'.repeat(61)] }), /^Fix .*reply-phrases\.json: write phrase 2 as text of 1 to 60 characters, not "a{61}"\.$/],
     ['{"phrases": [3]}', /^Fix .*reply-phrases\.json: write phrase 1 as text of 1 to 60 characters, not a number\.$/],
+    ['{"phrases": ["the \\"note\\""]}', /^Fix .*reply-phrases\.json: remove the double quote from phrase 1\. The check skips text in double quotes, so the phrase never matches\.$/],
+    [JSON.stringify({ phrases: ['as asked', 'the “note”'] }), /^Fix .*reply-phrases\.json: remove the double quote from phrase 2\. /],
   ]) {
     const notes = phrasePlugin('', text);
     assert.throws(() => pushNotes(notes, [['notes.md', 'The shop opens at 8:00.\n']]), { message: pattern });
@@ -6603,6 +6605,81 @@ test('reply phrases: end --offline finds them in a draft of a type with no code 
   const run = offlineRun({ edits: [['spec.md', 'This spec follows', 'As discussed, this spec follows']] });
   const result = offline(run);
   fails(result, /^Remove "as discussed" from line 7 of spec\.md and state the outcome\. The line is "As discussed, this spec follows/);
+});
+
+test('reply phrases: a wide JSON file, a member name with a line break and a top string', () => {
+  const notes = phrasePlugin("main: 'notes.json', maxBytes: 1024 * 1024");
+  // 130,000 members in one array: the walk overflows no call stack.
+  const wide = `[${'1,'.repeat(130000)}"Good point."]`;
+  exactly(pushNotes(notes, [['notes.json', wide]]),
+    'Remove "good point" from /130000 of notes.json and state the outcome.\n' +
+    '  The line is "Good point.".');
+  // A line break in a member name stays on the first line of the finding.
+  exactly(pushNotes(notes, [['notes.json', JSON.stringify({ 'k\nx': 'Good point.' })]]),
+    'Remove "good point" from /k x of notes.json and state the outcome.\n' +
+    '  The line is "Good point.".');
+  exactly(pushNotes(notes, [['notes.json', '"As asked, the shop opens at 8:00."']]),
+    'Remove "as asked" from notes.json and state the outcome.\n' +
+    '  The line is "As asked, the shop opens at 8:00.".');
+});
+
+test('reply phrases: a phrase crosses no skipped line and no blank line, and counts once a line', () => {
+  const notes = phrasePlugin();
+  passes(pushNotes(notes, [['notes.md', 'The shop opens as\n```\nx\n```\ndiscussed.\n']]));
+  passes(pushNotes(notes, [['notes.md', 'The hours are what you\n\nAsked for: 8:00.\n']]));
+  exactly(pushNotes(notes, [['notes.md', 'The shop opens as\ndiscussed, at 8:00.\n']]),
+    'Remove "as discussed" from line 1 of notes.md and state the outcome.\n' +
+    '  The line is "The shop opens as".');
+  // A code span over two lines of a paragraph is masked.
+  passes(pushNotes(notes, [['notes.md', 'The button reads `as\nasked` at 8:00.\n']]));
+  exactly(pushNotes(notes, [['notes.md', 'Good point, and good point again.\n']]),
+    'Remove "good point" from line 1 of notes.md and state the outcome.\n' +
+    '  The line is "Good point, and good point again.".');
+});
+
+test('reply phrases: closing hashes, setext headings and .MD files keep their sections', () => {
+  const notes = phrasePlugin("uncheckedSections: ['Quotes'], allowed: () => true");
+  const at = (line) => `Remove "as discussed" from line ${line} of notes.md and state the ` +
+    'outcome.\n  The line is "As discussed.".';
+  exactly(pushNotes(notes, [['notes.md', '## Quotes ##\n\nGood point.\n\nHours\n-----\n\n' +
+    'As discussed.\n']]), at(8));
+  exactly(pushNotes(notes, [['notes.md', 'Quotes\n------\n\nGood point.\n\nHours\n=====\n\n' +
+    'As discussed.\n']]), at(9));
+  // A file named .MD is Markdown: its code block and its section are skipped.
+  exactly(pushNotes(notes, [['notes.md', 'Fine.\n'], ['extra.MD', '## Quotes\n\nGood point.\n\n' +
+    '## Hours\n\n```\nas asked\n```\n\nAs discussed.\n']]),
+  'Remove "as discussed" from line 11 of extra.MD and state the outcome.\n' +
+    '  The line is "As discussed.".');
+});
+
+test('reply phrases: the lists of two modules count in the order of their skill folders', () => {
+  const notes = phrasePlugin('', JSON.stringify({ phrases: ['per your note'] }));
+  const more = path.join(notes.plugin, 'skills', 'more');
+  fs.mkdirSync(more);
+  fs.writeFileSync(path.join(more, 'workflow-checks.cjs'), 'module.exports = () => ({});\n');
+  fs.writeFileSync(path.join(more, 'reply-phrases.json'), JSON.stringify({ phrases: ['see the note'] }));
+  const result = pushNotes({ plugin: notes.plugin, trusted: trusting(more, path.join(notes.plugin,
+    'skills', 'notes')) }, [['notes.md', 'Per your note, 8:00.\nSee the note: 20:00.\n']]);
+  exactly(result, [
+    'Remove "see the note" from line 2 of notes.md and state the outcome.',
+    '  The line is "See the note: 20:00.".',
+    'Remove "per your note" from line 1 of notes.md and state the outcome.',
+    '  The line is "Per your note, 8:00.".',
+  ].join('\n'));
+});
+
+test('reply phrases: end finds them in a draft that the run has not pushed', () => {
+  const notes = phrasePlugin();
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'end-')));
+  write(root, 'notes.md', 'As discussed, the shop opens at 8:00.\n');
+  const result = call({ cwd: tmp, ...notes, env: RUN_ENV }, ['end', root]);
+  assert.equal(result.status, 1, result.out);
+  assert.match(result.out, /^Remove "as discussed" from line 1 of notes\.md and state the outcome\.$/m);
+});
+
+test('reply phrases: a fast-track proposal may have them under ## Commands', () => {
+  passes(push(withCommands(LINT, '| build | none | none | The repository has no build, as discussed. |',
+    FULL), 'proposal'));
 });
 
 test('registry: one skill adds a check at the end, whose results end prints', () => {
