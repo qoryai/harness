@@ -6550,6 +6550,22 @@ test('reply phrases: a bad reply-phrases.json is a fault of the harness', () => 
   }
 });
 
+test('reply phrases: check finds them as push does, and skips a JSON file that does not parse', () => {
+  const notes = phrasePlugin("allowed: (name) => /^notes\\.(md|json)$/.test(name)");
+  const root = path.join(tmp, `notes-${++folders}`);
+  fs.mkdirSync(root);
+  write(root, 'notes.md', 'As discussed, the shop opens at 8:00.\n');
+  write(root, 'notes.json', '{"text": "As discussed"');
+  const result = call({ cwd: tmp, artifacts: [root], ...notes },
+    ['check', 'notes', path.join(root, 'notes.md'), path.join(root, 'notes.json')]);
+  exactly(result, 'Remove "as discussed" from line 1 of notes.md and state the outcome.\n' +
+    '  The line is "As discussed, the shop opens at 8:00.".');
+});
+
+test('reply phrases: check points finds none, since points is no type of the registry', () => {
+  passes(checkPoints([{ ...AGAIN, text: 'The summary, as discussed, lists no hours.' }]));
+});
+
 test('reply phrases: end --offline finds them in a draft of a type with no code for them', () => {
   const run = offlineRun({ edits: [['spec.md', 'This spec follows', 'As discussed, this spec follows']] });
   const result = offline(run);
