@@ -182,5 +182,7 @@ function runKey(name, names) {
     ? text.startsWith(entry.slice(0, -1)) : text === entry));
 }
 
-module.exports = { SECRET_NAME, keyKind, runKey, scanLine, scanPatch, scanValues, secretValues,
-  shown };
+const { fitKind } = keyShapes;
+
+module.exports = { SECRET_NAME, fitKind, keyKind, runKey, scanLine, scanPatch, scanValues,
+  secretValues, shown };

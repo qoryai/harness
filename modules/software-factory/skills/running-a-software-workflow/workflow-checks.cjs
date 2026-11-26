@@ -68,7 +68,7 @@ const BUILD_AND_VERIFY = [
 // The point of the end check for a qory.key_shapes whose file cannot be used, when the run
 // ends with it.
 const KEY_SHAPES_POINT = 'The scan for keys could not run, because the file of key shapes ' +
-  'that inputs.json lists is missing, cannot be read or breaks its schema.';
+  'that inputs.json lists is missing, cannot be read or does not match its schema.';
 
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.

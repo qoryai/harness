@@ -40,15 +40,12 @@ module.exports = (lib) => {
 
   // secretFindings returns one finding for each member of parts, { title, text },
   // that has the form of a secret, with the key shapes of env. place(member) is the words for
-  // the member in the fix. A fix of more than 100 characters has the form on the line after it.
+  // the member in the fix, which fitKind of lib/secrets.cjs keeps within 100 characters.
   function secretFindings(parts, place, env) {
     const out = [];
     for (const member of ['title', 'text']) {
       const kind = typeof parts[member] === 'string' ? secrets.keyKind(parts[member], env) : null;
-      if (!kind) continue;
-      const line = `Remove the secret from ${place(member)}: it has the form of ${kind}.`;
-      out.push(line.length <= 100 ? line
-        : `Remove the secret from ${place(member)}.\nIt has the form of ${kind}.`);
+      if (kind) out.push(secrets.fitKind((one) => `Remove ${one} from ${place(member)}.`, kind));
     }
     return out;
   }

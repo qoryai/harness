@@ -87,13 +87,6 @@ module.exports = (lib) => {
     return got.values;
   }
 
-  // withKind returns line(kind) when it has at most 100 characters, else line('a key') with the
-  // kind on the line after it, since the name of a shape has up to 48 characters.
-  function withKind(line, kind) {
-    const text = line(kind);
-    return text.length <= 100 ? text : `${line('a key')}\nThe key has the form of ${kind}.`;
-  }
-
   // options returns { step, plan, base, inputs, artifacts } of the arguments of scope or
   // freeze, each option undefined when it is not given, or { problem }, the line of wrong
   // arguments.
@@ -306,6 +299,8 @@ module.exports = (lib) => {
     const fast = fastTrack(io, given);
     if (fast) return scopeFast(io, given, fast);
     const found = inScope(io, 'scope', given);
+    // Without a base no commit is scanned, but a bad file of key shapes still stops scope.
+    keyValues(io);
     const keys = found.base ? scanHistory(io, found.work.top, found.base, 'scope') : null;
     const red = found.outside.length || found.work.excluded || (keys && keys.lines.length);
     // A passing call prints one line of at most 100 characters.
@@ -371,9 +366,9 @@ module.exports = (lib) => {
     // running-checks (SKILL.md) states.
     const line = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
       : `Remove ${kind} from ${where}, then ${verb} again.`);
-    const fix = (kind, where) => withKind((one) => line(one, where), kind);
+    const fix = (kind, where) => secrets.fitKind((one) => line(one, where), kind);
     // The name is cut so that the line keeps the kind, down to 6 characters of the name.
-    const fixAt = (kind, name, at) => withKind((one) => fitted(name, (quoted) => line(one,
+    const fixAt = (kind, name, at) => secrets.fitKind((one) => fitted(name, (quoted) => line(one,
       `${quoted}, line ${at}`)), kind);
     for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
@@ -440,7 +435,7 @@ module.exports = (lib) => {
     // A key in two headers, such as the author and the committer, results in one line.
     return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);
-      return kind ? [withKind((one) => 'Rewrite the message and headers of commit ' +
+      return kind ? [secrets.fitKind((one) => 'Rewrite the message and headers of commit ' +
         `${commit.slice(0, 12)} without ${one}.`, kind)] : [];
     }))];
   }

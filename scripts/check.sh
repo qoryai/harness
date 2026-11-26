@@ -9,6 +9,10 @@
 # of .github/workflows/check.yml: the findings tests read the review report schema from it.
 # scripts/checks.test.js reads it too, for the example reports of the reviewer agents.
 # Make the folder with: git -C <qory checkout> archive <commit> contracts | tar -x -C <dir>
+# Set `FORAGER_SOURCE` to a folder with Forager's contracts/ at the version that qory's go.mod
+# pins: scripts/key-shapes.test.js compares the key shapes of running-a-software-workflow
+# with it. Make the folder with:
+# git -C <forager checkout> archive <version> contracts | tar -x -C <dir>
 #
 # Every compose runs with --dry-run, except the ones that write the settings and hook files
 # of the core and software stacks into temporary checkouts. So the script writes only to a

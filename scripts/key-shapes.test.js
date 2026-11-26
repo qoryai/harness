@@ -1,6 +1,6 @@
 // The contract test of the key shapes: key-shapes.json and key-shapes.schema.json of
 // running-a-software-workflow are copies of Forager's contracts/forager/v1/key-shapes.json and
-// key-shapes.schema.json, as parsed JSON, at the Forager version that qory pins in its go.mod.
+// key-shapes.schema.json, byte for byte, at the Forager version that qory pins in its go.mod.
 // The tests read Forager's files from the folder FORAGER_SOURCE, which the step "Fetch
 // Forager's contracts" of .github/workflows/check.yml sets. scripts/check.sh runs them.
 'use strict';
@@ -24,11 +24,10 @@ if (!source || missing.length) {
     `from FORAGER_SOURCE, which is ${source || 'not set'}.`);
 }
 
-const read = (file) => JSON.parse(fs.readFileSync(file, 'utf8'));
-
 for (const name of FILES) {
   test(`${name} of running-a-software-workflow equals Forager's ${name}`, () => {
-    assert.deepEqual(read(path.join(SKILL, name)), read(path.join(source, CONTRACTS, name)),
+    assert.ok(fs.readFileSync(path.join(SKILL, name))
+      .equals(fs.readFileSync(path.join(source, CONTRACTS, name))),
       `Copy Forager's ${path.join(CONTRACTS, name)} to ${path.join(SKILL, name)}, then ` +
       'recompute trusted-checks.json of running-a-workflow.');
   });

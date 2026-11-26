@@ -1,7 +1,7 @@
 {
   "shapes": [
     {
-      "name": "Anthropic key",
+      "name": "anthropic-key",
       "prefix": "sk-ant-",
       "any_case": false,
       "blank": false,
@@ -11,7 +11,7 @@
       "max": 256
     },
     {
-      "name": "GitHub personal access token",
+      "name": "github-personal-access-token",
       "prefix": "ghp_",
       "any_case": false,
       "blank": false,
@@ -21,7 +21,7 @@
       "max": 256
     },
     {
-      "name": "GitHub app installation token",
+      "name": "github-app-installation-token",
       "prefix": "ghs_",
       "any_case": false,
       "blank": false,
@@ -31,7 +31,7 @@
       "max": 256
     },
     {
-      "name": "GitHub OAuth token",
+      "name": "github-oauth-token",
       "prefix": "gho_",
       "any_case": false,
       "blank": false,
@@ -41,7 +41,7 @@
       "max": 256
     },
     {
-      "name": "GitHub user-to-server token",
+      "name": "github-user-to-server-token",
       "prefix": "ghu_",
       "any_case": false,
       "blank": false,
@@ -51,7 +51,7 @@
       "max": 256
     },
     {
-      "name": "GitHub refresh token",
+      "name": "github-refresh-token",
       "prefix": "ghr_",
       "any_case": false,
       "blank": false,
@@ -61,7 +61,7 @@
       "max": 256
     },
     {
-      "name": "GitHub fine-grained personal access token",
+      "name": "github-fine-grained-personal-access-token",
       "prefix": "github_pat_",
       "any_case": false,
       "blank": false,
@@ -71,7 +71,7 @@
       "max": 256
     },
     {
-      "name": "AWS access key id",
+      "name": "aws-access-key-id",
       "prefix": "AKIA",
       "any_case": false,
       "blank": false,
@@ -81,7 +81,7 @@
       "max": 256
     },
     {
-      "name": "AWS temporary access key id",
+      "name": "aws-temporary-access-key-id",
       "prefix": "ASIA",
       "any_case": false,
       "blank": false,
@@ -91,7 +91,7 @@
       "max": 256
     },
     {
-      "name": "HTTP bearer token",
+      "name": "http-bearer-token",
       "prefix": "Bearer",
       "any_case": true,
       "blank": true,
@@ -101,17 +101,37 @@
       "max": 4096
     },
     {
-      "name": "OpenAI project API key",
+      "name": "openai-project-key",
       "prefix": "sk-proj-",
       "any_case": false,
       "blank": false,
       "word_start": false,
       "alphabet": "A-Za-z0-9_-",
-      "min": 20,
+      "min": 16,
       "max": 256
     },
     {
-      "name": "Google API key",
+      "name": "openai-service-account-key",
+      "prefix": "sk-svcacct-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "openai-admin-key",
+      "prefix": "sk-admin-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "google-api-key",
       "prefix": "AIza",
       "any_case": false,
       "blank": false,
@@ -121,7 +141,7 @@
       "max": 256
     },
     {
-      "name": "GitLab personal access token",
+      "name": "gitlab-personal-access-token",
       "prefix": "glpat-",
       "any_case": false,
       "blank": false,
@@ -131,7 +151,7 @@
       "max": 256
     },
     {
-      "name": "Slack app token",
+      "name": "slack-xoxa-token",
       "prefix": "xoxa-",
       "any_case": false,
       "blank": false,
@@ -141,7 +161,7 @@
       "max": 256
     },
     {
-      "name": "Slack bot token",
+      "name": "slack-xoxb-token",
       "prefix": "xoxb-",
       "any_case": false,
       "blank": false,
@@ -151,7 +171,7 @@
       "max": 256
     },
     {
-      "name": "Slack user token",
+      "name": "slack-xoxp-token",
       "prefix": "xoxp-",
       "any_case": false,
       "blank": false,
@@ -161,7 +181,7 @@
       "max": 256
     },
     {
-      "name": "Slack refresh token",
+      "name": "slack-xoxr-token",
       "prefix": "xoxr-",
       "any_case": false,
       "blank": false,
@@ -171,7 +191,7 @@
       "max": 256
     },
     {
-      "name": "Slack session token",
+      "name": "slack-xoxs-token",
       "prefix": "xoxs-",
       "any_case": false,
       "blank": false,
@@ -181,7 +201,7 @@
       "max": 256
     },
     {
-      "name": "generic sk- key",
+      "name": "sk-api-key",
       "prefix": "sk-",
       "any_case": false,
       "blank": false,

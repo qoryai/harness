@@ -906,12 +906,13 @@ test('pull-request: no secret in the title or the text', () => {
   const secrets = ['-----BEGIN RSA PRIVATE KEY-----', `AKIA${'A'.repeat(16)}`,
     `ghp_${'a'.repeat(36)}`, `github_pat_${'a'.repeat(22)}`, `glpat-${'a'.repeat(20)}`,
     `xoxb-${'1'.repeat(12)}`, `sk-${'a'.repeat(24)}`];
+  const removed = new RegExp('^Remove (?:a private key|a key(?: of the shape [a-z0-9-]+)?) ' +
+    'from /text of pull-request\\.json\\.$', 'm');
   for (const secret of secrets) {
     const doc = clone(PULL_REQUEST);
     doc.text = doc.text.replace('## Change\n...', `## Change\n${secret}`);
     for (const run of [push, check]) {
-      fails(run(fixture(), 'pull-request', [PR_FILE, doc]),
-        /^Remove the secret from \/text of pull-request\.json(?:: it has the form of |\.$)/);
+      fails(run(fixture(), 'pull-request', [PR_FILE, doc]), removed);
     }
   }
   // A token one character shorter than its key shape is no secret.
@@ -922,7 +923,8 @@ test('pull-request: no secret in the title or the text', () => {
   }
   const doc = clone(PULL_REQUEST);
   doc.title = `Add export ghp_${'a'.repeat(36)}`;
-  fails(push(fixture(), 'pull-request', [PR_FILE, doc]), /^Remove the secret from \/title/);
+  fails(push(fixture(), 'pull-request', [PR_FILE, doc]),
+    /^Remove a key of the shape github-personal-access-token from \/title/);
 });
 
 // The schema of pull-request takes the bounds of qory's format, and the shape of the members
