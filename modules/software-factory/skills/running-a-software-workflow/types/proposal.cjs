@@ -53,7 +53,7 @@ module.exports = (lib) => {
   // section or a form it refuses. lists is what trackLists returns for the check: the track
   // id, the kinds of the fast track and the sensitive areas of short-path.json in this
   // skill's folder, as
-  // writing-proposals (SKILL.md:253: "whole change is of one of the kinds")
+  // writing-proposals (SKILL.md:230: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
   // repository changes them. The form: the line "<Name> track." alone for a track that takes
   // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
@@ -130,7 +130,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:310-311: "Write each changed file in a code span")
+  // where writing-proposals (SKILL.md:287-288: "Write each changed file in a code span")
   // puts each changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -265,7 +265,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:383-386: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:360-363: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -552,7 +552,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:468-470: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:445-447: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -561,7 +561,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:369-374: "List every public page and every file"):
+    // writing-proposals (SKILL.md:346-351: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.

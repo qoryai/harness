@@ -182,6 +182,15 @@ list](references/word-list.md).
     - The rhetorical question: "So why does this matter?" becomes the reason itself.
     - The announcement: "The impact is significant." becomes the consequence: "Every
       signup since 09:00 has failed."
+21. **No reply to the reviewer.** An artifact states the outcome, with no reply to the
+    person who reviewed it or asked for a change.
+    - "You are right, the hours were wrong." becomes "The reply lists 8:00 to 20:00."
+    - "As requested, the form has a phone field." becomes "The form has a phone field."
+
+    The checks script of a run fails on each phrase in
+    `running-a-workflow/references/reply-phrases.json`, outside code and text in double
+    quotes. A question and a reply to a review comment are written to a person by design,
+    so the check skips them.
 
 ## Length per kind of text
 
@@ -413,20 +422,22 @@ Answer each question for the draft. Every "no" is a defect to fix before you sen
     evidence, and every claim no wider than a source that the reader can open?
 20. Are inflated words, abstract nouns and excluding terms replaced, as listed in
     [the word list](references/word-list.md)?
+21. Does an artifact state each outcome with no reply to its reviewer, such as "you are
+    right" or "as requested" (rule 21)?
 
 **The sentences**
 
-21. Is each sentence one idea, in the second person, active voice and present tense?
-22. Are the subject and verb near the front, with no heading or instruction that opens
+22. Is each sentence one idea, in the second person, active voice and present tense?
+23. Are the subject and verb near the front, with no heading or instruction that opens
     with an -ing form?
-23. Does each condition come before its instruction, and each modifier sit next to its
+24. Does each condition come before its instruction, and each modifier sit next to its
     word?
-24. Is each claim made once?
-25. Is the text free of negation setups, fragments for weight, rhetorical questions,
+25. Is each claim made once?
+26. Is the text free of negation setups, fragments for weight, rhetorical questions,
     announcements of importance and three sentences with the same opener?
 
 **The kind of text**
 
-26. Does the text meet the entry for its kind in § What each kind of text needs?
-27. Read aloud, does every sentence read without a stumble?
+27. Does the text meet the entry for its kind in § What each kind of text needs?
+28. Read aloud, does every sentence read without a stumble?
 
