@@ -1,15 +1,17 @@
 // What the verbs feedback points and feedback amended share: the groups of criterion changes
 // that no version has, and the check of a draft that makes the changes of one group.
 //
-// A group is { decision, at, output, points[], waiting? }: the points of one source for one
-// output, with the id and the time of the source. A point is { id, quote, item, change } of the
+// A group is { decision, at, output, points[], wording?, waiting? }: the points of one source
+// for one output, with the id and the time of the source. A point is { id, quote, item, change } of the
 // feedback, or, in a group of demo-scenarios, a ripple point { id, quote: { before, after },
 // item }: a Demo criterion that a criteria version linked to the source added, changed or
 // removed, with its id, its row before and after ({ text, check }, or null), and the scenario
 // that shows it, or no item when a new scenario must show it. waiting lists the questions with
 // no answer of the source about the output, the open questions about a point of the group,
 // and the open questions about the output with no item that were asked at or after the time
-// of the source: the run changes nothing of such a group.
+// of the source: the run changes nothing of such a group. wording is only in a group of the
+// acceptance criteria whose source is an answer that picked the option to change the criterion
+// of its question: the wording of that criterion that the member approved (wordingOf).
 'use strict';
 
 const fs = require('node:fs');
@@ -18,7 +20,7 @@ const { isDeepStrictEqual } = require('node:util');
 
 module.exports = (lib) => {
   const { MAX_BYTES, Missing, criteria, criteriaDiff, isObject, liveIn, parseJson, plural,
-    readFile, storedFeedback } = lib;
+    questionsOf, readFile, storedFeedback } = lib;
 
   const FILES = { 'acceptance-criteria': 'acceptance-criteria.json',
     'demo-scenarios': 'demo-scenarios.md' };
@@ -85,6 +87,39 @@ module.exports = (lib) => {
       ...questions.filter((one) => one.state === 'open' && aboutPoint(group, one))
         .map((one) => one.id),
     ])];
+  }
+
+  // wordingOf returns the wording of the criterion of question that the member approved with
+  // the answer paired, as questionsOf returns it, or undefined. The option that changes the
+  // criterion is the first option with a proposal, as Qory Apiary finds it. A member who
+  // edits its wording writes the note "Change AC-4: <wording>", with the item of the about in
+  // upper case, and a blank line before any note of the member; with no edit, the wording is
+  // the proposal. A pick of another option has none.
+  function wordingOf(question, paired) {
+    const item = isObject(question.about) ? question.about.item : undefined;
+    const options = Array.isArray(question.options) ? question.options.filter(isObject) : [];
+    const change = options.find((option) => typeof option.proposal === 'string');
+    if (typeof item !== 'string' || !change || paired.option !== change.title) return undefined;
+    const label = `Change ${item.toUpperCase()}: `;
+    const edited = paired.note !== undefined && paired.note.startsWith(label)
+      ? paired.note.slice(label.length).split(/\n[ \t]*\n/)[0].trim() : '';
+    const wording = edited || change.proposal.replace(/\r\n?/g, '\n').trim();
+    return wording || undefined;
+  }
+
+  // answerOf returns { about, wording } for group when it is a group of the acceptance criteria
+  // whose source is an answer (an_) that questionsOf pairs with a question of questions, as the
+  // check of feedback pairs it, else null: about is the item of the question's about, or
+  // undefined for an about with no item, and wording that of wordingOf. questionsOf pairs only
+  // a source of the kind answer.
+  function answerOf(group, data, questions) {
+    if (group.output !== 'acceptance-criteria') return null;
+    const paired = questionsOf(data.sources, questions).get(group.decision);
+    if (!paired) return null;
+    const question = questions.find((one) => one.id === paired.question);
+    const item = isObject(question.about) ? question.about.item : undefined;
+    return { about: typeof item === 'string' ? item : undefined,
+      wording: wordingOf(question, paired) };
   }
 
   // rowOf returns the text and the check of a live criterion, or null.
@@ -162,6 +197,8 @@ module.exports = (lib) => {
     }
     const questions = newestQuestions(context);
     for (const one of groups.values()) {
+      const answer = answerOf(one, data, questions);
+      if (answer && answer.wording !== undefined) one.wording = answer.wording;
       const waiting = waitingOn(one, data, questions);
       if (waiting.length) one.waiting = waiting;
     }
@@ -281,11 +318,15 @@ module.exports = (lib) => {
   // item of each point that same lacks, adds one item at the end for each such point with no
   // item, and keeps every other byte: the text outside the items, each other item, and the
   // order. A removed criterion keeps its row and adds only `removed`; a removed scenario keeps
-  // its heading.
+  // its heading. The group of an answer changes only the criterion that its question is about,
+  // when the about has an item: a point on another criterion keeps it as it is.
+  // shortcut: such a point ends with the push of its group, and nothing changes its criterion;
+  // the check of feedback sorts a new one as a question, so replace when a run shows one.
   function amended(context, output, decision, same) {
     const file = FILES[output];
     const [noun, nouns] = WORDS[output];
-    const group = criterionGroups(context).find((one) => one.decision === decision &&
+    const data = storedFeedback(context);
+    const group = criterionGroups(context, data).find((one) => one.decision === decision &&
       one.output === output);
     if (!group) {
       return { findings: [`Give --decision a source that feedback points prints for ${output}.` +
@@ -313,6 +354,8 @@ module.exports = (lib) => {
     const before = read(rawVersion(context, output, number), `${output} version ${number}`);
     const draft = read(draftText, file);
     const marked = new Set(same);
+    const answer = answerOf(group, data, newestQuestions(context));
+    const bound = answer ? answer.about : undefined;
     const byItem = new Map();
     const known = new Set(before.items.map((item) => item.id));
     const fresh = [];
@@ -338,6 +381,13 @@ module.exports = (lib) => {
         findings.push(`Keep ${old.id} as ${noun} ${place + 1} of ${file}.\n` +
           (now ? `The draft has ${now.id || 'an entry with no id'} there.`
             : `The draft has no ${noun} ${place + 1}.`));
+        return;
+      }
+      if (bound !== undefined && old.id !== bound) {
+        if (now.raw !== old.raw) {
+          findings.push(`Remove the change of ${old.id}.\nThe question of ${decision} is about ` +
+            `${bound}.`);
+        }
         return;
       }
       const open = points.filter((point) => !marked.has(point.id));

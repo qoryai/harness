@@ -72,7 +72,11 @@ code that the feedback is about. Then pick the first sort that fits:
      `criterion-change`.
 2. `criterion-change`, for a point that adds, changes or removes a criterion, or is a request
    for other evidence. `output` is `acceptance-criteria` or `demo-scenarios`. `item` is the id of
-   the criterion or the scenario, such as `ac-2`. Leave out `item` for a new one.
+   the criterion or the scenario, such as `ac-2`. Leave out `item` for a new one. An answer
+   whose text is the title of an option "Change AC-N" is one `criterion-change` of the
+   criterion that its question is about, with the `output` `acceptance-criteria` and that
+   `item`. Its `quote` is the title. The run reads the wording that the member approved from
+   the question.
 3. `fix`, for a point that changes the product inside the approved criteria.
 
 A `question` that is about exactly one criterion that exists has `output`

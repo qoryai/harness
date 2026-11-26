@@ -105,6 +105,9 @@ that output makes. A group has these members:
   that criterion in a newer version of the acceptance criteria: its `quote` has the row
   `before` and `after`, and its `item` is the scenario that shows the criterion, or there is
   none when a new scenario shows it;
+- `wording`: only for a group of the acceptance criteria whose source is an answer that
+  picked the option to change the criterion of its question: the wording of that criterion
+  that the member approved, the member's edit or else the option's `proposal`;
 - `waiting`: only when a question has no answer that the group depends on: a question of
   the source about the output, a question about a point of the group, such as one that a
   writer of the group raised, or a question about the output with no item, asked at or after

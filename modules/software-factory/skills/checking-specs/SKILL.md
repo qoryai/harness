@@ -92,8 +92,9 @@ When the run gives you the line "A change from a person's feedback:" and one JSO
 these steps in place of "Review of a spec", then the check list for the criteria of the
 group's points only:
 
-1. Read each point's `quote`. Compare each changed or added criterion with it: a condition
-   or a number of the quote that the criterion drops, narrows or widens is a finding.
+1. Read each point's `quote`, and the group's `wording` when it has one. Compare each
+   changed or added criterion with them: a condition or a number that the criterion drops,
+   narrows or widens is a finding.
 2. Each point on the writer's list "Already so:" is met by the newest version as it is, in
    the words that the list quotes. One that is not is a finding.
 3. Judge no other criterion, and leave `spec.md` and the `summary` out of the review. Ask
