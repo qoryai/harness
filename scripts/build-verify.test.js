@@ -882,7 +882,7 @@ test('each JSON type fails each invalid sample in its push', () => {
       const before = { 'acceptance-lock': 'approval, ', verification: 'criteria, ' }[type] ||
         '(compact JSON, )?';
       assert.match(result.lines.at(-1),
-        new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema; `));
+        new RegExp(`^Checked ${type} \\(${name}\\): ${before}schema, phrases; `));
     }
   }
 });
