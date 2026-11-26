@@ -579,9 +579,21 @@ test('feedback open and the check pair equal answers alike, whatever the order o
     'Note of an_b: "Raise AC-2 to 100."']);
   const [a, b] = [sourceOf('an_a', 'answer', keep), sourceOf('an_b', 'answer', keep)];
   const point = { ...P2, id: 'p3', source: 'an_b', quote: 'Raise AC-2 to 100.' };
-  for (const sources of [[S1, a, b], [S1, b, a]]) {
-    passes(check({ sources, points: [P1, P2, point] }, { notes, types }));
-  }
+  passes(check({ sources: [S1, a, b], points: [P1, P2, point] }, { notes, types }));
+  // A draft in another order fails, in a check and a push, so that no version stores an order
+  // in which a later check pairs an_b with q1.
+  const order = 'Write the new sources in the order that `feedback open` prints them.';
+  fails(check({ sources: [S1, b, a], points: [P1, P2, point] }, { notes, types }), order);
+  fails(push({ sources: [S1, b, a], points: [P1, P2, { ...point, reply: P2.reply }] },
+    { notes, before: CASE, types }), order);
+  const reversed = check({ sources: [S1, b, a], points: [P1, P2] }, { notes, types });
+  assert.ok(reversed.lines.some((line) => line.trim() === 'The order is gd_1, an_a, an_b.'),
+    reversed.out);
+  // A source with no open note gets the finding to remove it, and no finding of the order.
+  const stray = check({ sources: [S1, a, b, sourceOf('an_z', 'answer', keep)], points: [P1, P2] },
+    { notes, types });
+  fails(stray, 'Remove source an_z from feedback.json.');
+  assert.ok(!stray.lines.includes(order), stray.out);
   // A sorted answer keeps its question in both: the sources of the newest feedback come first.
   const root = store({ ...types, feedback: [{ data: { sources: [S1, a], points: [P1, P2] } }] });
   assert.deepEqual(open(root, notes).lines.filter((line) => /^(Question|Note) of/.test(line)),

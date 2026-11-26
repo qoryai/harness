@@ -37,8 +37,9 @@ module.exports = (lib) => {
     }
   }
 
-  // sources checks the ids and the kinds, and the new sources against the notes. In a check,
-  // each open note has a source. It returns the sources of the notes, or null when the notes
+  // sources checks the ids and the kinds, and the new sources against the notes, in the order
+  // of `feedback open`, because a later check pairs equal answers in the stored order. In a
+  // check, each open note has a source. It returns the sources of the notes, or null when the notes
   // cannot be read.
   function sources(run, data, before) {
     run.did('sources');
@@ -70,6 +71,13 @@ module.exports = (lib) => {
         run.find(`Write source ${source.id} as \`feedback open\` prints it.\nIt differs ` +
           'from the note.');
       }
+    }
+    const added = new Set(data.sources.slice(before.sources.length).map((source) => source.id));
+    const order = open.filter((source) => added.has(source.id)).map((source) => source.id);
+    const written = [...added].filter((id) => all.has(id));
+    if (written.some((id, place) => id !== order[place])) {
+      run.find('Write the new sources in the order that `feedback open` prints them.\nThe ' +
+        `order is ${order.join(', ')}.`);
     }
     if (run.context.mode !== 'check') return open;
     for (const note of open) {
