@@ -1498,9 +1498,10 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `running-a-workflow/references/reply-phrases.json`. A skill folder with
   `workflow-checks.cjs` adds more in its `reply-phrases.json`, and removes none. The check
   reads each string of a JSON file, such as the `why` of a source, and an SVG or WebVTT file
-  as plain text. A type with `replies: true` skips it, as `questions` and `review-comments`
-  do. `uncheckedSections` skips `##` sections, as `## Sources` and `## Commands` of a
-  proposal. The rule is rule 21 of `simple-communication`, and `writing-proposals` has no
+  as plain text. Text in double quotes on one line passes in every file. A type with
+  `replies: true` skips it, as `questions`, `review-comments` and `feedback` do.
+  `uncheckedSections` skips `##` sections with their `###` subsections, as `## Sources` and
+  `## Commands` of a proposal. A missing or bad list stops only the check of a type. The rule is rule 21 of `simple-communication`, and `writing-proposals` has no
   section "Refused phrases".
 - The first line of a lock finding that no lock of the target can pass is "Ask a member to
   write the change in a request for changes.", where it was "Ask a member to upload the

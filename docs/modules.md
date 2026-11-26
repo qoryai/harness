@@ -937,19 +937,22 @@ rule 21 of `simple-communication`. Core lists them in
 whose `workflow-checks.cjs` the registry loads may add a `reply-phrases.json` of the same
 form. The check uses the phrases of all these files, in the order of the registry, and the
 hash of a skill folder covers its file. A file adds phrases and removes none. A phrase is
-text of 1 to 60 characters. A file that cannot be read, or a phrase of another form, is a
-fault of the harness, as a `workflow-checks.cjs` that throws is. The check reads each text
-file of a version:
+text of 1 to 60 characters. The registry keeps only the paths, and the check of a type reads
+the files. A file that is missing or cannot be read, or a phrase of another form, stops that
+check with `Fix <file>: …`. Every other verb that reads the registry, and the tool guard,
+works as before. The check reads each text file of a version, without text in double quotes
+on one line:
 
-- a Markdown file without its code blocks, code spans and text in double quotes on one line;
+- a Markdown file also without its code blocks and code spans;
 - a JSON file by each string, with the JSON pointer of the string in the finding;
 - any other file, such as SVG or WebVTT, as plain text.
 
 It skips a file that the type reads as binary. A phrase matches as whole words in any case,
 `'` also as `’`, and may cross a line break. A type with `replies: true` gets no such check,
-as `questions` and `review-comments`, whose text is written to a person by design. A type
-sets `uncheckedSections` to the titles of the `##` sections that the check skips, each up to
-the next `##` heading: `proposal` sets `Sources` and `Commands`. `check points` and the end
+as `questions`, `review-comments` and `feedback`, whose text is written to a person or quotes
+one by design. A type sets `uncheckedSections` to the titles of the `##` sections that the
+check skips. Each runs up to the next `#` or `##` heading, with its `###` subsections:
+`proposal` sets `Sources` and `Commands`. `check points` and the end
 check of `points.json` skip the phrases, because `points` is no type of the registry.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
@@ -2576,8 +2579,8 @@ The checks:
   and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
   questions;
 - the reply phrases of rule 21 of `simple-communication` in each file of each type but
-  `questions` and `review-comments`, outside code blocks, code spans, text in double quotes,
-  and `## Sources` and `## Commands` of a proposal;
+  `questions`, `review-comments` and `feedback`, outside text in double quotes, Markdown code
+  blocks and code spans, and `## Sources` and `## Commands` of a proposal;
 - the other limits: at most 450 words in a spec and a decision record (a decision record's
   count leaves out its Mermaid diagrams), a summary of 1 to 3 sentences in a spec, the
   criteria and the scenarios, at most 3 points per part in a spec, a criterion of 1 sentence
