@@ -1296,6 +1296,14 @@ test('the answer to a question about a criterion that Build cannot meet gets a p
   fails(declined('Send it within a day.', { note: 'Use a queue. Send it within two days.' }),
     /^Quote point p3 word for word/);
   passes(declined('Send it within two days.', { note: 'Use a queue. Send it within two days.' }));
+  // A change of another criterion is a question about it, not a declined change.
+  const elsewhere = (() => {
+    const data = answered('ac-3', ANOTHER, [{ ...P1, id: 'p4', source: 'an_1', quote: ANOTHER }]);
+    return check(data, { notes: [GD1, note('an_1', 'answer', ANOTHER)], types: { questions:
+      [{ data: { questions: [blocked({ option: ANOTHER })] } }] } });
+  })();
+  fails(elsewhere, 'Set the sort of point p3 to question, about ac-3.');
+  assert.ok(!elsewhere.lines.includes(keep), elsewhere.out);
   // A question with no item in its about binds the pick to no criterion: no point of a pick.
   const noItem = check({ ...answered('ac-4', change), points: [P1, P2, { ...P1, id: 'p3',
     source: 'an_1', quote: change }] }, { notes: [GD1, note('an_1', 'answer', change)],
