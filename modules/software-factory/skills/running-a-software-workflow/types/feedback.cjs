@@ -11,8 +11,9 @@ const { isDeepStrictEqual } = require('node:util');
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { commentKey, criterionItems, jsonFile, kindOf, lists, pointQuestion, questionsOf,
-    readableFeedback, sentences, short, sourcesOf, storedFeedback, workItemNotes } = lib;
+  const { commentKey, criterionItems, jsonFile, kindOf, lists, pairingOrder, pointQuestion,
+    questionsOf, readableFeedback, sentences, short, sourcesOf, storedFeedback,
+    workItemNotes } = lib;
 
   const FILE = 'feedback.json';
   const POINT_ID = /^p[1-9][0-9]{0,2}$/;
@@ -37,7 +38,8 @@ module.exports = (lib) => {
   }
 
   // sources checks the ids and the kinds, and the new sources against the notes. In a check,
-  // each open note has a source.
+  // each open note has a source. It returns the sources of the notes, or null when the notes
+  // cannot be read.
   function sources(run, data, before) {
     run.did('sources');
     const seen = new Set();
@@ -55,7 +57,7 @@ module.exports = (lib) => {
     const read = workItemNotes(run.context);
     if (read.why !== undefined) {
       run.note = 'the notes of the work item could not be read';
-      return;
+      return null;
     }
     run.did('notes of the work item');
     const open = sourcesOf(read.notes);
@@ -69,13 +71,14 @@ module.exports = (lib) => {
           'from the note.');
       }
     }
-    if (run.context.mode !== 'check') return;
+    if (run.context.mode !== 'check') return open;
     for (const note of open) {
       if (!lists(data, note)) {
         run.find(`Add the source ${note.id} to ${FILE}.\nThe work item has that note, ` +
           'and no source has its id.');
       }
     }
+    return open;
   }
 
   // stored returns the questions of the newest version.
@@ -122,23 +125,25 @@ module.exports = (lib) => {
     }
   }
 
-  // answered returns, for each source of an answer in data, its question: { id, item, note },
-  // with item the item of its about and note the note beside the option, as questionsOf
-  // returns it. Only an about of the criteria has an item of the form ac-N. A source whose
-  // question is not found has none. The sources of data stay after their notes close.
-  function answered(run, data) {
+  // answered returns, for each source of an answer, its question: { id, item, note }, with item
+  // the item of its about and note the note beside the option, as questionsOf returns it. It
+  // pairs the sources in the order of `feedback open`: those of before, then those of open,
+  // the sources of the notes; with no notes to read, those of data. Only an about of the
+  // criteria has an item of the form ac-N. A source whose question is not found has none.
+  function answered(run, data, before, open) {
     const questions = stored(run.context);
     const out = new Map();
-    for (const [source, { question, note }] of questionsOf(data.sources, questions)) {
+    const order = open ? pairingOrder(before, open) : data.sources;
+    for (const [source, { question, note }] of questionsOf(order, questions)) {
       out.set(source, { id: question, item: questions.find((one) => one.id === question)
         .about?.item, note });
     }
     return out;
   }
 
-  function points(run, data, before) {
+  function points(run, data, before, open) {
     run.did('points');
-    const asks = answered(run, data);
+    const asks = answered(run, data, before, open);
     // beside returns the note that the person wrote beside the option of an answer source.
     const beside = (source) => (asks.get(source.id) || {}).note;
     const byId = new Map(data.sources.map((source) => [source.id, source]));
@@ -227,8 +232,8 @@ module.exports = (lib) => {
     if (!data) return;
     const before = storedFeedback(run.context);
     kept(run, data, before);
-    sources(run, data, before);
-    points(run, data, before);
+    const open = sources(run, data, before);
+    points(run, data, before, open);
   }
 
   // items is the reader of the ids of the points, which the questions check of core reads for

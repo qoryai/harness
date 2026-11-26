@@ -4801,10 +4801,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   text. A note with no id has the key of its time and text. An answer to a question has the id
   `an_` of its note, and after its words comes the line "Question of <id>: <question>", with the
   question in the newest questions whose answer, or an earlier answer in its history, has the
-  text of the note and its time to the second; each answer pairs with one note. When that answer
-  has an option and a note that is not blank, "Note of <id>: <note>" follows, with the note as a
-  JSON string on one line. It exits with 1 for a source or a question not asked, with 0 for
-  neither, and with 3 when the notes cannot be read. A line of a source is not cut.
+  text of the note and its time to the second; each answer pairs with one note, the sources of
+  the newest `feedback` first, then the open notes in their order, as the check of `feedback`
+  pairs them. When that answer has an option and a note that is not blank, "Note of <id>:
+  <note>" follows, with the note as a JSON string on one line. It exits with 1 for a source or a
+  question not asked, with 0 for neither, and with 3 when the notes cannot be read. A line of a
+  source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
   changes that have not ended: the groups of `acceptance-criteria` first, then those of

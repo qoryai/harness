@@ -87,6 +87,12 @@ module.exports = (lib) => {
   // lists reports whether data, a feedback, has a source with the id of source.
   const lists = (data, source) => data.sources.some((one) => one.id === source.id);
 
+  // pairingOrder returns the sources in the order that questionsOf pairs them in, so that
+  // `feedback open` and the check of feedback pair equal answers alike: the sources of stored,
+  // the newest feedback, then each of open, the sources of the notes, that stored lacks.
+  const pairingOrder = (stored, open) => [...stored.sources,
+    ...open.filter((source) => !lists(stored, source))];
+
   // feedbackOf returns the JSON value of text when it has the two lists of a feedback, or null.
   function feedbackOf(text) {
     let data;
@@ -193,6 +199,6 @@ module.exports = (lib) => {
     return finds;
   }
 
-  return { commentKey, kindOf, lists, pointQuestion, questionsOf, readableFeedback, sourcesOf,
-    storedFeedback, wordsOf };
+  return { commentKey, kindOf, lists, pairingOrder, pointQuestion, questionsOf, readableFeedback,
+    sourcesOf, storedFeedback, wordsOf };
 };

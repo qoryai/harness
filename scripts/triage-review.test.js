@@ -558,6 +558,39 @@ test('feedback open prints the note beside the option of an answer, which a poin
     'source or the note of its answer.');
   fails(sorted('Not in settings.', [ask(given())]), 'Quote point p3 word for word from the ' +
     'text of its source.');
+  // A sorted point keeps its quote of the note after the note closes.
+  const kept = quoting('Not in settings.');
+  passes(push(kept, { notes: [GD1], before: kept, types: types([ask(given({ note: beside }))]) }));
+  // With no notes to read, the check pairs the sources of the draft.
+  passes(push(kept, { notes: null, before: CASE, types: types([ask(given({ note: beside }))]) }));
+});
+
+test('feedback open and the check pair equal answers alike, whatever the order of the draft', () => {
+  const keep = 'Keep the approved criteria as they are.';
+  const criterion = (item) => ({ type: 'acceptance-criteria', name: 'main', item });
+  const ask = (id, item, more = {}) => ({ ...clone(Q5), id, about: criterion(item),
+    state: 'answered', answer: { option: keep, by: SAM, at: AT, ...more } });
+  // One move answers q1 and q2 with one option; the member wrote a note beside the second.
+  const questions = [ask('q1', 'ac-1'), ask('q2', 'ac-2', { note: 'Raise AC-2 to 100.' })];
+  const notes = [GD1, note('an_a', 'answer', keep), note('an_b', 'answer', keep)];
+  const types = { questions: [{ data: { questions } }] };
+  assert.deepEqual(open(store(types), notes).lines.filter((line) => /^(Question|Note) of/
+    .test(line)), ['Question of an_a: q1', 'Question of an_b: q2',
+    'Note of an_b: "Raise AC-2 to 100."']);
+  const [a, b] = [sourceOf('an_a', 'answer', keep), sourceOf('an_b', 'answer', keep)];
+  const point = { ...P2, id: 'p3', source: 'an_b', quote: 'Raise AC-2 to 100.' };
+  for (const sources of [[S1, a, b], [S1, b, a]]) {
+    passes(check({ sources, points: [P1, P2, point] }, { notes, types }));
+  }
+  // A sorted answer keeps its question in both: the sources of the newest feedback come first.
+  const root = store({ ...types, feedback: [{ data: { sources: [S1, a], points: [P1, P2] } }] });
+  assert.deepEqual(open(root, notes).lines.filter((line) => /^(Question|Note) of/.test(line)),
+    ['Question of an_b: q2', 'Note of an_b: "Raise AC-2 to 100."']);
+  write(path.join(root, 'feedback.json'), { sources: [S1, a, b], points: [P1, P2, point] });
+  passes(run(root, notes, ['check', 'feedback', path.join(root, 'feedback.json')]));
+  // The sorted answer pairs first also when its note is no longer open.
+  assert.deepEqual(open(root, [GD1, notes[2]]).lines.filter((line) => /^Question of/
+    .test(line)), ['Question of an_b: q2']);
 });
 
 test('feedback open exits 3 when the notes cannot be read', () => {

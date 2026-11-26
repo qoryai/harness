@@ -1,10 +1,11 @@
 // feedback open: prints each note of the work item that no version of feedback lists, as its
 // source in JSON, with the words of it that a text of the run may quote and, for an answer, the
 // question in the newest questions that has the whole answer and any note beside its option,
-// then each point whose
-// question is not in the newest questions and each whose question waits for an answer, and each
-// open question that a group of criterion changes waits for, with the point it is about and the
-// words of that point. Exit 1 when a note is open or a question is missing.
+// then each point whose question is not in the newest questions and each whose question waits
+// for an answer, and each open question that a group of criterion changes waits for, with the
+// point it is about and the words of that point. Exit 1 when a note is open or a question is
+// missing. It pairs equal answers with their questions as the check of feedback does
+// (pairingOrder of lib/feedback.cjs).
 //
 // feedback points: prints each point that has not ended, for the steps that build it:
 // "Fix first: <id>: <change>" for a fix with no done row fix:<id> in the newest build ledger,
@@ -23,8 +24,8 @@
 
 module.exports = (lib) => {
   const { Context, FEEDBACK_OUTPUTS, aboutPoint, amended, artifactFolder, criterionGroups,
-    isObject, Missing, lists, parseJson, plainLine, plural, questionsOf, sourcesOf, storedFeedback,
-    wordsOf, workItemNotes } = lib;
+    isObject, Missing, lists, pairingOrder, parseJson, plainLine, plural, questionsOf, sourcesOf,
+    storedFeedback, wordsOf, workItemNotes } = lib;
 
   // stored returns the list key of the newest version of type, in its file, or none.
   function stored(context, type, key) {
@@ -94,7 +95,7 @@ module.exports = (lib) => {
     const data = storedFeedback(context);
     const questions = stored(context, 'questions', 'questions');
     const all = sourcesOf(read.notes);
-    const answers = questionsOf(all, questions);
+    const answers = questionsOf(pairingOrder(data, all), questions);
     const sources = all.filter((source) => !lists(data, source));
     const asked = data.points.filter((point) => point.sort === 'question')
       .map((point) => ({ point, found: questions.find((one) => one.id === point.question) }));
