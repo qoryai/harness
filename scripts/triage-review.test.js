@@ -1234,6 +1234,8 @@ test('the group of the answer to a question changes only the criterion that the 
   delete whole.about.item;
   passes(amendedFor(root(whole), both));
   passes(amendedFor(root(null), both));
+  // An item that is no string, which no question check passes, binds no criterion either.
+  passes(amendedFor(root({ ...blocked({}), about: { ...whole.about, item: 3 } }), both));
 });
 
 test('the group of the answer to a question gets no second criterion for its change', () => {
