@@ -124,9 +124,9 @@
       }
     },
     "source_id": {
-      "description": "The id of the note: gd_ or es_ of a note, an_ of an answer. A comment or a reply with no id has cm_ and the first 16 hexadecimal digits of the SHA-256 of its at, a line feed and its text.",
+      "description": "The id of the note: gd_, es_ or rc_ of a note, an_ of an answer. A comment or a reply with no id has cm_ and the first 16 hexadecimal digits of the SHA-256 of its at, a line feed and its text.",
       "type": "string",
-      "pattern": "^(gd|es|an)_[0-9a-z]{1,32}$|^cm_[0-9a-f]{16}$"
+      "pattern": "^(gd|es|an|rc)_[0-9a-z]{1,32}$|^cm_[0-9a-f]{16}$"
     },
     "line": {
       "$ref": "https://qory.dev/contracts/harness/v1/primitives.schema.json#/$defs/line"

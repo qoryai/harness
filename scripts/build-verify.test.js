@@ -225,7 +225,8 @@ const MORE_SAMPLES = {
     valid: [
       { why: 'a fix', doc: FEEDBACK },
       { why: 'a source with no point', doc: feedbackDoc((doc) => { doc.points = []; }) },
-      ...['es_01jc4t9v2m6x8p3q', 'an_01jc4t9v2m6x8p3q', 'cm_0123456789abcdef'].map((id) =>
+      ...['es_01jc4t9v2m6x8p3q', 'an_01jc4t9v2m6x8p3q', 'rc_01jc4t9v2m6x8p3q',
+        'cm_0123456789abcdef'].map((id) =>
         ({ why: `the source ${id}`, doc: feedbackDoc((doc) => { doc.sources[0].id = id; }) })),
     ],
     invalid: [
@@ -234,8 +235,8 @@ const MORE_SAMPLES = {
         doc: feedbackDoc((doc) => { doc.sources[0].kind = 'check'; }) },
       { why: 'an id of another object',
         doc: feedbackDoc((doc) => { doc.sources[0].id = 'av_01jc4t9v2m6x8p3q'; }) },
-      { why: 'an id of a round comment',
-        doc: feedbackDoc((doc) => { doc.sources[0].id = 'rc_01jc4t9v2m6x8p3q'; }) },
+      { why: 'an id of another kind of note',
+        doc: feedbackDoc((doc) => { doc.sources[0].id = 'xx_01jc4t9v2m6x8p3q'; }) },
       { why: 'a source with no text', doc: feedbackDoc((doc) => { doc.sources[0].text = ''; }) },
       { why: 'a fourth sort', doc: feedbackDoc((doc) => { doc.points[0].sort = 'dispute'; }) },
       { why: 'a state', doc: feedbackDoc((doc) => { doc.points[0].state = 'open'; }) },

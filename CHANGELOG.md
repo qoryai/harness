@@ -105,7 +105,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   another order than `feedback open` prints them. When that answer has an option and a note, a
   line `Note of <id>: <note>` follows with the note as a JSON string, because the note of the
   work item has only the option's title, and a point of the answer may quote that note. A note
-  of the kind `answer` with no id is a review comment or a reply, and is a comment. An answer
+  of the kind `answer` with no id is a review comment or a reply, and is a comment. The comment
+  that a member gives with **Run another round** has the id `rc_` of its note: it is a note of
+  free text, as the note of a gate is, and a version can link to it. An answer
   approves a change of the criterion that its question is about: the check of `feedback` fails a
   new `criterion-change` of another criterion in it, which a member then decides in a question
   about that criterion. A point that adds a criterion stays a `criterion-change`.
@@ -120,7 +122,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   asked at or after the time of the source, and a ripple point for each criterion checked by
   `Demo` that a linked criteria version changed, until a later linked scenario version.
   `feedback open` also lists each open question that a group waits for as "Waiting for an
-  answer:", so the run ends with an `answer` point on it.
+  answer:", so the run ends with an `answer` point on it. The triager sorts an answer to the
+  question of Build about a criterion that it cannot meet by the option that the member
+  picked: `Change AC-N` and `Withdraw AC-N` as a `criterion-change` of the criterion of the
+  question, and `Make it met another way` as a `fix`; the check of `feedback` fails a new
+  answer with no point of that sort, and, for a `Make it met another way` pick, a
+  `criterion-change` of the criterion whose `quote` is not in the note beside the option.
+  The group of a `Change AC-N` pick has `wording`: the member's edit of the criterion in the
+  note beside the option, after "Change AC-N: " up to a blank line, else the option's
+  `proposal`, and the writer writes it. Limit: the member's edited wording of a Change pick
+  is read after the English label "Change AC-N:", which Qory Apiary writes in the answer's
+  note. With a translated label, the option's proposal applies in place of the member's
+  edited wording. The group of an answer changes only the criterion that its question is
+  about, and none when the question's `about` has no item, and `feedback amended` fails a
+  change of another criterion with "Remove the change of ac-4."
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,

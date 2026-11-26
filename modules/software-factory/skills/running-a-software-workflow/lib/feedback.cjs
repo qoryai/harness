@@ -10,10 +10,10 @@ module.exports = (lib) => {
   const FILE = 'feedback.json';
 
   // The ids of Qory Apiary that a note can have, and the kind of the source of each: a note of
-  // a gate (gd_) or of an escalation (es_), and an answer (an_). A note with no id, or with an
-  // id of another form, is a comment (cm_).
-  const NOTE_ID = /^(gd|es|an)_[0-9a-z]{1,32}$/;
-  const KINDS = { gd: 'note', es: 'note', an: 'answer', cm: 'comment' };
+  // a gate (gd_), of an escalation (es_) or of Run another round (rc_), each free text, and an
+  // answer (an_). A note with no id, or with an id of another form, is a comment (cm_).
+  const NOTE_ID = /^(gd|es|an|rc)_[0-9a-z]{1,32}$/;
+  const KINDS = { gd: 'note', es: 'note', rc: 'note', an: 'answer', cm: 'comment' };
   // The kinds of a note of `work-item show` that a person wrote.
   const WRITTEN = ['request_changes', 'move', 'escalation', 'answer'];
 
@@ -52,12 +52,13 @@ module.exports = (lib) => {
   }
 
   // questionsOf returns, for each source of an answer in sources, oldest first, { question,
-  // note }: question is the id of the question in questions, the objects of the newest
+  // option, note }: question is the id of the question in questions, the objects of the newest
   // questions, that has the answer: one whose answer, or an earlier answer in its history, has
   // the text of the source and its time, to the second. A missing or unreadable time matches
   // no source. The text of an answer note is the title of the option, else the note of the
-  // answer, so note is the note that the person wrote beside an option, when it is not blank.
-  // Each answer of a question pairs with one source. A source with no such question has none.
+  // answer, so option is the title of the option that the person picked, when the answer has
+  // one, and note the note that the person wrote beside it, when it is not blank. Each answer
+  // of a question pairs with one source. A source with no such question has none.
   // shortcut: two answers with one time and one text pair with their questions in the order
   // of the questions, which can differ from the order in which the person gave them; replace
   // when a note has the id of its question.
@@ -69,6 +70,7 @@ module.exports = (lib) => {
         ...(Array.isArray(question.history) ? question.history : [])]
         .filter((answer) => isObject(answer) && words(answer))
         .map((answer) => ({ id: question.id, at: second(answer.at), text: clean(words(answer)),
+          option: typeof answer.option === 'string' ? answer.option : undefined,
           note: typeof answer.option === 'string' && typeof answer.note === 'string' &&
             answer.note.trim() ? clean(answer.note) : undefined })));
     const out = new Map();
@@ -77,8 +79,9 @@ module.exports = (lib) => {
       const place = given.findIndex((one) => one.text === source.text &&
         one.at === second(source.at));
       if (place < 0) continue;
-      const { id, note } = given[place];
-      out.set(source.id, { question: id, ...(note === undefined ? {} : { note }) });
+      const { id, option, note } = given[place];
+      out.set(source.id, { question: id, ...(option === undefined ? {} : { option }),
+        ...(note === undefined ? {} : { note }) });
       given.splice(place, 1);
     }
     return out;
