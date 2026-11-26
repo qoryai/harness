@@ -62,6 +62,12 @@ code that the feedback is about. Then pick the first sort that fits:
    - It adds, changes or removes a criterion, or is a request for other evidence, and the
      `id` of its source starts with `cm_`. No version can link to such a source, so a
      member's answer is the link.
+   - It changes or removes a criterion, its source is an answer, and the question on the
+     line "Question of <id>: <question>" is not about that criterion. An answer approves a
+     change of the criterion that its question is about, and of no other. Give the point
+     the `output` and `item` of the criterion that it changes: the answer to its question is
+     the link, not the earlier answer. A point of an answer that adds a criterion is a
+     `criterion-change`.
 2. `criterion-change`, for a point that adds, changes or removes a criterion, or is a request
    for other evidence. `output` is `acceptance-criteria` or `demo-scenarios`. `item` is the id of
    the criterion or the scenario, such as `ac-2`. Leave out `item` for a new one.

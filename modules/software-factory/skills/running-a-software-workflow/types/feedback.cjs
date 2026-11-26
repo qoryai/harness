@@ -11,8 +11,8 @@ const { isDeepStrictEqual } = require('node:util');
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { commentKey, criterionItems, jsonFile, kindOf, lists, pointQuestion, readableFeedback,
-    sentences, short, sourcesOf, storedFeedback, workItemNotes } = lib;
+  const { commentKey, criterionItems, jsonFile, kindOf, lists, pointQuestion, questionsOf,
+    readableFeedback, sentences, short, sourcesOf, storedFeedback, workItemNotes } = lib;
 
   const FILE = 'feedback.json';
   const POINT_ID = /^p[1-9][0-9]{0,2}$/;
@@ -37,7 +37,8 @@ module.exports = (lib) => {
   }
 
   // sources checks the ids and the kinds, and the new sources against the notes. In a check,
-  // each open note has a source.
+  // each open note has a source. It returns the sources of the notes, or null when the notes
+  // cannot be read.
   function sources(run, data, before) {
     run.did('sources');
     const seen = new Set();
@@ -55,7 +56,7 @@ module.exports = (lib) => {
     const read = workItemNotes(run.context);
     if (read.why !== undefined) {
       run.note = 'the notes of the work item could not be read';
-      return;
+      return null;
     }
     run.did('notes of the work item');
     const open = sourcesOf(read.notes);
@@ -69,13 +70,14 @@ module.exports = (lib) => {
           'from the note.');
       }
     }
-    if (run.context.mode !== 'check') return;
+    if (run.context.mode !== 'check') return open;
     for (const note of open) {
       if (!lists(data, note)) {
         run.find(`Add the source ${note.id} to ${FILE}.\nThe work item has that note, ` +
           'and no source has its id.');
       }
     }
+    return open;
   }
 
   // stored returns the questions of the newest version.
@@ -122,8 +124,21 @@ module.exports = (lib) => {
     }
   }
 
-  function points(run, data, before) {
+  // answered returns, for each source of an answer in open, the sources of the notes, its
+  // question: { id, item }, with item the item of its about. Only an about of the criteria has
+  // an item of the form ac-N. A source whose question is not found has none.
+  function answered(run, open) {
+    const questions = stored(run.context);
+    const out = new Map();
+    for (const [source, id] of questionsOf(open || [], questions)) {
+      out.set(source, { id, item: questions.find((one) => one.id === id).about?.item });
+    }
+    return out;
+  }
+
+  function points(run, data, before, open) {
     run.did('points');
+    const asks = answered(run, open);
     const byId = new Map(data.sources.map((source) => [source.id, source]));
     const fresh = data.points.slice(before.points.length);
     const items = fresh.some((point) => point.output === 'acceptance-criteria' && point.item)
@@ -157,6 +172,15 @@ module.exports = (lib) => {
       if (point.question !== undefined && old.has(point.question)) {
         run.find(`Set the question of ${which} to an id that no question has.\n` +
           `The newest questions have ${point.question}.`);
+      }
+      // An answer approves a change of the criterion that its question is about, and of no
+      // other: a member decides a change of another criterion in a question about it.
+      const ask = asks.get(point.source);
+      if (point.sort === 'criterion-change' && point.output === 'acceptance-criteria' &&
+        point.item && ask && ask.item !== point.item) {
+        run.find(`Set the sort of ${which} to question, about ${point.item}.\nIts source is ` +
+          `the answer to ${ask.id}, which is not about ${point.item}, so a member decides ` +
+          `that change in a question about ${point.item}.`);
       }
       if (items && point.output === 'acceptance-criteria' && point.item &&
         !items.has(point.item)) {
@@ -198,8 +222,8 @@ module.exports = (lib) => {
     if (!data) return;
     const before = storedFeedback(run.context);
     kept(run, data, before);
-    sources(run, data, before);
-    points(run, data, before);
+    const open = sources(run, data, before);
+    points(run, data, before, open);
   }
 
   // items is the reader of the ids of the points, which the questions check of core reads for

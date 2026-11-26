@@ -596,6 +596,29 @@ test('a criterion change of an answer is a group of its id, which a version link
   }
 });
 
+test('an answer changes only the criterion that its question is about', () => {
+  const text = 'Raise the row limit of AC-3 to 100. Add a total row.';
+  const answer = sourceOf('an_1', 'answer', text);
+  const notes = [GD1, note('an_1', 'answer', text)];
+  const q1 = (about) => ({ ...clone(Q5), id: 'q1', about, state: 'answered',
+    answer: { note: text, by: SAM, at: AT } });
+  const criterion = (item) => ({ type: 'acceptance-criteria', name: 'main', item });
+  const sorted = (point, about = criterion('ac-2')) => check({ sources: [S1, answer],
+    points: [P1, P2, { ...P2, id: 'p3', source: 'an_1', quote: 'Raise the row limit of AC-3 ' +
+      'to 100.', ...point }] }, { notes, types: { questions: [{ data: { questions:
+      [q1(about)] } }] } });
+  passes(sorted({ item: 'ac-3' }, criterion('ac-3')));
+  fails(sorted({ item: 'ac-3' }), 'Set the sort of point p3 to question, about ac-3.');
+  fails(sorted({ item: 'ac-3' }, { type: 'feedback', name: 'main', item: 'p2' }),
+    'Set the sort of point p3 to question, about ac-3.');
+  // A new criterion binds no lock, and a point of the scenarios is not a criterion.
+  passes(sorted({ item: undefined, quote: 'Add a total row.' }));
+  passes(sorted({ output: 'demo-scenarios', item: 'scenario-1' }));
+  // With no question that has the answer, the check cannot compare, and passes.
+  passes(check({ sources: [S1, answer], points: [P1, P2, { ...P2, id: 'p3', source: 'an_1',
+    quote: 'Raise the row limit of AC-3 to 100.', item: 'ac-3' }] }, { notes }));
+});
+
 test('feedback takes open or points alone, or amended with an output and --decision', () => {
   for (const argv of [['feedback'], ['feedback', 'close'], ['feedback', 'open', 'x'],
     ['feedback', 'amended'], ['feedback', 'amended', 'acceptance-criteria'],

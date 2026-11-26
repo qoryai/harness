@@ -2930,8 +2930,9 @@ find:
   version; a point id out of order; a `quote` that is no part of the source's text; a member
   that the sort does not have, or lacks; an `item` that is no id of the `output`, or a
   criterion that the criteria do not have; a `criterion-change` whose source has a `cm_` key,
-  or in a work item with no acceptance criteria; a question of two points, or one that the
-  newest questions have; in a check with a draft `questions.json`, a point whose question it
+  or in a work item with no acceptance criteria; a new `criterion-change` of a criterion whose
+  source is an answer to a question about another item, as `feedback open` pairs them; a
+  question of two points, or one that the newest questions have; in a check with a draft `questions.json`, a point whose question it
   lacks, and a new question of a point that breaks the rule for the question of a point,
   whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point with
   no `reply`;
