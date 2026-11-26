@@ -222,20 +222,33 @@ module.exports = (lib) => {
     questions(run, data, old);
   }
 
-  // picks finds each new source of an answer that picks an option of PICKS with no point of the
-  // sort that the pick needs: for a criterion-change, on the criterion of the question.
+  // picks finds each new source of an answer in which the member picked an option of PICKS
+  // with no point of the sort that the pick needs: for a criterion-change, on the criterion of
+  // the question. A pick of "Make it met another way" keeps that criterion as approved, so a
+  // criterion-change of the source on it needs a quote from the note beside the option, in
+  // which the member asks for the change.
   function picks(run, data, before, asks) {
     for (const source of data.sources.slice(before.sources.length)) {
       const ask = asks.get(source.id);
       const pick = ask && PICKS.find((one) => one.title.test(ask.option));
       if (!pick || typeof ask.item !== 'string') continue;
       const item = pick.sort === 'fix' ? undefined : ask.item;
-      const sorted = data.points.slice(before.points.length).some((point) =>
-        point.source === source.id && point.sort === pick.sort &&
+      const fresh = data.points.slice(before.points.length)
+        .filter((point) => point.source === source.id);
+      const sorted = fresh.some((point) => point.sort === pick.sort &&
         (item === undefined || point.item === item));
       if (!sorted) {
         run.find(`Add a ${pick.sort} point${item ? ` on ${item}` : ''} for ${source.id}.\n` +
           `The member picked ${pick.title.exec(ask.option)[0]} in ${ask.id}.`);
+      }
+      if (pick.sort !== 'fix') continue;
+      for (const point of fresh) {
+        if (point.sort === 'criterion-change' && point.item === ask.item &&
+          !(ask.note !== undefined && ask.note.includes(point.quote))) {
+          run.find(`Remove point ${point.id}, or quote the change from the note beside the ` +
+            `option.\nThe member picked Make it met another way in ${ask.id}, which keeps ` +
+            `${ask.item} as approved.`);
+        }
       }
     }
   }

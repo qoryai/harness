@@ -95,7 +95,8 @@ question is about:
   built for it and the note does not mention that part, also write the `question` of a
   removed criterion, as "The sort" lists.
 
-Sort any other thing that the note beside the option asks for as "The sort" lists.
+Sort any other thing that the member asks for in the note beside the option as "The sort"
+lists.
 
 ## A question that an earlier run did not push
 

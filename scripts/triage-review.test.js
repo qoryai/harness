@@ -1160,7 +1160,7 @@ const amendedFor = (root, draft, ...more) => {
     ...more]);
 };
 
-test('a question answered with Change AC-N gives its group the wording of the note, else the proposal', () => {
+test('the group of a question answered with Change AC-N has the wording of the note, else the proposal', () => {
   const wordingOf = (answer, options) => groupOfAnswer(answerStore([blocked(answer, options)]))
     .wording;
   const edited = 'Each customer gets a corrected reply within 2 hours.';
@@ -1168,6 +1168,9 @@ test('a question answered with Change AC-N gives its group the wording of the no
   assert.equal(wordingOf({}), PROPOSAL);
   assert.equal(wordingOf({ note: `Change AC-4: ${edited}\n\nSend it by email too.` }), edited);
   assert.equal(wordingOf({ note: 'Change AC-4: Line one,\nline two.' }), 'Line one,\nline two.');
+  // Line ends of CRLF, and a line of only spaces and tabs between the wording and the note.
+  assert.equal(wordingOf({ note: `Change AC-4: ${edited}\r\n\r\nSend it by email too.` }), edited);
+  assert.equal(wordingOf({ note: `Change AC-4: ${edited}\n \t\nSend it by email too.` }), edited);
   // A note with no label, the label of another criterion or in lower case, or a blank
   // wording: the proposal.
   for (const note of ['Send it by email too.', `Change AC-3: ${edited}`, `Change ac-4: ${edited}`,
@@ -1278,6 +1281,21 @@ test('the answer to a question about a criterion that Build cannot meet gets a p
   // A change of another criterion is no point of the pick.
   assert.deepEqual(linesOf(sortedAs(change, 'criterion-change', 'ac-3')),
     missing('criterion-change', 'ac-4', 'Change AC-4'));
+  // A pick of Make it met another way keeps the criterion: a criterion change of it needs a
+  // quote from the note beside the option, in which the member asks for it.
+  const declined = (quote, answer) => {
+    const data = answered('ac-4', ANOTHER, [{ ...P1, id: 'p4', source: 'an_1', quote: ANOTHER }]);
+    data.points[2].quote = quote;
+    return check(data, { notes: [GD1, note('an_1', 'answer', ANOTHER)], types: { questions:
+      [{ data: { questions: [blocked({ option: ANOTHER, ...answer })] } }] } });
+  };
+  const keep = 'Remove point p3, or quote the change from the note beside the option.';
+  fails(declined(ANOTHER), keep);
+  assert.ok(declined(ANOTHER).lines.includes('  The member picked Make it met another way in ' +
+    'q3, which keeps ac-4 as approved.'));
+  fails(declined('Send it within a day.', { note: 'Use a queue. Send it within two days.' }),
+    /^Quote point p3 word for word/);
+  passes(declined('Send it within two days.', { note: 'Use a queue. Send it within two days.' }));
   // A question with no item in its about binds the pick to no criterion: no point of a pick.
   const noItem = check({ ...answered('ac-4', change), points: [P1, P2, { ...P1, id: 'p3',
     source: 'an_1', quote: change }] }, { notes: [GD1, note('an_1', 'answer', change)],

@@ -92,7 +92,9 @@ module.exports = (lib) => {
 
   // wordingOf returns the wording of the criterion of question that the member approved with
   // the answer paired, as questionsOf returns it, or undefined. The option that changes the
-  // criterion is the first option with a proposal, as Qory Apiary finds it. A member who
+  // criterion is the first option with a proposal, as Qory Apiary finds it, and the label is
+  // "Change %{criterion}:" (lib/apiary_web/components/work_item_components.ex:5767 and
+  // :5770-5777 of Qory Apiary). A member who
   // edits its wording writes the note "Change AC-4: <wording>", with the item of the about in
   // upper case, and a blank line before any note of the member; with no edit, the wording is
   // the proposal. A pick of another option has none.

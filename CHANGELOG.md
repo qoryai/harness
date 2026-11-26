@@ -126,12 +126,13 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   question of Build about a criterion that it cannot meet by the option that the member
   picked: `Change AC-N` and `Withdraw AC-N` as a `criterion-change` of the criterion of the
   question, and `Make it met another way` as a `fix`; the check of `feedback` fails a new
-  answer with no point of that sort. The group of a `Change AC-N` pick has `wording`: the
-  member's edit of the criterion in the note beside the option, after "Change AC-N: " up to
-  a blank line, else the option's `proposal`, and the writer writes it. The group of an
-  answer changes only the criterion that its question is about, and none when the question's
-  `about` has no item, and `feedback amended` fails a change of another criterion with
-  "Remove the change of ac-4."
+  answer with no point of that sort, and, for a `Make it met another way` pick, a
+  `criterion-change` of the criterion whose `quote` is not in the note beside the option.
+  The group of a `Change AC-N` pick has `wording`: the member's edit of the criterion in the
+  note beside the option, after "Change AC-N: " up to a blank line, else the option's
+  `proposal`, and the writer writes it. The group of an answer changes only the criterion
+  that its question is about, and none when the question's `about` has no item, and
+  `feedback amended` fails a change of another criterion with "Remove the change of ac-4."
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,

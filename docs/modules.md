@@ -2924,22 +2924,23 @@ find:
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
 - `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_`, `es_` and
-  `rc_`, `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
-  time and text; a new source that differs from its note, or that has none; new sources in
-  another order than `feedback open` prints them, because a later check pairs equal answers in
-  the stored order; in a check, an open note that is no source; a changed or missing source or
-  point of the newest version; a point id out of order; a `quote` that is no part of the
-  source's text, or, for an answer, of the note beside its option; a member that the sort does
-  not have, or lacks; an `item` that is no id of the `output`, or a criterion that the criteria
-  do not have; a `criterion-change` whose source has a `cm_` key, or in a work item with no
-  acceptance criteria; a new `criterion-change` of a criterion whose source is an answer to a
-  question about another item, as `feedback open` pairs them; a new answer that picks
-  `Change AC-N` or `Withdraw AC-N` with no `criterion-change` of the criterion of its
-  question, or `Make it met another way` with no `fix`; a question of two points, or one
-  that the newest questions have; in a check with a draft `questions.json`, a point whose
-  question it lacks, and a new question of a point that breaks the rule for the question of a
-  point, whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point
-  with no `reply`;
+  `rc_`, `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the
+  source's time and text; a new source that differs from its note, or that has none; new
+  sources in another order than `feedback open` prints them, because a later check pairs
+  equal answers in the stored order; in a check, an open note that is no source; a changed
+  or missing source or point of the newest version; a point id out of order; a `quote` that
+  is no part of the source's text, or, for an answer, of the note beside its option; a
+  member that the sort does not have, or lacks; an `item` that is no id of the `output`, or
+  a criterion that the criteria do not have; a `criterion-change` whose source has a `cm_`
+  key, or in a work item with no acceptance criteria; a new `criterion-change` of a
+  criterion whose source is an answer to a question about another item, as `feedback open`
+  pairs them; a new answer in which the member picked `Change AC-N` or `Withdraw AC-N` with
+  no `criterion-change` of the criterion of its question, or `Make it met another way` with
+  no `fix`, or with a `criterion-change` of that criterion whose `quote` is not in the note
+  beside the option; a question of two points, or one that the newest questions have; in a
+  check with a draft `questions.json`, a point whose question it lacks, and a new question
+  of a point that breaks the rule for the question of a point, whatever its `about`; a
+  `reply` of more than 3 sentences; and, in a push, a new point with no `reply`;
 - `walkthrough`: a file that does not start with `# Walkthrough: <title>` and one header
   line `Commit <7 or more hex digits>`, optionally followed by ` · <text>`, with no other
   text before the first `##`. The commit must be the start of the verified commit, the
