@@ -2794,7 +2794,7 @@ front_with() {
 fixture
 front_with 'name: sample' 'description: "a: b #c"' 'model: ${qory:balanced}' 'paths: ["a: b",' \
 	'  "c"]' 'note: >-' '  a: b #c' '  - d' 'link: https://x.dev/a#b' 'tools: # a comment' \
-	'  - Read' 'anchor: &a x' 'tag: !!str x' 'text: &b |' '  a: b' 'bin: !!binary |' '  R0lG' \
+	'  - Read' 'anchor: &a x' 'tag: !!str x' 'text: &b |' '  a: b: c' 'bin: !!binary |' '  R0lG' \
 	'nested:' '  - - a: b' 'list:' '  - |' '    a: b' '  - c' 'multi: "first: line' \
 	'  next: a: b"' "single: 'it''s: fine'" '"quoted key": "a: b"' 'keep: |-' '  a: b'
 expect_passes "rule 15 passes on quotes, flow lists, blocks, anchors, tags and comments" \
