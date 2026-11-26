@@ -1184,47 +1184,91 @@ $reason sets \"type\": \"module\"."
 }
 
 # Reads front matter, and prints the key of each value that strict YAML reads as syntax: a
-# plain value, of a key or a list item, with ": " or " #" in it, a ":" at its end, or a first
-# character that starts other YAML. A quoted value, a flow list and a block scalar pass, and
-# the lines of a block scalar are skipped.
-# shortcut: the rule reads only the line of a key or a list item, so a continuation line of a
-# plain value and a quoted value with no closing quote pass; replace it with a YAML parser
-# when a value of front matter spans lines.
+# plain value, of a key or a list item, with ": ", ":<tab>" or " #" in it, a ":" at its end,
+# or a first character that starts other YAML; text after the closing quote of a quoted
+# value, also one that spans lines; and a block scalar header with more than its indicators.
+# An anchor or a tag before the value is read first. The lines of a block scalar, which are
+# indented more than its key or its bare "- ", are skipped.
+# shortcut: a flow value, such as [a] b or {a: 1}, a continuation line of a plain value and a
+# key with a ":" inside it pass unread; replace the rule with a YAML parser when one of them
+# appears in front matter.
 PLAIN_AWK='
-BEGIN { block = -1 }
-block >= 0 && (/^[ \t]*$/ || match($0, /^[ \t]*/) && RLENGTH > block) { next }
-{ block = -1; rest = $0; key = "a list item"; item = sub(/^[ \t]*-[ \t]+/, "", rest) }
-match(rest, /^[ \t]*["\047]?[A-Za-z0-9_.-]+["\047]?:([ \t]|$)/) {
-	key = substr(rest, 1, RLENGTH); sub(/:[ \t]*$/, "", key); gsub(/[ \t"\047]/, "", key)
-	rest = substr(rest, RLENGTH + 1); item = 1
+function shut(s, q, i, c) {
+	for (i = 1; i <= length(s); i++) {
+		c = substr(s, i, 1)
+		if (q == "\"" && c == "\\") { i++; continue }
+		if (c != q) continue
+		if (q == "\047" && substr(s, i + 1, 1) == q) { i++; continue }
+		return i + 1
+	}
+	return 0
 }
-!item { next }
+function tail(s, key) { if (s !~ /^[ \t]*$/ && s !~ /^[ \t]+#/) print key }
+BEGIN { block = -1 }
+open != "" { if ((at = shut($0, open)) > 0) { tail(substr($0, at), name); open = "" }; next }
+block >= 0 && (/^[ \t]*$/ || match($0, /^[ \t]*/) && RLENGTH > block) { next }
+{ block = -1 }
+/^[ \t]*(#|$)/ { next }
+{
+	match($0, /^[ \t]*/); col = RLENGTH; rest = substr($0, col + 1); dash = -1
+	while (match(rest, /^-([ \t]+|$)/)) {
+		dash = col; col += RLENGTH; rest = substr(rest, RLENGTH + 1)
+	}
+	key = "a list item"; keyed = 0
+	if (match(rest, /^"([^"\\]|\\.)*"[ \t]*:([ \t]|$)/) ||
+		match(rest, /^\047([^\047]|\047\047)*\047[ \t]*:([ \t]|$)/) ||
+		match(rest, /^[^ \t"\047#[{][^:]*:([ \t]|$)/)) {
+		key = substr(rest, 1, RLENGTH); sub(/[ \t]*:[ \t]*$/, "", key)
+		if (key ~ /^["\047]/) key = substr(key, 2, length(key) - 2)
+		rest = substr(rest, RLENGTH + 1); keyed = 1
+	}
+}
+!keyed && dash < 0 { next }
 { sub(/^[ \t]+/, "", rest); sub(/[ \t]+$/, "", rest) }
-rest ~ /^[|>]/ { match($0, /^[ \t]*/); block = RLENGTH; next }
-rest == "" || rest ~ /^["\047[{]/ { next }
-rest ~ /: |:$|[ \t]#/ || rest ~ /^[],}#&*!%@`]/ || rest ~ /^[-?:]([ \t]|$)/ { print key }
+{
+	while (match(rest, /^[&!][^ \t]*/)) { rest = substr(rest, RLENGTH + 1); sub(/^[ \t]+/, "", rest) }
+}
+rest == "" || rest ~ /^#/ || rest ~ /^[[{]/ { next }
+rest ~ /^[|>]/ {
+	if (rest !~ /^[|>]([1-9][-+]?|[-+][1-9]?)?([ \t]+#.*)?$/) print key
+	else block = keyed ? col : dash
+	next
+}
+rest ~ /^["\047]/ {
+	q = substr(rest, 1, 1)
+	if ((at = shut(substr(rest, 2), q)) > 0) tail(substr(rest, at + 1), key)
+	else { open = q; name = key }
+	next
+}
+rest ~ /:[ \t]|:$|[ \t]#/ || rest ~ /^[],}*%@`]/ || rest ~ /^[-?:]([ \t]|$)/ { print key }
 '
 
-# rule_front_matter DIR: rule 15, each .md and .mdc file under DIR, of every module, folder
-# and runtime, has front matter that strict YAML reads, as GitHub reads it. A folder below
-# DIR with a .git entry is another checkout, such as a worktree, and the rule skips it. Each
-# finding starts with its fix: double quotes around the value.
+# rule_front_matter DIR: rule 15, each text file under DIR whose first line, after a byte
+# order mark, is ---, in every module, folder and runtime, has front matter that strict YAML
+# reads, as GitHub reads it. A folder below DIR with a .git entry is another checkout, such
+# as a worktree, and the rule skips it, and a file with a NUL byte. Each finding starts with
+# its fix: double quotes around the value.
 rule_front_matter() {
 	OUT=
-	why="strict YAML reads ': ', ' #', a final ':' or a first character such as '*' in a"
 	(CDPATH= cd -- "$1" && find . -name .git -prune -o -type d ! -name . \
-		-exec sh -c 'test -e "$1/.git"' sh {} \; -prune -o \
-		-type f \( -name '*.md' -o -name '*.mdc' \) -print) |
+		-exec sh -c 'test -e "$1/.git"' sh {} \; -prune -o -type f -exec awk -v bom="$BOM" '
+			FNR == 1 { sub(/\r$/, ""); if (index($0, bom) == 1) $0 = substr($0, length(bom) + 1)
+				if ($0 ~ /^---[ \t]*$/) print FILENAME }' {} +) |
 		LC_ALL=C sort >"$TMP/front-files" || return 1
 	while IFS= read -r file; do
+		file=${file#./}
+		tr -d '\000' <"$1/$file" | cmp -s - "$1/$file" || continue
 		while IFS= read -r key; do
-			[ -z "$key" ] ||
-				add "Put the value of $key in double quotes in ${file#./}: $why plain value as syntax."
+			[ -z "$key" ] || add "Quote the value of $key in $file."
 		done <<EOF
-$(front_matter "$1/${file#./}" | awk "$PLAIN_AWK")
+$(front_matter "$1/$file" | awk "$PLAIN_AWK")
 EOF
 	done <"$TMP/front-files"
-	[ -z "$OUT" ]
+	[ -z "$OUT" ] && return 0
+	why="Use double quotes: strict YAML reads ': ', ' #', a final ':', a first '*' or '- ', text"
+	why="$why after a closing quote and a block header with more than |, >, -, + and a digit as"
+	OUT="${OUT}$why syntax."' In double quotes, write \" for each " and \\ for each \.'
+	return 1
 }
 
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
@@ -2737,33 +2781,78 @@ pass "rule 12 states why a module's scripts end in .cjs"
 fixture
 printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.cjs"
 expect_passes "rule 12 passes on a .cjs script under modules/" rule_cjs "$FIX"
-# Rule 15 on front matter that strict YAML reads, then on plain values that it reads as
-# syntax: in a skill, an agent, a rule file of a runtime and a page outside modules/.
+# Rule 15 on front matter that strict YAML reads, then on each value that it reads as
+# syntax, in a skill, an agent, a file of a runtime and a page outside modules/.
+# front_with LINE...: writes $SKILL with the front matter LINEs, each read as printf %b.
+front_with() {
+	{
+		printf '%s\n' '---'
+		for line in "$@"; do printf '%b\n' "$line"; done
+		printf '%s\n' '---' '' '# Sample'
+	} >"$SKILL" || exit 1
+}
 fixture
-printf '%s\n' '---' 'name: sample' 'description: "a: b #c"' 'model: ${qory:balanced}' \
-	'paths: ["a: b",' '  "c"]' 'note: >-' '  a: b #c' '  - d' 'link: https://x.dev/a#b' '---' \
-	'' '# Sample' >"$SKILL" || exit 1
-expect_passes "rule 15 passes on quoted values, a flow list, a folded block and a tier" \
+front_with 'name: sample' 'description: "a: b #c"' 'model: ${qory:balanced}' 'paths: ["a: b",' \
+	'  "c"]' 'note: >-' '  a: b #c' '  - d' 'link: https://x.dev/a#b' 'tools: # a comment' \
+	'  - Read' 'anchor: &a x' 'tag: !!str x' 'text: &b |' '  a: b' 'bin: !!binary |' '  R0lG' \
+	'nested:' '  - - a: b' 'list:' '  - |' '    a: b' '  - c' 'multi: "first: line' \
+	'  next: a: b"' "single: 'it''s: fine'" '"quoted key": "a: b"' 'keep: |-' '  a: b'
+expect_passes "rule 15 passes on quotes, flow lists, blocks, anchors, tags and comments" \
 	rule_front_matter "$FIX"
-printf -- '---\nname: sample\ndescription: a: b\n---\n\n# Sample\n' >"$SKILL" || exit 1
-expect_broken_first "rule 15 fails on a plain value with a colon and a space" \
-	'Put the value of description in double quotes in modules/core/skills/sample/SKILL.md' \
+# Each case is the key of the finding, a "|", and the front matter lines, read as printf %b.
+while IFS= read -r case; do
+	fixture
+	front_with "${case#*|}"
+	expect_broken_first "rule 15 fails on ${case#*|}" \
+		"Quote the value of ${case%%|*} in modules/core/skills/sample/SKILL.md." \
+		rule_front_matter "$FIX"
+done <<'EOF'
+description|description: a: b
+description|description: a:\tb
+description|description: Read the rules:
+name|name: page #1
+description|description: - a
+name|name: ? a
+description|description: *a
+a list item|tools:\n  - Read\n  - @Grep
+a|nested:\n  - - a: b: c
+other|list:\n  - note: |\n      a: b\n    other: c: d
+quoted key|"quoted key": a: b
+key with space|key with space: a: b
+key/slash|key/slash: a: b
+Kéy|Kéy: a: b
+key|key: &a a: b
+key|key: "a" b
+key|key: \0047a\0047 b
+key|key: "a": b
+multi|multi: "first\n  next" b
+key|key: |a
+EOF
+fixture
+front_with 'name: a: b' 'description: c: d'
+expect_broken "rule 15 states the reason once, after the findings" \
+	'Quote the value of description in modules/core/skills/sample/SKILL.md.' \
+	rule_front_matter "$FIX"
+[ "$(printf '%s\n' "$OUT" | grep -c 'Use double quotes')" -eq 1 ] &&
+	printf '%s\n' "$OUT" | sed -n '$p' | grep -Fq 'write \" for each " and \\ for each \.' ||
+	fail "rule 15 states the reason once, after the findings"
+expect_same_with_bom "rule 15 gives the same result after a byte order mark" "$SKILL" \
+	rule_front_matter
+printf -- '---\r\nname: sample\r\ndescription: a: b\r\n---\r\n' >"$SKILL" || exit 1
+expect_broken_first "rule 15 fails on a plain value in CRLF front matter" \
+	'Quote the value of description in modules/core/skills/sample/SKILL.md.' \
 	rule_front_matter "$FIX"
 fixture
-agent_with 'tools:\n  - Read\n  - @Grep'
-expect_broken_first "rule 15 fails on a list item that starts with an indicator" \
-	'Put the value of a list item in double quotes in modules/core/agents/sample-agent.md' \
-	rule_front_matter "$FIX"
-fixture
-mkdir -p "$FIX/modules/core/rules" || exit 1
-printf -- '---\ndescription: Read the rules:\n---\n' >"$FIX/modules/core/rules/x.mdc" || exit 1
-expect_broken_first "rule 15 fails on a final colon in a rule file of a runtime" \
-	'Put the value of description in double quotes in modules/core/rules/x.mdc' \
-	rule_front_matter "$FIX"
+mkdir -p "$FIX/modules/core/prompts" || exit 1
+printf -- '---\ndescription: a: b\n---\n' >"$FIX/modules/core/prompts/x.prompt" || exit 1
+expect_broken_first "rule 15 fails on front matter in a file of any type" \
+	'Quote the value of description in modules/core/prompts/x.prompt.' rule_front_matter "$FIX"
+printf -- '---\ndescription: a: b\n---\n\000\n' >"$FIX/modules/core/prompts/x.prompt" || exit 1
+expect_passes "rule 15 skips a file with a NUL byte" rule_front_matter "$FIX"
 fixture
 printf -- '---\nname: page #1\n---\n\nText.\n' >"$FIX/docs/page.md" || exit 1
-expect_broken_first "rule 15 fails on a space and a # in a value of a page outside modules/" \
-	'Put the value of name in double quotes in docs/page.md' rule_front_matter "$FIX"
+expect_broken_first "rule 15 fails on a value of a page outside modules/" \
+	'Quote the value of name in docs/page.md.' rule_front_matter "$FIX"
 mkdir -p "$FIX/docs/other/.git" || exit 1
 mv "$FIX/docs/page.md" "$FIX/docs/other/page.md" || exit 1
 expect_passes "rule 15 skips a folder with a .git entry, another checkout" \
@@ -2795,8 +2884,6 @@ rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of sof
 pass "rule 11: no text of core contains a word of software work"
 rule_cjs "$ROOT" || fail "rule 12: each script under modules/ ends in .cjs"
 pass "rule 12: each script under modules/ ends in .cjs"
-rule_front_matter "$ROOT" || fail "rule 15: the front matter of each file is strict YAML"
-pass "rule 15: the front matter of each file is strict YAML"
 rule_review_groups "$ROOT" || fail "rule 13: each reviewer of a workflow with a review group is a defined member of it"
 pass "rule 13: each reviewer of a workflow with a review group is a defined member of it"
 # Rule 13 on a tree whose workflow flow starts b-reviewer outside its group grp, and whose
@@ -2885,6 +2972,8 @@ rm "$R14/modules/m/agents/b.md" || exit 1
 printf 'Load ${qory:skills/s2}.\n' >"$R14/modules/m/skills/s1/references/more.md"
 expect_passes "rule 14 passes when the skills of the agent reach no workflow skill" \
 	rule_agent_reach "$R14"
+rule_front_matter "$ROOT" || fail "rule 15: the front matter of each file is strict YAML"
+pass "rule 15: the front matter of each file is strict YAML"
 rule_background "$ROOT" || fail "rule 6: the settings of software-factory set the variable for the foreground"
 pass "rule 6: the settings of software-factory set the variable for the foreground"
 rule_allow "$ROOT" || fail "rule 6: the settings of software-factory allow each skill and agent"
