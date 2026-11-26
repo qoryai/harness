@@ -1493,6 +1493,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The check of reply phrases, such as "you are correct", runs on every artifact type, where
+  it ran on `proposal.md` alone. Core lists the 16 phrases in
+  `running-a-workflow/references/reply-phrases.json`. A skill folder with
+  `workflow-checks.cjs` adds more in its `reply-phrases.json`, and removes none. The check
+  reads each string of a JSON file, such as the `why` of a source, and an SVG or WebVTT file
+  as plain text. A type with `replies: true` skips it, as `questions` and `review-comments`
+  do. `uncheckedSections` skips `##` sections, as `## Sources` and `## Commands` of a
+  proposal. The rule is rule 21 of `simple-communication`, and `writing-proposals` has no
+  section "Refused phrases".
 - The first line of a lock finding that no lock of the target can pass is "Ask a member to
   write the change in a request for changes.", where it was "Ask a member to upload the
   acceptance criteria they accept as a new version." The question of a locked check that

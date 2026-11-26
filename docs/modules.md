@@ -635,10 +635,9 @@ most 120 words and at most three short points after its picture. Each table cell
 but those of Mermaid blocks, wireframe links, `## Commands` and `## Sources`, so tables, the
 whole background, code blocks and headings count, and so does the reason of each decided
 question, because members read those reasons right under the proposal. The section "Limits"
-of `writing-proposals` lists these limits, and its section "Refused phrases" lists the
-phrases of a reply to a comment, such as "you are correct", that the proposal never contains
-outside code and text in double quotes. `checks.cjs` checks the counts and tables of these
-limits; the writer and the reviewer judge the rest, such as one outcome per point. The
+of `writing-proposals` lists these limits. As every artifact, the proposal contains no
+phrase of a reply to the reviewer, such as "you are correct", by rule 21 of
+`simple-communication`. `checks.cjs` checks the counts and tables of these limits; the writer and the reviewer judge the rest, such as one outcome per point. The
 proposal states the outcome and the decisions that a person approves, in short plain points.
 Each screen state, each field and each edge case belongs in the spec that Shape writes, and
 `proposal-reviewer` flags such detail in a proposal as a finding marked `writer`,
@@ -931,6 +930,27 @@ change to criterion`, `needs a new criterion` or `needs a change to the spec`, t
 rules of the build ledger that the verbs `step` and `resume` apply, and the check at the end
 of a Build write session. A stack without that module, such as `core`, checks `questions`
 and `review-comments`, and `report` accepts only `needs <type>`.
+
+After the check of each type, `checks.cjs` finds the phrases of a reply to the reviewer, by
+rule 21 of `simple-communication`. Core lists them in
+`running-a-workflow/references/reply-phrases.json`, as `{"phrases": [...]}`. A skill folder
+whose `workflow-checks.cjs` the registry loads may add a `reply-phrases.json` of the same
+form. The check uses the phrases of all these files, in the order of the registry, and the
+hash of a skill folder covers its file. A file adds phrases and removes none. A phrase is
+text of 1 to 60 characters. A file that cannot be read, or a phrase of another form, is a
+fault of the harness, as a `workflow-checks.cjs` that throws is. The check reads each text
+file of a version:
+
+- a Markdown file without its code blocks, code spans and text in double quotes on one line;
+- a JSON file by each string, with the JSON pointer of the string in the finding;
+- any other file, such as SVG or WebVTT, as plain text.
+
+It skips a file that the type reads as binary. A phrase matches as whole words in any case,
+`'` also as `’`, and may cross a line break. A type with `replies: true` gets no such check,
+as `questions` and `review-comments`, whose text is written to a person by design. A type
+sets `uncheckedSections` to the titles of the `##` sections that the check skips, each up to
+the next `##` heading: `proposal` sets `Sources` and `Commands`. `check points` and the end
+check of `points.json` skip the phrases, because `points` is no type of the registry.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -2554,8 +2574,10 @@ The checks:
   Today/After table of 2 to 6 rows that each change something, with no "After" cell that
   states no change, such as "Unchanged" or "The same as today", at most 12 words per cell
   and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
-  questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
-  blocks, code spans and text in double quotes;
+  questions;
+- the reply phrases of rule 21 of `simple-communication` in each file of each type but
+  `questions` and `review-comments`, outside code blocks, code spans, text in double quotes,
+  and `## Sources` and `## Commands` of a proposal;
 - the other limits: at most 450 words in a spec and a decision record (a decision record's
   count leaves out its Mermaid diagrams), a summary of 1 to 3 sentences in a spec, the
   criteria and the scenarios, at most 3 points per part in a spec, a criterion of 1 sentence
