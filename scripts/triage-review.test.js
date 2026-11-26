@@ -420,7 +420,7 @@ test('feedback open takes each kind of note that a person wrote, with its text',
   passes(push(data, { notes }));
   assert.equal(open(store({ feedback: [{ data }] }), notes).status, 0);
   // A comment with an id of another form keeps the key of its time and text.
-  const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'rc_8' } : one));
+  const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'xx_8' } : one));
   assert.equal(open(store({ feedback: [{ data }] }), later).status, 0);
   // The key has to be the one of the time and text.
   const other = clone(data);
@@ -433,9 +433,36 @@ test('a criterion change in a comment is a question, also in a comment with an i
   const data = { sources: [sourceOf(key, 'comment', 'Raise the limit to 100.')],
     points: [{ ...P2, id: 'p1', source: key, quote: 'Raise the limit to 100.' }] };
   const comment = (id) => note(id, 'answer', 'Raise the limit to 100.');
-  for (const id of [null, 'rc_4']) {
+  for (const id of [null, 'xx_4']) {
     fails(check(data, { notes: [comment(id)] }), 'Set the sort of point p1 to question.');
   }
+});
+
+test('the comment of Run another round is a note by its id rc_, which a version can link to', () => {
+  const text = 'Raise the row limit of AC-2 from 50 to 100.';
+  const rc1 = note('rc_1', 'answer', text);
+  // Two such comments with one time and one text are two sources, by their ids, of the kind
+  // note; two comments with no id are one source.
+  const found = sourcesIn(open(store(), [rc1, note('rc_2', 'answer', text),
+    note(null, 'answer', text), note(null, 'answer', text)]));
+  assert.deepEqual(found, [sourceOf('rc_1', 'note', text), sourceOf('rc_2', 'note', text),
+    sourceOf(commentKey(AT, text), 'comment', text)]);
+  // Its text and time are those of an answer to q1: only the answer pairs with q1.
+  const q1 = { ...clone(Q5), id: 'q1', state: 'answered',
+    answer: { option: Q5.options[0].title, by: SAM, at: AT } };
+  const both = open(store({ questions: [{ data: { questions: [q1] } }] }),
+    [note('rc_3', 'answer', Q5.options[0].title), note('an_4', 'answer', Q5.options[0].title)]);
+  assert.deepEqual(both.lines.filter((line) => line.startsWith('Question of')),
+    ['Question of an_4: q1']);
+  // A criterion change in it is no question: the group has the id rc_1 as its decision.
+  const data = { sources: [sourceOf('rc_1', 'note', text)],
+    points: [{ ...P2, id: 'p1', source: 'rc_1' }] };
+  passes(check(data, { notes: [rc1] }));
+  passes(push(data, { notes: [rc1] }));
+  assert.deepEqual(sourcesIn(points(store({ feedback: [{ data }] }))),
+    [{ ...GROUP, decision: 'rc_1', points: [{ ...GROUP.points[0], id: 'p1' }] }]);
+  fails(check({ ...data, sources: [sourceOf('rc_1', 'comment', text)] }, { notes: [rc1] }),
+    'Set the kind of source rc_1 to note.');
 });
 
 test('feedback open lists an answer to a question as a source, with the question it answers', () => {

@@ -105,7 +105,9 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   another order than `feedback open` prints them. When that answer has an option and a note, a
   line `Note of <id>: <note>` follows with the note as a JSON string, because the note of the
   work item has only the option's title, and a point of the answer may quote that note. A note
-  of the kind `answer` with no id is a review comment or a reply, and is a comment. An answer
+  of the kind `answer` with no id is a review comment or a reply, and is a comment. The comment
+  that a member gives with **Run another round** has the id `rc_` of its note: it is a note of
+  free text, as the note of a gate is, and a version can link to it. An answer
   approves a change of the criterion that its question is about: the check of `feedback` fails a
   new `criterion-change` of another criterion in it, which a member then decides in a question
   about that criterion. A point that adds a criterion stays a `criterion-change`.

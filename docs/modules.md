@@ -2923,8 +2923,8 @@ find:
   not the commit of the record. A check with a record that is missing or is not a record of
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
-- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
-  `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
+- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_`, `es_` and
+  `rc_`, `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
   time and text; a new source that differs from its note, or that has none; new sources in
   another order than `feedback open` prints them, because a later check pairs equal answers in
   the stored order; in a check, an open note that is no source; a changed or missing source or
@@ -4800,7 +4800,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   criterion is also about a ripple point of that criterion. A question has no member for the
   agent that asked it. The session then ends with an `answer` point on it, not with `passed`.
   The notes are those of the kinds `request_changes`, `move`, `escalation` and `answer` with a
-  text. A note with no id has the key of its time and text. An answer to a question has the id
+  text. The comment that a member gives with **Run another round** has the id `rc_` of its
+  note, and is a note of free text, as the note of a gate is. A note with no id, or with an id
+  of another form, has the key of its time and text. An answer to a question has the id
   `an_` of its note, and after its words comes the line "Question of <id>: <question>", with the
   question in the newest questions whose answer, or an earlier answer in its history, has the
   text of the note and its time to the second; each answer pairs with one note, the sources of

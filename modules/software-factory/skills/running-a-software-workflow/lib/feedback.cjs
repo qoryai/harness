@@ -10,10 +10,10 @@ module.exports = (lib) => {
   const FILE = 'feedback.json';
 
   // The ids of Qory Apiary that a note can have, and the kind of the source of each: a note of
-  // a gate (gd_) or of an escalation (es_), and an answer (an_). A note with no id, or with an
-  // id of another form, is a comment (cm_).
-  const NOTE_ID = /^(gd|es|an)_[0-9a-z]{1,32}$/;
-  const KINDS = { gd: 'note', es: 'note', an: 'answer', cm: 'comment' };
+  // a gate (gd_), of an escalation (es_) or of Run another round (rc_), each free text, and an
+  // answer (an_). A note with no id, or with an id of another form, is a comment (cm_).
+  const NOTE_ID = /^(gd|es|an|rc)_[0-9a-z]{1,32}$/;
+  const KINDS = { gd: 'note', es: 'note', rc: 'note', an: 'answer', cm: 'comment' };
   // The kinds of a note of `work-item show` that a person wrote.
   const WRITTEN = ['request_changes', 'move', 'escalation', 'answer'];
 
