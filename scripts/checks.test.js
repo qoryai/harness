@@ -6652,7 +6652,7 @@ test('reply phrases: closing hashes, setext headings and .MD files keep their se
     '  The line is "As discussed.".');
 });
 
-test('reply phrases: the lists of two modules count in the order of their skill folders', () => {
+test('reply phrases: the lists of two skill folders count in the order of the folders', () => {
   const notes = phrasePlugin('', JSON.stringify({ phrases: ['per your note'] }));
   const more = path.join(notes.plugin, 'skills', 'more');
   fs.mkdirSync(more);

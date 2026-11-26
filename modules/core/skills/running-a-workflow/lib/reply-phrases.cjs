@@ -126,8 +126,8 @@ function headingOf(list, index) {
 
 // markdownLines returns the lines of a Markdown text that the check reads, each { number,
 // text, read }. It leaves out the lines of a code block. It also leaves out each section whose
-// title unchecked has, from its level 2 heading up to the next heading of level 1 or 2. The ###
-// subsections of such a section are left out with it. read is the line without its code spans
+// title unchecked has. Such a section runs from its level 2 heading up to the next heading of
+// level 1 or 2, with its ### subsections. read is the line without its code spans
 // and its text in double quotes.
 function markdownLines(text, unchecked) {
   const list = lines(text);
@@ -146,6 +146,9 @@ function markdownLines(text, unchecked) {
   }
   // A paragraph is a run of lines that follow each other with no blank line: its code spans
   // are masked together.
+  // shortcut: list items, table rows and a heading with no blank line between them count as
+  // one paragraph, so a stray backtick moves the spans of the lines after it. Replace this with
+  // the blocks of a Markdown parser when such a case gives a wrong finding.
   const out = [];
   for (let from = 0; from < kept.length;) {
     let to = from + 1;
