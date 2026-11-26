@@ -276,35 +276,6 @@ module.exports = (lib) => {
     }
   }
 
-  // The phrases that
-  // writing-proposals (SKILL.md:170-194: "The check fails on these phrases anywhere") lists.
-  const REFUSED_PHRASES = [
-    'that is correct',
-    "that's correct",
-    'this is correct',
-    'you are correct',
-    "you're correct",
-    'the comment asks',
-    'your answer',
-    'as asked',
-    'as requested',
-    'you asked',
-    'you suggested',
-    'you are right',
-    "you're right",
-    'good point',
-    'as discussed',
-    'the review found',
-  ];
-
-  // wholeWords returns a pattern that finds text as whole words, without regard to case, with
-  // any white space, a line break included, between its words, and ' or ’ for each '.
-  const wholeWords = (text, flags = 'iu') => new RegExp(
-    `(?<![\\p{L}\\p{N}])${text.replace(/'/g, "['’]").split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`,
-    flags);
-
-  const PHRASES = REFUSED_PHRASES.map((phrase) => ({ phrase, pattern: wholeWords(phrase, 'giu') }));
-
   // An After cell of a Today/After table that states no change, trimmed of punctuation, case
   // and a leading "the": one of these, or a cell that starts with "unchanged" or "same as".
   const NO_CHANGE = new Set(['unchanged', 'same', 'no change', 'as today', 'same as today']);
@@ -379,22 +350,9 @@ module.exports = (lib) => {
       .map((question) => ({ text: question.decision.reason, now: !stored.has(question.id) }));
   }
 
-  // masked returns text with each code span and each text in double quotes, "…" or “…”, on
-  // one line, replaced by spaces of the same length, so that the refused phrases skip them.
-  function masked(text) {
-    let out = '';
-    let from = 0;
-    for (const span of codeSpans(text)) {
-      out += text.slice(from, span.start) + ' '.repeat(span.end - span.start);
-      from = span.end;
-    }
-    const quoted = /"[^"\n]*"|“[^“”\n]*”/g;
-    return (out + text.slice(from)).replace(quoted, (found) => ' '.repeat(found.length));
-  }
-
   // proposalLimits checks the counts and tables of the limits that
   // writing-proposals (SKILL.md:15-18, 116-156: "checks script checks the counts and tables")
-  // lists, and the refused phrases. source is the lines of lines().
+  // lists. source is the lines of lines().
   function proposalLimits(run, source) {
     run.did('limits');
     const list = source.map((line, index) => ({ ...line, number: index + 1 }));
@@ -554,35 +512,6 @@ module.exports = (lib) => {
       });
     }
 
-    // writing-proposals (SKILL.md:174-176: "It matches each phrase as whole words"): no line of
-    // a code block, code span or text in double quotes on one line is checked.
-    run.did('phrases');
-    let joined = '';
-    const starts = [];
-    for (const line of kept) {
-      if (line.fenced) continue;
-      starts.push({ at: joined.length, number: line.number, text: line.text });
-      joined += `${masked(line.text)}\n`;
-    }
-    const seen = new Set();
-    for (const { phrase, pattern } of PHRASES) {
-      pattern.lastIndex = 0;
-      for (let match = pattern.exec(joined); match; match = pattern.exec(joined)) {
-        // The last line that starts at or before the match, by a binary search.
-        let low = 0;
-        let high = starts.length - 1;
-        while (low < high) {
-          const middle = Math.ceil((low + high) / 2);
-          if (starts[middle].at <= match.index) low = middle;
-          else high = middle - 1;
-        }
-        const line = starts[low];
-        if (seen.has(`${phrase} ${line.number}`)) continue;
-        seen.add(`${phrase} ${line.number}`);
-        run.find(`Remove "${phrase}" from line ${line.number} of proposal.md and state the ` +
-          `outcome.\nThe line is ${quote(line.text)}.`);
-      }
-    }
   }
 
   function proposal(run, files) {
@@ -876,5 +805,8 @@ module.exports = (lib) => {
     draft: (names) => names.some((name) => /\.(md|json)$/.test(name)),
     // end and end --offline compare the track of the recorded verdict with proposal.md.
     verdict: verdictTrack,
+    // replyCheck of core skips ## Sources, whose items are the titles of pages and
+    // files, and ## Commands, whose cells are commands, as the limits skip both sections.
+    uncheckedSections: ['Sources', 'Commands'],
   };
 };

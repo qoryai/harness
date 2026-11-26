@@ -1386,7 +1386,7 @@ test('scenarios: an empty file passes only with 0 bytes and with no criterion pl
   const result = push(empty, 'demo-scenarios');
   passes(result);
   assert.equal(result.lines.at(-1),
-    'Checked demo-scenarios (demo-scenarios.md): empty file, planned demos; 0 findings.');
+    'Checked demo-scenarios (demo-scenarios.md): empty file, planned demos, phrases; 0 findings.');
   const planned = withScenarios();
   write(planned, 'demo-scenarios.md', '');
   fails(push(planned, 'demo-scenarios'),

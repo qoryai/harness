@@ -453,4 +453,7 @@ module.exports = {
   words: 'questions',
   reviewer: 'questions-reviewer',
   check: questionsCheck,
+  // A question is written to the member who answers it, so replyCheck of
+  // lib/reply-phrases.cjs skips the type.
+  replies: true,
 };

@@ -6,6 +6,7 @@ const path = require('node:path');
 
 const { MAX_BYTES, Missing, Run, cut, inside, plural, readFile, short } = require('./base.cjs');
 const { Context } = require('./context.cjs');
+const { replyCheck } = require('./reply-phrases.cjs');
 
 // allowed reports whether a file of that base name belongs to a version of def, a type of
 // the registry: the main file, or a file that def.allowed accepts.
@@ -39,8 +40,10 @@ function draftFile(mode, root, file) {
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
 // set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
 // as a picture, the check reads no byte and checks no size: files maps its name to null.
-// place, when given, is { workingFolder, inputs }: the working folder of the check and the
-// path of the run's inputs.json, from which Context.extensions reads the extensions.
+// place, when given, is { workingFolder, inputs, phrases }: the working folder of the check,
+// the path of the run's inputs.json, from which Context.extensions reads the extensions, and
+// the reply phrases of the registry, which replyCheck finds after def.check. With no phrases,
+// as for points.json, which is no type of the registry, replyCheck finds none.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
   place = {}) {
   const { type } = def;
@@ -87,6 +90,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     run.find(`Add ${mainFile} to the files: a ${type} version has it.`);
   } else {
     def.check(run, files);
+    if (place.phrases) replyCheck(run, def, files, place.phrases);
   }
   const names = [...files.keys()].join(', ') || 'no file';
   const note = run.note ? `; ${run.note}` : '';

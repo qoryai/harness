@@ -332,7 +332,8 @@ function end(io, folder) {
     }
     // moduleEnd is the check at the end that a module of the stack adds, if any.
     found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
-      place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs }, verdict: body }),
+      place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
+        phrases: io.registry().phrases }, verdict: body }),
     ...reportResults, ...outboxDrafts(io),
     ...(moduleEnd ? moduleEnd({ ...io, root, failed: failures(counter) }) : [])];
   }
