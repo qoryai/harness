@@ -2411,6 +2411,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The descriptions of 14 skills, such as `workflow-implement-changes`, are in double quotes,
+  so their front matter parses as strict YAML, and GitHub shows it as a table. Before, a
+  `: ` in the plain value stopped the parse, and GitHub showed "Error in user YAML". Rule 15
+  of `scripts/check.sh` reads the front matter of each text file whose first line is `---`.
+  It finds a plain value with `: `, ` #`, a final `:` or a first indicator character, text
+  after a closing quote and a block scalar header with more than its indicators.
 - The tool guard reads the folders of a glob before its first wildcard through their links,
   so a glob through a link to the artifact folder, as in `rm -rf link/.step*`, reaches
   `.reports` and `.step-reports`. Before, the guard compared such a glob with the folders as

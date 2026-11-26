@@ -1,6 +1,6 @@
 ---
 name: scripting-demos
-description: Write, run and freeze the demo script of each approved demo scenario: start the demo author once per scenario, build the script from its actions and the approved scenario, have check-reviewer review it, run it once with video off, and push it. A script that passed is frozen, and a later change to it is a correction that check-reviewer reviews, at most 2 per scenario. Use in a Build run of implement-changes, after the last deliverable, when the check of demo scripts lists a scenario to script or refuses a script.
+description: "Write, run and freeze the demo script of each approved demo scenario: start the demo author once per scenario, build the script from its actions and the approved scenario, have check-reviewer review it, run it once with video off, and push it. A script that passed is frozen, and a later change to it is a correction that check-reviewer reviews, at most 2 per scenario. Use in a Build run of implement-changes, after the last deliverable, when the check of demo scripts lists a scenario to script or refuses a script."
 ---
 
 # Scripting demos
