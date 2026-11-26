@@ -1,6 +1,6 @@
 ---
 name: workflow-write-acceptance-checks
-description: Orchestrate the acceptance checks of one ticket in a Build run, when a criterion is planned as Tests: start the acceptance check writer and the check reviewer, decide on each finding, commit the checks, lock them with acceptance-lock, and run each locked check on the start commit, where it must fail. A locked check that does not fail in two runs ends with a question to a member. Use in a headless run of the workflow write-acceptance-checks.
+description: "Orchestrate the acceptance checks of one ticket in a Build run, when a criterion is planned as Tests: start the acceptance check writer and the check reviewer, decide on each finding, commit the checks, lock them with acceptance-lock, and run each locked check on the start commit, where it must fail. A locked check that does not fail in two runs ends with a question to a member. Use in a headless run of the workflow write-acceptance-checks."
 ---
 
 # Write acceptance checks

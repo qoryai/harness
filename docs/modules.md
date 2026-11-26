@@ -5696,6 +5696,12 @@ the rule passes on that file.
     from the agent to the skill, such as "Remove ${qory:skills/workflow-flow} from
     modules/m/skills/s1/references/more.md: agent a reaches it through a > s1 >
     workflow-flow".
+15. Each `.md` and `.mdc` file of the repository, in every module and folder, has front
+    matter that strict YAML reads, as GitHub reads it. A plain value, of a key or of a list
+    item, has no `: ` and no ` #` in it, no `:` at its end, and no first character that
+    starts other YAML, such as `*`, `@`, or `-` with a space after it. A value in quotes, a
+    flow list such as `paths: [...]` and a block scalar such as `>-` pass. Each finding
+    starts with its fix: "Put the value of description in double quotes in <path>".
 
 Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file

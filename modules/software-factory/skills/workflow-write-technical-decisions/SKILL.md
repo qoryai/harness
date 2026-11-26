@@ -1,6 +1,6 @@
 ---
 name: workflow-write-technical-decisions
-description: Orchestrate the technical decisions of one ticket: start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-technical-decisions, or when a higher workflow's skill lists this one.
+description: "Orchestrate the technical decisions of one ticket: start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-technical-decisions, or when a higher workflow's skill lists this one."
 ---
 
 # Write technical decisions

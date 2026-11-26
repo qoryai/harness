@@ -1,6 +1,6 @@
 ---
 name: workflow-review-changes
-description: Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match, each of which writes one report into the report folder, decide the round from the reports and the result of the full suite, and record passed or changes-requested. Use in a headless run of the workflow review-changes.
+description: "Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match, each of which writes one report into the report folder, decide the round from the reports and the result of the full suite, and record passed or changes-requested. Use in a headless run of the workflow review-changes."
 ---
 
 # Review changes

@@ -1,6 +1,6 @@
 ---
 name: workflow-verify-a-ticket
-description: Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, write, check, review and push the walkthrough, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket.
+description: "Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, write, check, review and push the walkthrough, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket."
 ---
 
 # Verify a ticket

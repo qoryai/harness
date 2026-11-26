@@ -1,6 +1,6 @@
 ---
 name: making-small-changes
-description: Load before you change code or review a change: how small a change is, and what it never cuts.
+description: "Load before you change code or review a change: how small a change is, and what it never cuts."
 ---
 
 # Making small changes

@@ -1183,6 +1183,44 @@ $reason sets \"type\": \"module\"."
 	return 1
 }
 
+# Reads front matter, and prints the key of each value that strict YAML reads as syntax: a
+# plain value, of a key or a list item, with ": " or " #" in it, a ":" at its end, or a first
+# character that starts other YAML. A quoted value, a flow list and a block scalar pass, and
+# the lines of a block scalar are skipped.
+PLAIN_AWK='
+BEGIN { block = -1 }
+block >= 0 && (/^[ \t]*$/ || match($0, /^[ \t]*/) && RLENGTH > block) { next }
+{ block = -1; rest = $0; key = "a list item"; item = sub(/^[ \t]*-[ \t]+/, "", rest) }
+match(rest, /^[ \t]*["\047]?[A-Za-z0-9_.-]+["\047]?:([ \t]|$)/) {
+	key = substr(rest, 1, RLENGTH); sub(/:[ \t]*$/, "", key); gsub(/[ \t"\047]/, "", key)
+	rest = substr(rest, RLENGTH + 1); item = 1
+}
+!item { next }
+{ sub(/^[ \t]+/, "", rest); sub(/[ \t]+$/, "", rest) }
+rest ~ /^[|>]/ { match($0, /^[ \t]*/); block = RLENGTH; next }
+rest == "" || rest ~ /^["\047[{]/ { next }
+rest ~ /: |:$|[ \t]#/ || rest ~ /^[],}#&*!%@`]/ || rest ~ /^[-?:]([ \t]|$)/ { print key }
+'
+
+# rule_front_matter DIR: rule 15, each .md and .mdc file under DIR, of every module, folder
+# and runtime, has front matter that strict YAML reads, as GitHub reads it. Each finding
+# starts with its fix: double quotes around the value.
+rule_front_matter() {
+	OUT=
+	why="strict YAML reads ': ', ' #', a final ':' or a first character such as '*' in a"
+	find "$1" -name .git -prune -o -type f \( -name '*.md' -o -name '*.mdc' \) -print |
+		LC_ALL=C sort >"$TMP/front-files" || return 1
+	while IFS= read -r file; do
+		while IFS= read -r key; do
+			[ -z "$key" ] ||
+				add "Put the value of $key in double quotes in ${file#"$1"/}: $why plain value as syntax."
+		done <<EOF
+$(front_matter "$file" | awk "$PLAIN_AWK")
+EOF
+	done <"$TMP/front-files"
+	[ -z "$OUT" ]
+}
+
 # rule_citations DIR: rule 10, each citation `<skill> (SKILL.md:<ranges>: "<quote>")` in the
 # checks scripts, each .cjs file under a skill running-a-*workflow of DIR/modules, names a skill
 # of DIR/modules, each range lies inside its SKILL.md (from 1 up to the last line, with from at
@@ -2693,6 +2731,33 @@ pass "rule 12 states why a module's scripts end in .cjs"
 fixture
 printf '%s\n' "'use strict';" >"$FIX/modules/core/skills/sample/check.cjs"
 expect_passes "rule 12 passes on a .cjs script under modules/" rule_cjs "$FIX"
+# Rule 15 on front matter that strict YAML reads, then on plain values that it reads as
+# syntax: in a skill, an agent, a rule file of a runtime and a page outside modules/.
+fixture
+printf '%s\n' '---' 'name: sample' 'description: "a: b #c"' 'model: ${qory:balanced}' \
+	'paths: ["a: b",' '  "c"]' 'note: >-' '  a: b #c' '  - d' 'link: https://x.dev/a#b' '---' \
+	'' '# Sample' >"$SKILL" || exit 1
+expect_passes "rule 15 passes on quoted values, a flow list, a folded block and a tier" \
+	rule_front_matter "$FIX"
+printf -- '---\nname: sample\ndescription: a: b\n---\n\n# Sample\n' >"$SKILL" || exit 1
+expect_broken_first "rule 15 fails on a plain value with a colon and a space" \
+	'Put the value of description in double quotes in modules/core/skills/sample/SKILL.md' \
+	rule_front_matter "$FIX"
+fixture
+agent_with 'tools:\n  - Read\n  - @Grep'
+expect_broken_first "rule 15 fails on a list item that starts with an indicator" \
+	'Put the value of a list item in double quotes in modules/core/agents/sample-agent.md' \
+	rule_front_matter "$FIX"
+fixture
+mkdir -p "$FIX/modules/core/rules" || exit 1
+printf -- '---\ndescription: Read the rules:\n---\n' >"$FIX/modules/core/rules/x.mdc" || exit 1
+expect_broken_first "rule 15 fails on a final colon in a rule file of a runtime" \
+	'Put the value of description in double quotes in modules/core/rules/x.mdc' \
+	rule_front_matter "$FIX"
+fixture
+printf -- '---\nname: page #1\n---\n\nText.\n' >"$FIX/docs/page.md" || exit 1
+expect_broken_first "rule 15 fails on a space and a # in a value of a page outside modules/" \
+	'Put the value of name in double quotes in docs/page.md' rule_front_matter "$FIX"
 
 # The rules, on the files of this repository.
 rule_sections "$ROOT" || fail "rule 1: each agent has the three required sections"
@@ -2720,6 +2785,8 @@ rule_core_words "$ROOT" || fail "rule 11: no text of core contains a word of sof
 pass "rule 11: no text of core contains a word of software work"
 rule_cjs "$ROOT" || fail "rule 12: each script under modules/ ends in .cjs"
 pass "rule 12: each script under modules/ ends in .cjs"
+rule_front_matter "$ROOT" || fail "rule 15: the front matter of each file is strict YAML"
+pass "rule 15: the front matter of each file is strict YAML"
 rule_review_groups "$ROOT" || fail "rule 13: each reviewer of a workflow with a review group is a defined member of it"
 pass "rule 13: each reviewer of a workflow with a review group is a defined member of it"
 # Rule 13 on a tree whose workflow flow starts b-reviewer outside its group grp, and whose
