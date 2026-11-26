@@ -1228,14 +1228,17 @@ test('the group of the answer to a question changes only the criterion that the 
     ['Remove the change of ac-4.']);
   assert.ok(amendedFor(root(onPoint), edit(CRITERIA, [AC4, AC4_NEW])).lines
     .includes('  The question of an_1 is about p2.'));
-  // An about with no item is about the whole output, and with no question that has the
-  // answer the check cannot compare: both pass.
+  // An about with no item, or with an item that is no string, binds the answer to no
+  // criterion, as in the check of feedback.
   const whole = blocked({});
   delete whole.about.item;
-  passes(amendedFor(root(whole), both));
+  const none = ['Remove the change of ac-3.', '  The question of an_1 is about no criterion.',
+    'Remove the change of ac-4.', '  The question of an_1 is about no criterion.'];
+  assert.deepEqual(amendedFor(root(whole), both).lines.slice(0, 4), none);
+  assert.deepEqual(amendedFor(root({ ...blocked({}), about: { ...whole.about, item: 3 } }), both)
+    .lines.slice(0, 4), none);
+  // With no question that has the answer, the check cannot compare, and passes.
   passes(amendedFor(root(null), both));
-  // An item that is no string, which no question check passes, binds no criterion either.
-  passes(amendedFor(root({ ...blocked({}), about: { ...whole.about, item: 3 } }), both));
 });
 
 test('the group of the answer to a question gets no second criterion for its change', () => {
@@ -1244,6 +1247,45 @@ test('the group of the answer to a question gets no second criterion for its cha
   const result = amendedFor(answerStore([blocked({})]), split);
   assert.deepEqual(result.lines.slice(0, 2), ['Remove the new criterion ac-5 from ' +
     'acceptance-criteria.json.', '  No point of an_1 adds a criterion.']);
+});
+
+test('the answer to a question about a criterion that Build cannot meet gets a point of its pick', () => {
+  const withdraw = 'Withdraw AC-4, "The criterion as approved"';
+  // sortedAs checks the feedback in which an_1 picks title, with p3 of sort and item.
+  const sortedAs = (title, sort, item = 'ac-4', answer = {}) => {
+    const data = answered('ac-4', title);
+    Object.assign(data.points[2], { sort, item });
+    if (sort === 'fix') {
+      delete data.points[2].output;
+      delete data.points[2].item;
+    }
+    return check(data, { notes: [GD1, note('an_1', 'answer', title)], types: { questions:
+      [{ data: { questions: [blocked({ option: title, ...answer })] } }] } });
+  };
+  const change = changeTitle('ac-4');
+  passes(sortedAs(change, 'criterion-change'));
+  passes(sortedAs(ANOTHER, 'fix'));
+  passes(sortedAs(withdraw, 'criterion-change'));
+  const missing = (sort, item, picked) => [`Add a ${sort} point${item ? ` on ${item}` : ''} ` +
+    'for an_1.', `  The member picked ${picked} in q3.`];
+  const linesOf = (result) => result.lines.filter((line, at, all) => line.startsWith('Add a ') ||
+    all[at - 1]?.startsWith('Add a '));
+  assert.deepEqual(linesOf(sortedAs(change, 'fix')), missing('criterion-change', 'ac-4',
+    'Change AC-4'));
+  assert.deepEqual(linesOf(sortedAs(ANOTHER, 'criterion-change')), missing('fix', null, ANOTHER));
+  assert.deepEqual(linesOf(sortedAs(withdraw, 'fix')), missing('criterion-change', 'ac-4',
+    'Withdraw AC-4'));
+  // A change of another criterion is no point of the pick.
+  assert.deepEqual(linesOf(sortedAs(change, 'criterion-change', 'ac-3')),
+    missing('criterion-change', 'ac-4', 'Change AC-4'));
+  // An answer that picks no such option, or a note with no option, needs no point of a pick.
+  const other = blocked({ option: undefined, note: 'Keep it.' });
+  const free = answered('ac-4', 'Keep it.');
+  free.points[2].sort = 'fix';
+  delete free.points[2].output;
+  delete free.points[2].item;
+  passes(check(free, { notes: [GD1, note('an_1', 'answer', 'Keep it.')],
+    types: { questions: [{ data: { questions: [other] } }] } }));
 });
 
 // pushed adds to root a version of the acceptance criteria with text, from a run, with the
@@ -1431,8 +1473,14 @@ test('the skill writes each group as one linked version that feedback amended an
   // The wording of a Change pick: the triager sorts it, the writer writes it, the reviewer
   // compares it, and the group of an answer changes only its question's criterion.
   assert.ok(flat(WORKFLOW).includes('- `wording`: only for a group of the acceptance criteria'));
-  assert.ok(flat(SORTING).includes('An answer whose text is the title of an option "Change ' +
-    'AC-N" is one `criterion-change` of the criterion that its question is about'));
+  for (const line of ['## A pick on a criterion that Build cannot meet',
+    '- "Change AC-N": a `criterion-change` with the `output` `acceptance-criteria`',
+    '- "Make it met another way": a `fix`.', 'Ask no question for it.',
+    '- "Withdraw AC-N": a `criterion-change` that removes the criterion',
+    'those are the options of the question of Build about a criterion that it cannot meet.']) {
+    assert.ok(flat(SORTING).includes(line), line);
+  }
+  assert.ok(!flat(SORTING).includes('a question of Verify'));
   const writing = flat(read('software-factory/skills/writing-specs/SKILL.md'));
   for (const line of ['Write the person\'s words from `wording`, else from `quote`',
     'changes only the criterion that its question is about. Never split its change into a ' +

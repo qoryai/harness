@@ -2933,7 +2933,9 @@ find:
   not have, or lacks; an `item` that is no id of the `output`, or a criterion that the criteria
   do not have; a `criterion-change` whose source has a `cm_` key, or in a work item with no
   acceptance criteria; a new `criterion-change` of a criterion whose source is an answer to a
-  question about another item, as `feedback open` pairs them; a question of two points, or one
+  question about another item, as `feedback open` pairs them; a new answer that picks
+  `Change AC-N` or `Withdraw AC-N` with no `criterion-change` of the criterion of its
+  question, or `Make it met another way` with no `fix`; a question of two points, or one
   that the newest questions have; in a check with a draft `questions.json`, a point whose
   question it lacks, and a new question of a point that breaks the rule for the question of a
   point, whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point
@@ -3639,8 +3641,11 @@ and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
 `writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
 question is a source with the id `an_` of its note, which a version can link to. The triager
-sorts an answer in which the member picked `Change AC-N` as one `criterion-change` of the
-criterion of the question, and the writer writes the `wording` of its group. After it,
+sorts an answer to the question of Build about a criterion that it cannot meet by the option
+that the member picked, on the criterion of the question: `Change AC-N` as a
+`criterion-change`, whose group's `wording` the writer writes, `Make it met another way` as
+a `fix`, and `Withdraw AC-N` as a `criterion-change` that removes the criterion, with the
+question of a removed criterion when a built part is not mentioned. After it,
 `feedback open` prints a line `Question of <id>: <question>` with the question whose answer
 has the text and the time of the note, and a line `Note of <id>: <note>` with the note that
 the member wrote beside the option, which the note of the work item lacks. A point may quote
@@ -4846,13 +4851,15 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   the key order included. A removed criterion keeps each member and adds only `removed`, and
   a removed scenario keeps its heading. An item that `--same` names keeps every byte. The
   group of an answer changes only the criterion that its question's `about` has as `item`: a
-  point of it on another criterion keeps that criterion as it is, with the finding "Remove the
-  change of ac-4." for a change. An `about` with no item, or an answer that pairs with no
-  question, binds no criterion. It exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
-  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
-  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
-  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft, with
-  the last line "No part of acceptance-criteria.json was checked."
+  point of it on another criterion keeps that criterion as it is, with the finding "Remove
+  the change of ac-4." for a change. With an `about` that has no item, the group changes no
+  criterion, as the check of `feedback` requires. An answer that pairs with no question is
+  not compared. It exits with 1 for each finding, as "Restore ac-3 in
+  acceptance-criteria.json." or "Change ac-2 in acceptance-criteria.json, or add --same
+  p2.", and with 0 and the line "Checked nothing" when the output has no version. For a
+  draft over 256 KB, it exits with 1 and the finding "Cut acceptance-criteria.json to at
+  most 256 KB." before it reads the draft, with the last line "No part of
+  acceptance-criteria.json was checked."
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the

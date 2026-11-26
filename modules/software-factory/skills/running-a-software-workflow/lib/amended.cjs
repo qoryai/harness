@@ -101,6 +101,9 @@ module.exports = (lib) => {
     const options = Array.isArray(question.options) ? question.options.filter(isObject) : [];
     const change = options.find((option) => typeof option.proposal === 'string');
     if (typeof item !== 'string' || !change || paired.option !== change.title) return undefined;
+    // shortcut: the label is matched in English, as Qory Apiary writes it today; a translated
+    // label makes the proposal apply. Replace when the answer stores the wording in a separate
+    // member.
     const label = `Change ${item.toUpperCase()}: `;
     const edited = paired.note !== undefined && paired.note.startsWith(label)
       ? paired.note.slice(label.length).split(/\n[ \t]*\n/)[0].trim() : '';
@@ -110,16 +113,16 @@ module.exports = (lib) => {
 
   // answerOf returns { about, wording } for group when it is a group of the acceptance criteria
   // whose source is an answer (an_) that questionsOf pairs with a question of questions, as the
-  // check of feedback pairs it, else null: about is the item of the question's about, or
-  // undefined for an about with no item, and wording that of wordingOf. questionsOf pairs only
-  // a source of the kind answer.
+  // check of feedback pairs it, else null: about is the item of the question's about, or null
+  // for an about with no item, as the check of feedback compares it, and wording that of
+  // wordingOf. questionsOf pairs only a source of the kind answer.
   function answerOf(group, data, questions) {
     if (group.output !== 'acceptance-criteria') return null;
     const paired = questionsOf(data.sources, questions).get(group.decision);
     if (!paired) return null;
     const question = questions.find((one) => one.id === paired.question);
     const item = isObject(question.about) ? question.about.item : undefined;
-    return { about: typeof item === 'string' ? item : undefined,
+    return { about: typeof item === 'string' ? item : null,
       wording: wordingOf(question, paired) };
   }
 
@@ -320,7 +323,7 @@ module.exports = (lib) => {
   // item, and keeps every other byte: the text outside the items, each other item, and the
   // order. A removed criterion keeps its row and adds only `removed`; a removed scenario keeps
   // its heading. The group of an answer changes only the criterion that its question is about,
-  // when the about has an item: a point on another criterion keeps it as it is.
+  // and none for an about with no item: a point on another criterion keeps it as it is.
   // shortcut: such a point ends with the push of its group, and nothing changes its criterion;
   // the check of feedback sorts a new one as a question, so replace when a run shows one.
   function amended(context, output, decision, same) {
@@ -356,7 +359,6 @@ module.exports = (lib) => {
     const draft = read(draftText, file);
     const marked = new Set(same);
     const answer = answerOf(group, data, newestQuestions(context));
-    const bound = answer ? answer.about : undefined;
     const byItem = new Map();
     const known = new Set(before.items.map((item) => item.id));
     const fresh = [];
@@ -384,10 +386,10 @@ module.exports = (lib) => {
             : `The draft has no ${noun} ${place + 1}.`));
         return;
       }
-      if (bound !== undefined && old.id !== bound) {
+      if (answer && old.id !== answer.about) {
         if (now.raw !== old.raw) {
           findings.push(`Remove the change of ${old.id}.\nThe question of ${decision} is about ` +
-            `${bound}.`);
+            `${answer.about === null ? 'no criterion' : answer.about}.`);
         }
         return;
       }

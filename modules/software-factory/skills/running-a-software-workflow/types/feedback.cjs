@@ -22,6 +22,14 @@ module.exports = (lib) => {
   const MEMBERS = { fix: [], 'criterion-change': ['output', 'item'],
     question: ['output', 'item', 'question'] };
   const MAX_SENTENCES = 3;
+  // The options of the question of Build about a criterion that it cannot meet as approved,
+  // by their titles, which lib/ac-question.cjs checks, and the sort of the point that a pick
+  // of each needs: a change or a withdrawal of the criterion of the question, or a fix.
+  const PICKS = [
+    { title: /^Change AC-[1-9][0-9]*(?![0-9])/, sort: 'criterion-change' },
+    { title: /^Make it met another way$/, sort: 'fix' },
+    { title: /^Withdraw AC-[1-9][0-9]*(?![0-9])/, sort: 'criterion-change' },
+  ];
 
   // kept finds each entry of the list key of before, the newest version, that data changes or
   // lacks.
@@ -133,8 +141,9 @@ module.exports = (lib) => {
     }
   }
 
-  // answered returns, for each source of an answer, its question: { id, item, note }, with item
-  // the item of its about and note the note beside the option, as questionsOf returns it. It
+  // answered returns, for each source of an answer, its question: { id, item, option, note },
+  // with item the item of its about, and option and note the title of the option and the note
+  // beside it, as questionsOf returns them. It
   // pairs the sources in the order of `feedback open`: those of before, then those of open,
   // the sources of the notes; with no notes to read, those of data. Only an about of the
   // criteria has an item of the form ac-N. A source whose question is not found has none.
@@ -142,9 +151,9 @@ module.exports = (lib) => {
     const questions = stored(run.context);
     const out = new Map();
     const order = open ? pairingOrder(before, open) : data.sources;
-    for (const [source, { question, note }] of questionsOf(order, questions)) {
+    for (const [source, { question, option, note }] of questionsOf(order, questions)) {
       out.set(source, { id: question, item: questions.find((one) => one.id === question)
-        .about?.item, note });
+        .about?.item, option, note });
     }
     return out;
   }
@@ -209,7 +218,27 @@ module.exports = (lib) => {
         run.find(`Add the reply of ${which}: what the run does with it, in 1 to 3 sentences.`);
       }
     });
+    picks(run, data, before, asks);
     questions(run, data, old);
+  }
+
+  // picks finds each new source of an answer that picks an option of PICKS with no point of the
+  // sort that the pick needs: for a criterion-change, on the criterion of the question.
+  function picks(run, data, before, asks) {
+    for (const source of data.sources.slice(before.sources.length)) {
+      const ask = asks.get(source.id);
+      const pick = ask && typeof ask.option === 'string' &&
+        PICKS.find((one) => one.title.test(ask.option));
+      if (!pick || typeof ask.item !== 'string') continue;
+      const item = pick.sort === 'fix' ? undefined : ask.item;
+      const sorted = data.points.slice(before.points.length).some((point) =>
+        point.source === source.id && point.sort === pick.sort &&
+        (item === undefined || point.item === item));
+      if (!sorted) {
+        run.find(`Add a ${pick.sort} point${item ? ` on ${item}` : ''} for ${source.id}.\n` +
+          `The member picked ${pick.title.exec(ask.option)[0]} in ${ask.id}.`);
+      }
+    }
   }
 
   // questions finds, in a check, each point whose question the draft questions.json lacks, and
