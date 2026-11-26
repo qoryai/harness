@@ -339,8 +339,8 @@ the matrix and the walkthrough, and no code. Its steps, in order:
    `not_verified` row, no scenario of the commit under review has a `verdict` other than
    `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
    point. qory posts the reports to the findings of the work item before it records the
-   verdict, and the next session of `implement-changes` gets each open finding. It asks no
-   question: a criterion that is not met makes the verdict `changes-requested`, and Build
+   verdict, and the next session of `implement-changes` gets each open finding. Verify asks
+   no question: a criterion that is not met makes the verdict `changes-requested`, and Build
    fixes it, or asks about it as "A blocked criterion" of `running-a-software-workflow`
    lists.
 
