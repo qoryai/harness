@@ -44,6 +44,8 @@ const reviewComments = require('../types/review-comments.cjs');
 //   adds them;
 // - suite: the state of the result of the full suite, which findings round reads. One skill at
 //   most adds it;
+// - points: the rules of points.json, each (run, list, context), which the check of points runs
+//   after the check of each point, with the list of points.json and the context of the check;
 // - finding_kinds: the kinds of the source of a finding that the skill reads besides those of
 //   core, reviewer, check and hook, as an object from each kind to its label, the word that a
 //   line shows before the name of the source. Each kind is added once, by one skill;
@@ -239,7 +241,7 @@ function part(file) {
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    ledger: null, suite: null, end: null, finding_kinds: null,
+    points: [], ledger: null, suite: null, end: null, finding_kinds: null,
   };
   const kinds = [];
   const seen = new Set();
@@ -268,6 +270,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     if (Array.isArray(added.ids)) registry.ids.push(...added.ids);
     if (Array.isArray(added.items)) registry.items.push(...added.items);
     if (Array.isArray(added.questionRules)) registry.questionRules.push(...added.questionRules);
+    if (Array.isArray(added.points)) registry.points.push(...added.points);
     if (added.finding_kinds !== undefined) kinds.push(added.finding_kinds);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {

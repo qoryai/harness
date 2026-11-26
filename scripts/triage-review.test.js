@@ -498,16 +498,18 @@ test('feedback points prints each point that has not ended, and one group per so
   // Two points of one source and output are one group; the oldest source comes first, and a
   // new criterion has no item.
   const data = changed((d) => {
-    d.sources.push(sourceOf('es_2', 'note', 'Add a total. Film it.', '2026-11-24T09:00:00Z'));
+    d.sources.push(sourceOf('es_2', 'note', 'Add a total.', '2026-11-24T09:00:00Z'),
+      sourceOf('es_3', 'note', 'Film it.', '2026-11-23T09:00:00Z'));
     d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit' },
       { ...P2, id: 'p4', source: 'es_2', quote: 'Add a total.', item: undefined },
-      { ...P2, id: 'p5', source: 'es_2', quote: 'Film it.', output: 'demo-scenarios',
+      { ...P2, id: 'p5', source: 'es_3', quote: 'Film it.', output: 'demo-scenarios',
         item: 'scenario-1' });
   });
   const groups = sourcesIn(points(store({ feedback: [{ data }] })));
+  // The groups of the criteria come before those of the scenarios, also of an older source.
   assert.deepEqual(groups.map((one) => [one.decision, one.output, one.points.map((p) => p.id)]),
-    [['es_2', 'acceptance-criteria', ['p4']], ['es_2', 'demo-scenarios', ['p5']],
-      ['gd_1', 'acceptance-criteria', ['p2', 'p3']]]);
+    [['es_2', 'acceptance-criteria', ['p4']], ['gd_1', 'acceptance-criteria', ['p2', 'p3']],
+      ['es_3', 'demo-scenarios', ['p5']]]);
   assert.equal('item' in groups[0].points[0], false);
 });
 
@@ -532,12 +534,426 @@ test('a criterion change ends with a version that counts, of a run, with the id 
   assert.equal(ended({ withdrawn: true, decision: 'gd_1' }), false);
 });
 
-test('feedback takes open or points alone', () => {
-  for (const argv of [['feedback'], ['feedback', 'close'], ['feedback', 'open', 'x']]) {
+test('feedback takes open or points alone, or amended with an output and --decision', () => {
+  for (const argv of [['feedback'], ['feedback', 'close'], ['feedback', 'open', 'x'],
+    ['feedback', 'amended'], ['feedback', 'amended', 'acceptance-criteria'],
+    ['feedback', 'amended', 'spec', '--decision', 'gd_1'],
+    ['feedback', 'amended', 'acceptance-criteria', '--decision'],
+    ['feedback', 'amended', 'acceptance-criteria', '--decision', 'gd_1', '--decision', 'gd_2'],
+    ['feedback', 'amended', 'acceptance-criteria', '--decision', 'gd_1', '--all', 'p2']]) {
     const result = run(store(), [], argv);
-    assert.equal(result.status, 2);
-    assert.match(result.err, /^Give feedback open or points\./);
+    assert.equal(result.status, 2, argv.join(' '));
+    assert.match(result.err, /^Give feedback open, points, or amended <output> --decision <id> /);
   }
+});
+
+// ---- feedback amended and the ripple of a changed Demo criterion -----------------------------
+
+const SCENARIOS = fs.readFileSync(path.join(TESTDATA, 'demo-scenarios.md'), 'utf8');
+const AC2 = '"text": "The reply states that the hours apply every day, on weekends and public ' +
+  'holidays too."';
+const AC2_NEW = '"text": "The reply states that the hours apply every day of the year."';
+const AC4 = '"text": "Each customer who got the reply with the old hours receives a corrected ' +
+  'reply that lists the new hours."';
+const AC4_NEW = '"text": "Each customer who got the reply with the old hours receives a ' +
+  'corrected reply within one day."';
+// P4 changes ac-4, a criterion checked by Tests, so that its version needs no new scenario.
+const P4 = { ...P2, id: 'p2', quote: 'Raise the row limit of AC-2 from 50 to 100.', item: 'ac-4' };
+const ON_AC4 = { sources: [S1], points: [P1, P4] };
+
+// edit returns text with each pair [from, to] replaced once, and fails when from is missing.
+const edit = (text, ...pairs) => pairs.reduce((out, [from, to]) => {
+  assert.ok(out.includes(from), from);
+  return out.replace(from, to);
+}, text);
+
+// scenarioStore returns a store of types whose demo-scenarios versions have the texts of
+// texts, oldest first, each with the members of its entry in versions.
+function scenarioStore(types, texts = [SCENARIOS], versions = texts.map(() => ({}))) {
+  const root = store({ ...types, 'demo-scenarios': versions });
+  texts.forEach((text, place) => write(path.join(root, 'demo-scenarios', 'main',
+    `v${place + 1}`, 'demo-scenarios.md'), text));
+  return root;
+}
+
+// amended writes draft at the top of root, as the file of output, and runs feedback amended.
+function amended(root, draft, output = 'acceptance-criteria', ...more) {
+  const file = output === 'acceptance-criteria' ? 'acceptance-criteria.json' : 'demo-scenarios.md';
+  write(path.join(root, file), draft);
+  return run(root, [], ['feedback', 'amended', output, '--decision', 'gd_1', ...more]);
+}
+const onCase = (draft, data = CASE, ...more) =>
+  amended(store({ feedback: [{ data }] }), draft, 'acceptance-criteria', ...more);
+const findingsOf = (result) => result.lines.filter((line) => !line.startsWith(' '))
+  .slice(0, -1);
+
+test('feedback amended passes a draft that changes only the item of each point', () => {
+  const result = onCase(edit(CRITERIA, [AC2, AC2_NEW]));
+  passes(result);
+  assert.equal(result.lines.at(-1),
+    'Checked acceptance-criteria.json against version 1 for gd_1: 0 findings.');
+  // A change of the check counts as a change of the item too.
+  passes(onCase(edit(CRITERIA, ['"Demo: Read the new hours"},\n    {"id": "ac-3"',
+    '"Tests"},\n    {"id": "ac-3"'])));
+});
+
+test('feedback amended fails a byte of another criterion, in its text, white space or keys', () => {
+  const restore = (id) => [`Restore ${id} in acceptance-criteria.json.`,
+    '  No point of gd_1 is about it.'];
+  const changedAc3 = edit(CRITERIA, [AC2, AC2_NEW], ['closed on 25 December', 'closed on 26 December']);
+  assert.deepEqual(onCase(changedAc3).lines.slice(0, 2), restore('ac-3'));
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW], ['{"id": "ac-1", ', '{"id": "ac-1",  '])),
+    'Restore ac-1 in acceptance-criteria.json.');
+  // The keys of another criterion in another order.
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW], ['{"id": "ac-3", "text": "The reply states that ' +
+    'support is closed on 25 December."', '{"text": "The reply states that support is closed ' +
+    'on 25 December.", "id": "ac-3"'])), 'Restore ac-3 in acceptance-criteria.json.');
+});
+
+test('feedback amended fails two criteria in another order, and a group item out of place', () => {
+  // The four rows of the criteria, without the comma after each, and the file with rows.
+  const lines = CRITERIA.split('\n');
+  const rows = lines.slice(3, 7).map((line) => line.replace(/,$/, ''));
+  const withRows = (order) => edit([...lines.slice(0, 3), order.map((at) => rows[at]).join(',\n'),
+    ...lines.slice(7)].join('\n'), [AC2, AC2_NEW]);
+  passes(onCase(withRows([0, 1, 2, 3])));
+  assert.deepEqual(findingsOf(onCase(withRows([0, 1, 3, 2]))),
+    ['Restore ac-3 in acceptance-criteria.json.', 'Restore ac-4 in acceptance-criteria.json.']);
+  fails(onCase(withRows([1, 0, 2, 3])), 'Keep ac-2 as criterion 2 of acceptance-criteria.json.');
+});
+
+test('feedback amended fails the text outside the criteria: the summary, key order, line ends', () => {
+  const outside = 'Restore the text outside the criteria in acceptance-criteria.json.';
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW], ['A person sees the first three',
+    'A member sees the first three'])), outside);
+  const data = JSON.parse(edit(CRITERIA, [AC2, AC2_NEW]));
+  fails(onCase(`{\n  "criteria": ${JSON.stringify(data.criteria)},\n  "summary": ` +
+    `${JSON.stringify(data.summary)}\n}\n`), outside);
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW]).replace(/\n/g, '\r\n')), outside);
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW]).trimEnd()), outside);
+  // A stored version with CRLF line ends is compared as stored, with its bytes.
+  const crlf = CRITERIA.replace(/\n/g, '\r\n');
+  const root = store({ feedback: [{ data: CASE }], 'acceptance-criteria': [{ data: crlf }] });
+  passes(amended(root, edit(crlf, [AC2, AC2_NEW])));
+});
+
+test('feedback amended: an item that stays needs --same, and --same keeps every byte', () => {
+  fails(onCase(CRITERIA), 'Change ac-2 in acceptance-criteria.json, or add --same p2.');
+  fails(onCase(CRITERIA), '  The draft has ac-2 as version 1 has it, and p2 changes ac-2.');
+  // White space alone is no change.
+  fails(onCase(edit(CRITERIA, ['{"id": "ac-2", ', '{"id": "ac-2",  '])),
+    'Change ac-2 in acceptance-criteria.json, or add --same p2.');
+  passes(onCase(CRITERIA, CASE, '--same', 'p2'));
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW]), CASE, '--same', 'p2'),
+    'Restore ac-2 in acceptance-criteria.json, or remove --same p2.');
+  fails(onCase(CRITERIA, CASE, '--same', 'p9'), 'Give --same only the id of a point of gd_1.');
+  const none = run(store({ feedback: [{ data: CASE }] }), [],
+    ['feedback', 'amended', 'acceptance-criteria', '--decision', 'gd_9']);
+  fails(none, 'Give --decision a source that feedback points prints for acceptance-criteria.');
+});
+
+test('feedback amended: a draft over 256 KB fails with the fix first, and a deep nesting is read', () => {
+  const most = 256 * 1024;
+  const padded = (size) => `${CRITERIA.trimEnd()}${' '.repeat(size - 1 -
+    Buffer.byteLength(CRITERIA.trimEnd()))}\n`;
+  const long = onCase(padded(most + 1));
+  assert.equal(long.status, 1, long.out + long.err);
+  assert.deepEqual(long.lines, ['Cut acceptance-criteria.json to at most 256 KB.',
+    `  acceptance-criteria.json has ${most + 1} bytes.`,
+    'No part of acceptance-criteria.json was checked.']);
+  // A draft of 256 KB is read: it changes no criterion and the white space after them.
+  assert.deepEqual(findingsOf(onCase(padded(most))),
+    ['Change ac-2 in acceptance-criteria.json, or add --same p2.',
+      'Restore the text outside the criteria in acceptance-criteria.json.']);
+  // A value nested 100,000 deep in the changed criterion is read with no stack overflow.
+  const depth = 100000;
+  passes(onCase(edit(CRITERIA, [AC2, `${AC2_NEW}, "deep": ${'['.repeat(depth)}` +
+    `${']'.repeat(depth)}`])));
+});
+
+test('feedback amended: a removed criterion keeps its id, text and check, and adds removed', () => {
+  const removed = edit(CRITERIA, ['"check": "Demo: Read the new hours"},\n    {"id": "ac-3"',
+    '"check": "Demo: Read the new hours", "removed": {"reason": "The member asked for it."}},' +
+    '\n    {"id": "ac-3"']);
+  passes(onCase(removed));
+  fails(onCase(edit(removed, [AC2, AC2_NEW])),
+    'Keep the id, text and check of ac-2, and add only removed.');
+});
+
+test('feedback amended: a point with no item adds one criterion at the end', () => {
+  const data = changed((d) => { d.points.push({ ...P2, id: 'p3', quote: 'Raise', item: undefined }); });
+  const one = '{"id": "ac-5", "text": "The export has a header row.", "check": "Tests"}';
+  const added = (...rows) => edit(CRITERIA, [AC2, AC2_NEW],
+    ['"check": "Tests"}\n', `"check": "Tests"},\n${rows.map((row) => `    ${row}`).join(',\n')}\n`]);
+  passes(onCase(added(one), data));
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW]), data), 'Add one criterion at the end for p3.');
+  fails(onCase(added(one, one.replace('ac-5', 'ac-6')), data),
+    'Remove the new criterion ac-6 from acceptance-criteria.json.');
+  fails(onCase(added(one)), 'Remove the new criterion ac-5 from acceptance-criteria.json.');
+  // The text between two criteria before a new one is the text between the last two.
+  fails(onCase(edit(CRITERIA, [AC2, AC2_NEW], ['"check": "Tests"}\n', `"check": "Tests"}, ${one}\n`]),
+    data), 'Restore the text outside the criteria in acceptance-criteria.json.');
+});
+
+test('feedback amended checks the scenarios of a group of demo-scenarios by their sections', () => {
+  const data = changed((d) => {
+    d.points = [P1, { ...P2, quote: 'Raise the row limit', output: 'demo-scenarios',
+      item: 'scenario-1' }];
+  });
+  const root = () => scenarioStore({ feedback: [{ data }] });
+  const step = 'The reply lists the support hours as 8:00 to 20:00.';
+  const changedOne = edit(SCENARIOS, [step, 'The reply lists the hours as 8:00 to 20:00.']);
+  passes(amended(root(), changedOne, 'demo-scenarios'));
+  fails(amended(root(), SCENARIOS, 'demo-scenarios'),
+    'Change scenario-1 in demo-scenarios.md, or add --same p2.');
+  fails(amended(root(), edit(changedOne, ['closed on 25 December. |', 'closed on 26 December. |']),
+    'demo-scenarios'), 'Restore scenario-2 in demo-scenarios.md.');
+  fails(amended(root(), edit(changedOne, ['Two scenarios show', 'The scenarios show']),
+    'demo-scenarios'), 'Restore the text outside the scenarios in demo-scenarios.md.');
+  // A removed scenario keeps its heading.
+  const cut = SCENARIOS.replace(/(### scenario-1: Read the new hours\n)[\s\S]*?(?=\n### )/,
+    '$1\nRemoved, because the member asked for it.\n');
+  passes(amended(root(), cut, 'demo-scenarios'));
+  fails(amended(root(), cut.replace('scenario-1: Read the new hours', 'scenario-1: Read hours'),
+    'demo-scenarios'), 'Keep the heading of scenario-1, and write only the line "Removed, ' +
+    'because <the reason>."');
+});
+
+test('feedback points prints the scenarios of a linked criteria version that changed a Demo row', () => {
+  const linked = (members = {}) => ({ data: edit(CRITERIA, [AC2, AC2_NEW]), decision: 'gd_1',
+    at: '2026-11-25T10:00:00Z', ...members });
+  const ripple = { id: 'ac-2', quote: {
+    before: { text: JSON.parse(`{${AC2}}`).text, check: 'Demo: Read the new hours' },
+    after: { text: JSON.parse(`{${AC2_NEW}}`).text, check: 'Demo: Read the new hours' } },
+  item: 'scenario-1' };
+  const groupsOf = (types, texts, versions) => sourcesIn(points(scenarioStore(
+    { feedback: [{ data: CASE }], ...types }, texts, versions)));
+  const criteria = (...more) => ({ 'acceptance-criteria': [{ data: CRITERIA }, ...more] });
+  assert.deepEqual(groupsOf(criteria(linked())), [{ decision: 'gd_1', at: AT,
+    output: 'demo-scenarios', points: [ripple] }]);
+  // A scenario version linked to the note ends it only when it is later than the criteria.
+  const scenario = (at) => ({ decision: 'gd_1', at });
+  assert.deepEqual(groupsOf(criteria(linked()), [SCENARIOS, SCENARIOS],
+    [{}, scenario('2026-11-25T11:00:00Z')]), []);
+  assert.equal(groupsOf(criteria(linked()), [SCENARIOS, SCENARIOS],
+    [{}, scenario('2026-11-25T09:30:00Z')]).length, 1);
+  // A change of a criterion checked by Tests needs no scenario, also when a scenario lists it.
+  assert.deepEqual(sourcesIn(points(scenarioStore({ feedback: [{ data: ON_AC4 }],
+    'acceptance-criteria': [{ data: CRITERIA }, { data: edit(CRITERIA, [AC4, AC4_NEW]),
+      decision: 'gd_1' }] }, [edit(SCENARIOS, ['Shows: ac-3', 'Shows: ac-3, ac-4'])]))), []);
+  // A new Demo criterion with a new title needs a new scenario: a point with no item.
+  const demo = edit(CRITERIA, ['"check": "Tests"}\n', '"check": "Tests"},\n    {"id": "ac-5", ' +
+    '"text": "The reply shows the hours in bold.", "check": "Demo: Read the bold hours"}\n']);
+  const [fresh] = groupsOf(criteria({ data: demo, decision: 'gd_1' }));
+  assert.deepEqual(fresh.points, [{ id: 'ac-5', quote: { before: null, after: {
+    text: 'The reply shows the hours in bold.', check: 'Demo: Read the bold hours' } } }]);
+});
+
+test('a note with points on the scenarios too has one group with both kinds of points', () => {
+  const data = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
+      item: 'scenario-2' });
+  });
+  const groupsOf = (...versions) => sourcesIn(points(scenarioStore({ feedback: [{ data }],
+    'acceptance-criteria': [{ data: CRITERIA }, { data: edit(CRITERIA, [AC2, AC2_NEW]),
+      decision: 'gd_1', at: '2026-11-25T10:00:00Z' }] }, versions.map(() => SCENARIOS),
+  versions)));
+  const [both] = groupsOf({});
+  assert.deepEqual(both.points.map((point) => [point.id, point.item]),
+    [['p3', 'scenario-2'], ['ac-2', 'scenario-1']]);
+  // The scenarios pushed first, while the criteria waited: the ripple stays.
+  const [after] = groupsOf({}, { decision: 'gd_1', at: '2026-11-25T09:30:00Z' });
+  assert.deepEqual(after.points.map((point) => point.id), ['ac-2']);
+  assert.deepEqual(groupsOf({}, { decision: 'gd_1', at: '2026-11-25T10:30:00Z' }), []);
+});
+
+test('a note with points on the scenarios too prints its scenarios after its criteria version', () => {
+  const scenarioPoint = { ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
+    item: 'scenario-2' };
+  const data = changed((d) => { d.points.push(scenarioPoint); });
+  const linked = { data: edit(CRITERIA, [AC2, AC2_NEW]), decision: 'gd_1',
+    at: '2026-11-25T10:00:00Z' };
+  const kindsOf = (feedback, criteria, versions = [{}]) => sourcesIn(points(scenarioStore({
+    feedback: [{ data: feedback }], 'acceptance-criteria': [{ data: CRITERIA }, ...criteria] },
+  versions.map(() => SCENARIOS), versions))).map((group) => [group.output,
+    group.points.map((point) => point.id)]);
+  // The criteria are not stored yet when points first runs: only their group prints, so that
+  // no scenario version comes before the criteria and hides the ripple.
+  assert.deepEqual(kindsOf(data, []), [['acceptance-criteria', ['p2']]]);
+  // The pull after the criteria version prints one group with both kinds of points.
+  assert.deepEqual(kindsOf(data, [linked]), [['demo-scenarios', ['p3', 'ac-2']]]);
+  assert.deepEqual(kindsOf(data, [linked], [{}, { decision: 'gd_1',
+    at: '2026-11-25T10:30:00Z' }]), []);
+  // While the criteria wait for a question, the group of the scenarios prints.
+  const asking = changed((d) => {
+    d.points.push(scenarioPoint, { ...ASK, id: 'p4', source: 'gd_1',
+      output: 'acceptance-criteria', item: 'ac-3', question: 'q1' });
+  });
+  assert.deepEqual(kindsOf(asking, []), [['acceptance-criteria', ['p2']],
+    ['demo-scenarios', ['p3']]]);
+});
+
+test('a group whose source has a question about the criteria with no answer waits', () => {
+  const data = changed((d) => {
+    d.points.push({ ...ASK, id: 'p3', source: 'gd_1', output: 'acceptance-criteria',
+      item: 'ac-3', question: 'q1' });
+  });
+  const groupOf = (questions) => sourcesIn(points(store({ feedback: [{ data }],
+    ...(questions ? { questions: [{ data: { questions } }] } : {}) })))[0];
+  assert.deepEqual(groupOf().waiting, ['q1']);
+  assert.deepEqual(groupOf([{ id: 'q1', state: 'open' }]).waiting, ['q1']);
+  assert.equal('waiting' in groupOf([{ id: 'q1', state: 'answered' }]), false);
+});
+
+test('a group waits for an open question about one of its points, such as one of the writer', () => {
+  const data = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Add a total.', item: undefined });
+  });
+  const criterion = { type: 'acceptance-criteria', name: 'main', item: 'ac-2' };
+  const groupOf = (...questions) => sourcesIn(points(store({ feedback: [{ data }],
+    questions: [{ data: { questions } }] })))[0];
+  // The writer's question about the item of p2, or about p3, which adds a criterion.
+  assert.deepEqual(groupOf({ id: 'q1', state: 'open', about: criterion }).waiting, ['q1']);
+  assert.deepEqual(groupOf({ id: 'q2', state: 'open', about: { type: 'feedback',
+    name: 'main', item: 'p3' } }).waiting, ['q2']);
+  // Until the answer, each pull prints the group with waiting, so the run changes nothing of it.
+  assert.equal('waiting' in groupOf({ id: 'q1', state: 'answered', about: criterion }), false);
+  // A question about another criterion, or about an item in another output, makes no group wait.
+  for (const about of [{ ...criterion, item: 'ac-3' }, { type: 'demo-scenarios', name: 'main',
+    item: 'ac-2' }, { type: 'feedback', name: 'main', item: 'p1' }]) {
+    assert.equal('waiting' in groupOf({ id: 'q1', state: 'open', about }), false);
+  }
+  // A question about the criteria with no item counts only when it was asked at or after the
+  // note, at AT: a question of another stage before the note makes no group wait.
+  const whole = { type: 'acceptance-criteria', name: 'main' };
+  const at = (time) => ({ id: 'q3', state: 'open', about: whole, asked: { run: 2, at: time } });
+  assert.deepEqual(groupOf(at(AT)).waiting, ['q3']);
+  assert.equal('waiting' in groupOf(at('2026-11-24T09:00:00Z')), false);
+  assert.equal('waiting' in groupOf({ id: 'q3', state: 'open', about: whole }), false);
+});
+
+test('feedback open lists a question of a writer that a group waits for, so the run does not pass', () => {
+  const about = { type: 'acceptance-criteria', name: 'main', item: 'ac-2' };
+  const linesOf = (state) => open(store({ feedback: [{ data: CASE }],
+    questions: [{ data: { questions: [{ id: 'q1', state, about }] } }] }), [GD1]).lines;
+  // Step 10 writes an answer point for each line "Waiting for an answer:", and with one the
+  // run ends with escalate, not passed.
+  assert.deepEqual(linesOf('open'), ['Waiting for an answer: p2, q1',
+    `Words of p2: ${wordsOf(P2.quote)}`, 'Open feedback: 0 sources; 0 questions not asked; ' +
+    '1 question with no answer. The next ids are p3 and q2.']);
+  assert.deepEqual(linesOf('answered'), ['Open feedback: 0 sources; 0 questions not asked; ' +
+    '0 questions with no answer. The next ids are p3 and q2.']);
+  // The question of a question point is listed once, in the form of that point.
+  const data = changed((d) => {
+    d.points.push({ ...ASK, id: 'p3', source: 'gd_1', output: 'acceptance-criteria',
+      item: 'ac-2', question: 'q1' });
+  });
+  const once = open(store({ feedback: [{ data }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about }] } }] }), [GD1]).lines;
+  assert.deepEqual(once.filter((line) => line.startsWith('Waiting')),
+    ['Waiting for an answer: p3, q1']);
+  assert.ok(!once.some((line) => line.startsWith('Words of p')), once.join('\n'));
+  // A question about a criterion that the groups of two sources change is listed once, under
+  // the first group that feedback points prints: es_2, the older source.
+  const two = changed((d) => {
+    d.sources.push(sourceOf('es_2', 'note', 'Raise the limit.', '2026-11-24T09:00:00Z'));
+    d.points.push({ ...P2, id: 'p3', source: 'es_2', quote: 'Raise the limit.' });
+  });
+  const shared = open(store({ feedback: [{ data: two }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about }] } }] }), [GD1]).lines;
+  assert.deepEqual(shared.filter((line) => /^(Waiting|Words)/.test(line)),
+    ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the limit.')}`]);
+});
+
+test('feedback open lists a question about a scenario that only a ripple point of the group has', () => {
+  const linked = { data: edit(CRITERIA, [AC2, AC2_NEW]), decision: 'gd_1',
+    at: '2026-11-25T10:00:00Z' };
+  const on = (item) => ({ id: 'q1', state: 'open', about: { type: 'demo-scenarios',
+    name: 'main', item } });
+  const root = (data, question) => scenarioStore({ feedback: [{ data }],
+    'acceptance-criteria': [{ data: CRITERIA }, linked],
+    questions: [{ data: { questions: [question] } }] });
+  const waitsOf = (data, question) => {
+    const [group] = sourcesIn(points(root(data, question)));
+    const lines = open(root(data, question), [GD1]).lines;
+    return [group.output, group.waiting, lines.filter((line) => /^(Waiting|Words)/.test(line))];
+  };
+  // A group of only ripple points: the words are those of p2, the change of ac-2 that made it.
+  const onAc2 = ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(P2.quote)}`];
+  assert.deepEqual(waitsOf(CASE, on('scenario-1')), ['demo-scenarios', ['q1'], onAc2]);
+  // A question about the criterion of the ripple point, or about the group with no item.
+  assert.deepEqual(waitsOf(CASE, { id: 'q1', state: 'open', about: { type:
+    'acceptance-criteria', name: 'main', item: 'ac-2' } })[2], onAc2);
+  const whole = (time) => ({ id: 'q1', state: 'open', about: { type: 'demo-scenarios',
+    name: 'main' }, asked: { run: 2, at: time } });
+  assert.deepEqual(waitsOf(CASE, whole('2026-11-25T10:30:00Z'))[2], onAc2);
+  // An answered question, a question about a scenario or a criterion that no point of the
+  // group has, and a question with no item asked before the note make no group wait and print
+  // no line.
+  for (const question of [{ ...on('scenario-1'), state: 'answered' }, on('scenario-3'),
+    { ...on('ac-2'), about: { type: 'acceptance-criteria', name: 'main', item: 'ac-3' } },
+    whole('2026-11-24T09:00:00Z')]) {
+    assert.deepEqual(waitsOf(CASE, question), ['demo-scenarios', undefined, []]);
+  }
+  // A mixed group: a question about the scenario of the ripple point, or of the note's point.
+  const mixed = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit', output: 'demo-scenarios',
+      item: 'scenario-2' });
+  });
+  assert.deepEqual(waitsOf(mixed, on('scenario-1'))[2], onAc2);
+  assert.deepEqual(waitsOf(mixed, on('scenario-2'))[2],
+    ['Waiting for an answer: p3, q1', `Words of p3: ${wordsOf('Raise the row limit')}`]);
+  // The change of the criterion comes before a change with no item, and with neither the
+  // words are those of the source: ON_AC4 changes ac-4, and its version also changes ac-2.
+  const both = changed((d) => {
+    d.points.push({ ...P2, id: 'p3', quote: 'Raise the row limit to 100.', item: undefined });
+  });
+  assert.deepEqual(waitsOf(both, on('scenario-1'))[2], onAc2);
+  assert.deepEqual(waitsOf(ON_AC4, on('scenario-1'))[2],
+    ['Waiting for an answer: ac-2, q1', `Words of ac-2: ${wordsOf(TEXT)}`]);
+  // An added Demo criterion has no point with its id: the words are those of the point of the
+  // source that adds a criterion.
+  const added = { sources: [S1], points: [P1, { ...P2, quote: 'Raise the row limit to 100.',
+    item: undefined }] };
+  const demo = edit(CRITERIA, ['"check": "Tests"}\n', '"check": "Tests"},\n    {"id": "ac-5", ' +
+    '"text": "The reply shows the hours in bold.", "check": "Demo: Read the bold hours"}\n']);
+  const store5 = () => scenarioStore({ feedback: [{ data: added }], 'acceptance-criteria': [
+    { data: CRITERIA }, { ...linked, data: demo }], questions: [{ data: { questions: [
+    { id: 'q1', state: 'open', about: { type: 'acceptance-criteria', name: 'main',
+      item: 'ac-5' } }] } }] });
+  assert.deepEqual(open(store5(), [GD1]).lines.filter((line) => /^(Waiting|Words)/.test(line)),
+    ['Waiting for an answer: ac-5, q1',
+      `Words of ac-5: ${wordsOf('Raise the row limit to 100.')}`]);
+});
+
+// The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a
+// draft of the writer, amended, the check of the type, and the push as a linked version.
+test('a stub of the triage step: one change makes one linked criteria version, other lines kept', () => {
+  const root = store({ feedback: [{ data: ON_AC4 }] });
+  const [group] = sourcesIn(points(root));
+  assert.deepEqual([group.decision, group.output, group.points.map((point) => point.item)],
+    ['gd_1', 'acceptance-criteria', ['ac-4']]);
+  // A crash before the push prints the group again.
+  assert.deepEqual(sourcesIn(points(root)), [group]);
+  const draft = edit(CRITERIA, [AC4, AC4_NEW]);
+  passes(amended(root, draft));
+  passes(run(root, [], ['check', 'acceptance-criteria', path.join(root, 'acceptance-criteria.json')]));
+  // The push: a new version that the run wrote, linked to the note.
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  const entry = index.artifacts.find((one) => one.type === 'acceptance-criteria');
+  entry.versions.push({ id: 'av_ac_2', number: 2, at: '2026-11-25T10:00:00Z', decision: 'gd_1',
+    writer: { kind: 'run', run_id: 'run_2' } });
+  entry.newest_version = 2;
+  write(path.join(root, 'index.json'), index);
+  write(path.join(root, 'acceptance-criteria', 'main', 'v2', 'acceptance-criteria.json'), draft);
+  const ended = points(root);
+  assert.deepEqual(sourcesIn(ended), []);
+  assert.equal(ended.lines.at(-1), 'Open points: 1 to fix; 0 groups of criterion changes.');
+  const before = CRITERIA.split('\n');
+  const after = draft.split('\n');
+  assert.equal(after.length, before.length);
+  assert.deepEqual(after.map((line, at) => line !== before[at]).flatMap((differs, at) =>
+    (differs ? [at] : [])), [before.findIndex((line) => line.includes('"ac-4"'))]);
 });
 
 // ---- The skills, the agents and the stack ------------------------------------------------------
@@ -570,7 +986,8 @@ test('each text that the skill ends with passes the check of the text of a point
   const rules = pointRules(registry.loadRegistry(path.join(MODULES, 'core')));
   const fill = (text) => text.replace('<words>', wordsOf(P2.quote)).replace(/<kind>/g,
     'a text that the product shows').replace(/<(?:the )?(?:cause|built part|reason)[^>]*>/g,
-    'the toolbar has 4 buttons').replace('<criterion text>', 'A member exports the open list');
+    'the toolbar has 4 buttons').replace(/<criterion text>|<first sentence>/,
+    'A member exports the open list');
   const texts = [
     ['The run could not sort the feedback "<words>".'],
     ['The feedback "<words>" can be read 2 ways, and a user sees a different result for each.'],
@@ -578,8 +995,12 @@ test('each text that the skill ends with passes the check of the text of a point
     ['The feedback removes "<criterion text>", and the change already has <the built part, in ' +
       'one clause>.'],
     ['The feedback "<words>" changes the approved criteria, so a member decides it.'],
+    ['The feedback "<words>" changes the approved demo scenarios, so a member decides it.'],
     ['The feedback "<words>" is not <kind>: <reason>.', 'Pick Switch to Standard to build this ' +
       'change on the Standard track, because the Fast track is only for <kind>.'],
+    ['The run could not write the change to AC-2, "<first sentence>", that you asked for.',
+      'Run Build again.'],
+    ['The run could not write the change to the <words> that you asked for.', 'Run Build again.'],
   ];
   for (const [text, fix] of texts) {
     for (const one of [text, fix].filter(Boolean)) {
@@ -593,6 +1014,47 @@ test('each text that the skill ends with passes the check of the text of a point
   for (const line of ['The run sorted the feedback: <k> to fix in Build.',
     'The run found no new feedback, so it changed nothing.']) {
     assert.ok(flat(WORKFLOW).includes(line), line);
+  }
+});
+
+test('the skill writes each group as one linked version that feedback amended and a reviewer check', () => {
+  const changes = flat(WORKFLOW.slice(WORKFLOW.indexOf('## Criterion changes'),
+    WORKFLOW.indexOf('## Questions with no answer')));
+  for (const line of ['With a JSON line, do "Criterion changes" before step 10.',
+    'Skip a group with `waiting`',
+    '`<skill folder>/checks.cjs feedback amended <output> --decision <decision>`, with ' +
+      '`--same <id>` for each point on the writer\'s list "Already so:"',
+    'Start the writer at most twice for these findings.',
+    'with `triage-review-<n>-<reviewer>-<decision>` as `<name>`',
+    '`<qory> artifact push <output> <folder>/<file> --decision <decision>`, also when the file ' +
+      'has the same bytes as the newest version.',
+    'the line "A change from a person\'s feedback:" and the group\'s JSON line after it, ' +
+      'unchanged, and no other source or note.',
+    'run `<qory> artifact pull` and `feedback points` again.']) {
+    assert.ok((line.startsWith('With a JSON') ? flat(WORKFLOW) : changes).includes(line), line);
+  }
+  assert.ok(!WORKFLOW.includes('shortcut:'));
+  // amended runs before the review, and the review before the push.
+  const at = ['feedback amended', 'triage-review-<n>-<reviewer>', 'artifact push <output>']
+    .map((one) => changes.indexOf(one));
+  assert.ok(at[0] > 0 && at[0] < at[1] && at[1] < at[2], at.join(' '));
+  // Each writer and reviewer has the section that the start names, and the writers the list.
+  for (const [skill, title] of [['writing-specs', 'A change from a person\'s feedback'],
+    ['writing-demo-scenarios', 'A change from a person\'s feedback'],
+    ['checking-specs', 'Review of a change from a person\'s feedback'],
+    ['checking-demo-scenarios', 'Review of a change from a person\'s feedback']]) {
+    const text = read(`software-factory/skills/${skill}/SKILL.md`);
+    assert.ok(text.includes(`\n## ${title}\n`), skill);
+    assert.ok(flat(text).includes('"Already so:"'), skill);
+  }
+  for (const agent of ['spec-writer', 'scenario-writer', 'spec-reviewer', 'scenario-reviewer']) {
+    assert.ok(flat(read(`software-factory/agents/${agent}.md`)).includes('"A change from a ' +
+      'person\'s feedback:"'), agent);
+  }
+  for (const skill of ['planning-builds', 'checking-build-plans', 'writing-acceptance-checks',
+    'checking-code']) {
+    assert.ok(flat(read(`software-factory/skills/${skill}/SKILL.md`)).includes('Where the spec ' +
+      'and a newer criterion differ, the criterion applies'), skill);
   }
 });
 

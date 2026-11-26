@@ -1,6 +1,6 @@
 ---
 name: running-a-software-workflow
-description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, the files that each check takes, the plain words of each type, and the steps of the build ledger.
+description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, Change mode, the files that each check takes, the plain words of each type, and the steps of the build ledger.
 ---
 
 # Running a software workflow
@@ -29,7 +29,8 @@ start.
 This line adds to the lines of "Failures" for a "Blocked:" line before the first push:
 
 - One that starts with `needs a change to criterion`, `needs a new criterion` or
-  `needs a change to the spec`, with an `answer` point:
+  `needs a change to the spec`, with an `answer` point, except a line on a criterion that
+  "A blocked criterion" lists:
   - criterion: "<ID>, "<criterion text>", needs a change before the run can write the
     <output>: <the change>." Example: "AC-3, "A member exports up to 50,000 rows to CSV",
     needs a change before the run can write the demo scenarios: the feedback asks for an
@@ -138,3 +139,65 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    last, or follow it with a heading. Any other line in it, and any other spelling of
    the header, such as `## Left out` or `left out:`, makes the list unreadable.
    `Left out: none` is the empty list.
+
+## A blocked criterion
+
+In a Build workflow, a "Blocked:" line of `build-planner` or `acceptance-check-writer` that
+starts with `needs a change to criterion <ac-N>` ends the run as this section lists, in
+place of "Stops on the spec": the agent cannot meet that criterion as a member approved it.
+
+1. Run `step end <id> failed` for the step that ran the agent, as your workflow lists.
+2. Start `questions-writer` as "Points" of `running-a-workflow` lists, with one
+   "Add:" item for each such criterion that has no open question with the three answers in
+   the newest `questions`, with `about.item` set to its id. The item quotes the "Blocked:"
+   line and what the agent checked: the files, the command and its result. The question of
+   each item has these members:
+   - `question`: "What do you want to do with AC-3, "<first sentence>"?"
+   - `context`: a paragraph that starts with `**Why:**`, the cause, and a paragraph that
+     starts with `**Checked:**`, the proof: the files, the command and its result. At most
+     120 words, and each criterion quoted as in the question.
+   - `about`: `{"type": "acceptance-criteria", "name": "main", "item": "ac-3"}`.
+   - `options`, exactly three, each with a `title` and an `explanation`:
+     1. `Change AC-3, "<first sentence>"`, with `proposal`, the wording that the build can
+        meet, and the explanation "The criterion reads as the proposed wording, and Build
+        meets it."
+     2. `Make it met another way`, with the explanation "Write in the note how."
+     3. `Withdraw AC-3, "<first sentence>"`, with the explanation "AC-3, "<first
+        sentence>", stays in the criteria, marked withdrawn by you."
+
+   Qory Apiary adds a fourth answer that the person writes, so the question has no option
+   for it. `<first sentence>` is the first sentence of the criterion in the newest
+   acceptance criteria, without its full stop, as "Stops on the spec" reads it.
+3. Write one `answer` point for each criterion, on its question: "AC-3, "<first
+   sentence>", cannot be met as approved: <the cause>." Then end as "Points" lists, with
+   `escalate`.
+
+`check points` exits with 1 for a blocked criterion with no `answer` point on such a
+question, and the end check stops a session that ends with such a line and no
+`points.json`. Only the newest report of each agent counts: a later start that meets the
+criterion ends the line.
+
+## Change mode
+
+`plan-the-build` and `write-acceptance-checks` redo only what a changed criterion touches.
+Right after `checks.cjs resume`, run `checks.cjs changes` once. It pulls the criteria version
+that the newest acceptance lock locks, compares it with the criteria version that the run
+reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. The tool
+guard denies an agent's writes below `.qory/build/`. A file written past it can change what is
+planned, but not a check's result: `keptFiles` and `lock --verify` refuse a wrong result. The
+last line of its output is one of these three, and it reads nothing of the build plan
+except that a version exists:
+
+- "Full run: <reason>." There is no lock that counts, no build plan or no approved criteria.
+  Do the workflow whole, as you would without this section.
+- "No criterion changed since acceptance-lock version <N>." Run no `step begin`, start no
+  agent, push nothing, and read no stop of the build plan, such as a missing check path:
+  the workflow ends as its section "No criterion changed" lists. A build plan that is
+  newer than the lock stays as it is.
+- "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed." The
+  lines before it list the ids as "Changed: ac-2, ac-4.", "Added: ac-5.", "Removed: ac-3.",
+  "Checks to write: ac-2, ac-5." and "Checks to drop: ac-3.", each only when it has an id.
+  A check to drop is the check of a criterion that is removed or no longer planned as
+  `Tests`. Quote these lines when your workflow lists passing the ids to an agent.
+
+When `changes` exits with 1, 2 or 3, end as "Failures" lists for the checks script.

@@ -306,7 +306,7 @@ the workflow.
 ### The workflow of Verify
 
 `workflow-verify-a-ticket` is a review session with the access `write-no-push`: it pushes
-the matrix and its questions, and no code. Its steps, in order:
+the matrix and the walkthrough, and no code. Its steps, in order:
 
 1. It pulls, runs `work-item show` and `resume`, and ends with "Failures" when the run has
    no `run.id` or the input file has no `qory.review_session`.
@@ -330,20 +330,19 @@ the matrix and its questions, and no code. Its steps, in order:
    tamper-reviewer,verification-reviewer`, with `--suite` only when
    `qory.review_session.suite_result` exists, and `--previous` only when
    `qory.review_session.previous_findings` exists.
-6. It pushes `verification` with either verdict, and takes the time of the version. A run
-   that ends before this step pushes nothing: each `run_again` end, the `changes-requested`
-   end of step 3 and each end as "Failures" lists.
+6. It pushes `verification` with either verdict. A run that ends before this step pushes
+   nothing: each `run_again` end, the `changes-requested` end of step 3 and each end as
+   "Failures" lists.
 7. It makes the walkthrough, as the section "The walkthrough of Verify" lists, and pushes
    `walkthrough` when the check script passes. A walkthrough that fails blocks nothing.
-8. For each row of `verification.json` with the state `not_met`, it writes one question
-   about `acceptance-criteria`, with the answers `Change AC-N`, `Make it met another way`
-   and `Withdraw AC-N`, as the rule of `questionRules` for that type lists, and pushes
-   `questions`.
-9. It records `passed` when the lock verified, the matrix has no `not_met` and no
+8. It records `passed` when the lock verified, the matrix has no `not_met` and no
    `not_verified` row, no scenario of the commit under review has a `verdict` other than
    `passed`, and no finding is blocking. Otherwise it records `changes-requested` with no
    point. qory posts the reports to the findings of the work item before it records the
-   verdict, and the next session of `implement-changes` gets each open finding.
+   verdict, and the next session of `implement-changes` gets each open finding. It asks no
+   question: a criterion that is not met makes the verdict `changes-requested`, and Build
+   fixes it, or asks about it as "A blocked criterion" of `running-a-software-workflow`
+   lists.
 
 A criterion that a person withdrew has no row. The group check of `scripts/check.sh` and
 rule 13 read `review_group` of the stack entry.
@@ -931,28 +930,29 @@ name, it loads the first. The file exports a function that takes the library of
 the check of a point of `points.json`, and returns `types`, the patterns of "Blocked:"
 lines as `stops`, the prefixes of its item ids as `ids`, such as `ac` of `ac-3`, `items`,
 the readers of the ids of a type that the questions check reads for the `item` of an
-`about`, `questionRules`, the rules for the questions whose `about` is an output of a
-type, each `{type, check(question, who, {context, earlier})}` with `check` returning the
-findings as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `end`,
-the check at the end of a session, and `finding_kinds`, the kinds of the source of a
-finding besides `reviewer`, `check` and `hook` of `core`, each with its label, the word
-that a line shows before the name of the source. Only `check`, `push`, `report`, `end`,
-`step`, `resume`, `lock`, `findings`, `panel --previous`, a verb of the registry and the
-usage read the registry; `starts`, `begin` and `fixes` never load it. A type or a finding
-kind that two skills add stops each verb that reads the registry with exit 3. A
-`workflow-checks.cjs` that throws, exports no function or returns no object is a fault of
-the harness: the verb stops with an error that names the file and exit 3, and `end
---offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the verbs
-of `checks.cjs` stops the same way when the registry fails, and prints no usage. In
+`about`, `questionRules`, the rules for the questions whose `about` is an output of a type,
+each `{type, check(question, who, {context, earlier})}` with `check` returning the findings
+as lines of two lines, `verbs`, `ledger`, the rules of the build ledger, `points`, the
+rules of `points.json`, each `(run, list, context)`, which the check of points runs after
+the check of each point, `end`, the check at the end of a session, and `finding_kinds`, the
+kinds of the source of a finding besides `reviewer`, `check` and `hook` of `core`, each
+with its label, the word that a line shows before the name of the source. Only `check`,
+`push`, `report`, `end`, `step`, `resume`, `lock`, `findings`, `panel --previous`, a verb
+of the registry and the usage read the registry; `starts`, `begin` and `fixes` never load
+it. A type or a finding kind that two skills add stops each verb that reads the registry
+with exit 3. A `workflow-checks.cjs` that throws, exports no function or returns no object
+is a fault of the harness: the verb stops with an error that names the file and exit 3, and
+`end --offline`, `step` and `resume` exit 4 with the fix on stderr. A verb outside the
+verbs of `checks.cjs` stops the same way when the registry fails, and prints no usage. In
 `software-factory`, `running-a-software-workflow/workflow-checks.cjs` adds the types
 `proposal`, `spec`, `acceptance-criteria`, `decision-record` and `demo-scenarios`, the 11
-types of Build and Verify, the lines that start with `needs a change to criterion`,
-`needs a new criterion` or `needs a change to the spec`, the line `needs a change to the
-build plan: <the change>` of the writers of `implement-changes`, the rules of the build
-ledger that the verbs `step` and `resume` apply, the check at the end of a Build write
-session, and the finding kinds `criterion` and `scenario`, each with its name as its
-label. A stack without that module, such as `core`, checks `questions` and
-`review-comments`, and `report` accepts only `needs <type>`.
+types of Build and Verify, the lines that start with `needs a change to criterion`, `needs
+a new criterion` or `needs a change to the spec`, the line `needs a change to the build
+plan: <the change>` of the writers of `implement-changes`, the rules of the build ledger
+that the verbs `step` and `resume` apply, the check at the end of a Build write session,
+and the finding kinds `criterion` and `scenario`, each with its name as its label. A stack
+without that module, such as `core`, checks `questions` and `review-comments`, and `report`
+accepts only `needs <type>`.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -1389,22 +1389,23 @@ script of a skill with `workflow-checks.cjs` needs the new hash in the list:
   beside the checks of drafts, reports and outputs. An early return of `end`, such as the
   end through a `points.json` that passes, and `end --offline` skip it. Each result is
   `{line, point, item}`, as the other checks of `end` return them.
-  `running-a-software-workflow` adds `lib/uncommitted.cjs`, which checks a Build write
-  session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has no `review`,
-  `review_session` or `hook_session`. For each checkout of `qory.start_commits` that the
-  session can write, a change is a path that `git status` lists: a tracked, staged or
-  untracked file that git does not ignore, or a submodule whose commit or files changed,
-  whatever its `ignore` setting, outside `.qory/`. When a git call fails, the check finds no
-  change in that checkout. The finding is `Commit these changes, then end the session: the
-  suite and the review read only committed work.`, then `Not committed:` with at most 20
-  paths, sorted, fewer when the line would pass 200 characters, with a path that has a key
-  shown as words, and `(<n> in all)`. It counts in `.reports/uncommitted.json` the checks
-  that found a change, and starts again at the first check after one that passed. The count
-  is at most the failed checks since then. At the third failed check, its point is "The
-  Build session ended <n> times with changes it did not commit, so the suite and the review
-  could not check them.", with that count. With no `inputs.json`, another stage, or a stack
-  of core alone, it finds nothing. The Build stage runs `implement-changes`,
-  `plan-the-build` and `write-acceptance-checks` in such sessions.
+  `running-a-software-workflow` adds `lib/uncommitted.cjs`, and the end of
+  `lib/blocked-criterion.cjs` that "A blocked criterion" lists. `lib/uncommitted.cjs` checks
+  a Build write session: `qory.outputs` of `inputs.json` has `pull-request`, and `qory` has
+  no `review`, `review_session` or `hook_session`. For each checkout of
+  `qory.start_commits` that the session can write, a change is a path that `git status`
+  lists: a tracked, staged or untracked file that git does not ignore, or a submodule whose
+  commit or files changed, whatever its `ignore` setting, outside `.qory/`. When a git call
+  fails, the check finds no change in that checkout. The finding is `Commit these changes,
+  then end the session: the suite and the review read only committed work.`, then `Not
+  committed:` with at most 20 paths, sorted, fewer when the line would pass 200 characters,
+  with a path that has a key shown as words, and `(<n> in all)`. It counts in
+  `.reports/uncommitted.json` the checks that found a change, and starts again at the first
+  check after one that passed. The count is at most the failed checks since then. At the
+  third failed check, its point is "The Build session ended <n> times with changes it did
+  not commit, so the suite and the review could not check them.", with that count. With no
+  `inputs.json`, another stage, or a stack of core alone, it finds nothing. The Build stage
+  runs `implement-changes`, `plan-the-build` and `write-acceptance-checks` in such sessions.
 - The outbox check of `checks.cjs end <folder>`, in core, for each output that the stage
   declares, whatever module declares its type. `end` reads `qory.outputs` from the
   `inputs.json` that `--inputs` takes: a list with one entry `{type, required, schema}` for
@@ -1910,25 +1911,61 @@ variables that the hooks, `checks.cjs` and qory read in a run: `QORY_RUN_ID`,
 and `HOME` by default.
 
 Each of the 13 hook commands in `modules/core/settings/` starts `node` through
-`/usr/bin/env -u NODE_OPTIONS -u NODE_PATH -u LD_PRELOAD -u LD_AUDIT`, on Claude Code,
-Codex, Gemini CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets
-then loads no preload into a hook process. The path is absolute, so that no `env` earlier in
+`/usr/bin/env` with `-u` for `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`,
+`LD_LIBRARY_PATH`, `NODE_COMPILE_CACHE` and `OPENSSL_CONF`, on Claude Code, Codex, Gemini
+CLI, Cursor and Copilot CLI. A variable that a session or a `.env` file sets then loads no
+preload, no library from another folder and no cached code into `node`. `OPENSSL_CONF` is
+on the list because `node` reads the file in it, and an engine path in that file loads a
+library before the hook script runs. The path is absolute, so that no `env` earlier in
 `PATH` replaces it. On macOS with System Integrity Protection on, `/usr/bin/env` also drops
 `DYLD_INSERT_LIBRARIES` and `DYLD_LIBRARY_PATH` before it starts its command; that was
-checked on Darwin 25.6 with both set. The list has no `DYLD_` name, and the `LD_` names are
-the ones that Linux reads.
+checked on Darwin 25.6 with both set. So the `-u` list has no `DYLD_` name, and the `LD_`
+names are the ones that Linux reads. The shell that starts `/usr/bin/env` still reads the
+`DYLD_` names: System Integrity Protection does not cover a shell outside the system
+folders, such as `/opt/homebrew/bin/bash`.
 
-A shell reads `BASH_ENV` before it runs the first word of its command, so `/usr/bin/env -u`
-cannot clear it. Gemini CLI 0.68.0 starts each hook as `bash -c <command>` with the
-environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment. It walks
-up from the working folder to the home folder, and in each folder it takes `.gemini/.env`
-before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in `.gemini/.env` ran its
-script before a hook command. So `settings/gemini/settings.json` does two things:
+On a Linux host where `node` needs `LD_LIBRARY_PATH` to start, the hooks stop, and on Claude
+Code and Codex every tool call in a run is then blocked.
 
-- It sets `env` of each hook to `{ "BASH_ENV": "", "ENV": "" }`. Gemini CLI 0.68.0 adds that
-  field to the environment of the hook after the other variables, and bash reads no file for
-  an empty `BASH_ENV`. The hooks reference of Gemini CLI does not list the field `env`; it
-  is read from the source of 0.68.0.
+A shell and the loader read some variables in the shell's process, before or while it runs
+its command, so `/usr/bin/env -u` clears them only for `node`, not for the shell:
+
+- bash runs the file in `BASH_ENV`, and sh can run the file in `ENV`.
+- `SHELLOPTS` and `BASHOPTS` turn on shell options at the start. With `SHELLOPTS=xtrace`,
+  bash expands `PS4` before each command, so a `$(...)` in `PS4` runs.
+- On Linux, the loader loads the library in `LD_PRELOAD` or `LD_AUDIT` into bash, and again
+  into `/usr/bin/env`. `LD_LIBRARY_PATH` contains folders, and a library in one of them
+  replaces a library that bash or `env` loads. `GCONV_PATH` contains folders of glibc
+  modules, and glibc loads a module from them when a program calls `iconv_open`.
+- On macOS, the loader reads the `DYLD_` names when a shell outside the system folders
+  starts. `DYLD_INSERT_LIBRARIES`, `DYLD_LIBRARY_PATH`, `DYLD_FRAMEWORK_PATH`,
+  `DYLD_FALLBACK_LIBRARY_PATH`, `DYLD_FALLBACK_FRAMEWORK_PATH`, `DYLD_IMAGE_SUFFIX`,
+  `DYLD_VERSIONED_LIBRARY_PATH` and `DYLD_VERSIONED_FRAMEWORK_PATH` load a library from
+  another folder, or a file with a suffix in place of a library, into that shell.
+  `DYLD_SHARED_REGION`, `DYLD_SHARED_CACHE_DIR`, `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH`
+  replace the shared cache or the root folder of the loader. `DYLD_PRINT_TO_FILE` writes a
+  file at the path in it. The effects of `DYLD_ROOT_PATH` and `DYLD_OVERLAY_PATH` are read
+  from their names in `/usr/lib/dyld` and were not tested.
+
+Gemini CLI 0.68.0 starts each hook as `bash -c <command>`, with the first `bash` on `PATH`
+and the environment of Gemini CLI. Gemini CLI loads one `.env` file into that environment.
+It walks up from the working folder to the home folder, and in each folder it takes
+`.gemini/.env` before `.env`. On a real Gemini CLI 0.68.0, a `BASH_ENV` line in
+`.gemini/.env` ran its script before a hook command. So `settings/gemini/settings.json` does
+two things:
+
+- It sets 22 names to `""` in `env` of each hook: `BASH_ENV`, `ENV`, `SHELLOPTS`,
+  `BASHOPTS`, `PS4`, `LD_PRELOAD`, `LD_AUDIT`, `LD_LIBRARY_PATH`, `GCONV_PATH` and the 13
+  `DYLD_` names.
+  Gemini CLI 0.68.0 adds that field to the environment of the hook after the other
+  variables. bash reads no file for an empty `BASH_ENV`, and turns on no option for an empty
+  `SHELLOPTS` or `BASHOPTS`. With bash 5.3.15 on macOS, on 2026-11-25, when this setting was
+  added, `bash -c true` with `SHELLOPTS=xtrace` and a `$(echo ran >> FILE)` in `PS4` wrote
+  to `FILE`, and with both set to `""` it did not write `FILE`. On 2026-11-25,
+  `/opt/homebrew/bin/bash` 5.3.15 ran a command with the 21 names of this list other than
+  `GCONV_PATH` set to `""`. The empty `LD_` names and `GCONV_PATH` were not tested on
+  Linux. The hooks reference of Gemini CLI does not list the field `env`; it is read from
+  the source of 0.68.0.
 - It lists `NODE_OPTIONS`, `NODE_PATH`, `LD_PRELOAD`, `LD_AUDIT`, `BASH_ENV` and `ENV` in
   `advanced.excludedEnvVars`, so that Gemini CLI does not load them from a project `.env`.
   Gemini CLI applies the list to a project `.env` only, not to `.gemini/.env`. With the list
@@ -2325,10 +2362,25 @@ current folder, and from each folder that a `cd` or `pushd` in the command chang
 that `-C <folder>` of `git -C` or `env -C` names, so `checks//a.ts` and
 `./src/../checks/a.ts` are `checks/a.ts`, and it reads `rm`, `rmdir`, `unlink` and `mv` of a
 folder above a locked file or above `.qory/build/`, such as `rm -rf checks` or
-`rm -rf .qory`, as a write of that file. It reads a `restore` of a folder above a locked
-file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
-`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. A
-path with the wildcards `*`, `?` or `[...]` counts as each path it can match, so
+`rm -rf .qory`, as a write of that file. A path that is a hard link of a locked file is that
+file: the guard compares the device and the inode of a written path with each locked file that
+has more than one link, so `ln checks/a.check notes.txt` and a later write to `notes.txt` is a
+write of `checks/a.check`. A path that does not exist yet, or whose parent is a file, is no locked
+file, and a locked file that is gone is no link; any other failed read of either path denies
+the call. The guard reads each locked file once in a call. Its reads of the lock and of the
+lift run `qory artifact pull`: the pulls of one call share one budget, and none runs past 80 s
+after the call started (20 s of work and 60 s of waiting), so the hook ends before the runtime
+ends it at 120 s. A pull that has no time left, or does not finish in the time left, fails: the
+lock cannot be read, or nothing lifts, and the write is denied. The time of the pulls moves the
+limit of 20 s of the guard later, by 60 s at most. It reads a `restore` of a folder above a
+locked file, and a `checkout` of such a folder, after `--` or as a path that exists, such as
+`git checkout .`, the same way; `git checkout <name>` of a name that is no path passes. An
+agent's redirect to a brace list of more than one word, such as `> checks/{a,b}.check`, is
+denied: zsh with MULTIOS writes to each word, and the guard reads the redirect as one path. A
+brace list of one word, a quoted brace and a command with no brace pass, and so does a brace
+list in the body of a here-document that `cat` or `tee` reads, up to the first line with `$(`,
+a backtick, a backslash or a final `$`. A path with the wildcards `*`, `?` or `[...]` counts
+as each path it can match, so
 `rm -rf .q*`, `rm -rf */build`, `mv chec* old` and `git checkout -- ch*` are writes of the
 locked files and of `.qory/build/` below the folders they match. As in the shell, a wildcard
 matches a leading dot only when the command contains `dotglob`, `globdots` in any spelling
@@ -2601,26 +2653,28 @@ The checks:
   the run and the same question in the newest questions, and the check reads nothing of
   what a rule tests. The same skill adds the rule for `acceptance-criteria`, which reads a
   question in two cases: it has an option titled `Change AC-N`, `Make it met another way`
-  or `Withdraw AC-N`, the three answers that Verify writes for a criterion that cannot be
-  met; or, in a check, the question is new and the artifact folder has
-  `.reports/matrix-record.json`, which only Verify writes. It refuses a question with other
-  than 3 options, with other than one option of each of the three titles, with the number
-  of `Change AC-N` or `Withdraw AC-N` not the number of `about.item`, with no `proposal` on
-  the change option, with a `context` that has no paragraph starting `**Why:**` or none
-  starting `**Checked:**`, and with an `about.item` that is not the lower-case id, such as
-  `ac-3`. A push cannot tell the workflow, so a question of Verify with none of the three
-  titles passes a push. In a push, and in a folder with no such record, a question about a
-  criterion with none of those titles, such as a question of the spec, has no such rule. The
-  same skill adds the reader of `feedback`, whose items are the ids of its points, and the
-  rule for the question of a point, for an `about` of the type `feedback` or
-  `acceptance-criteria`. The rule reads a new question whose id a point of the feedback has as
-  `question`, in the draft `feedback.json` in a check, else in the newest version, and any new
-  question with an `about` of the type `feedback`. A question fails the rule when it has fewer
-  than 2 or more than 4 options, a `context` that has no words of the point in double quotes,
-  or that goes on after them in none of the forms "can mean <reading> or <reading>", "cannot
-  be built as written: <cause>" and "adds", "changes" or "removes", or an `about` other than
-  that of the point. A push of questions reads no feedback, so there the rule checks only
-  an `about` of the type `feedback`, with any words in double quotes;
+  or `Withdraw AC-N`, the three answers of a criterion that Build cannot meet as approved;
+  or, in a check, the question is new and the newest report of `build-planner` or
+  `acceptance-check-writer` has the line `Blocked: needs a change to criterion
+  <about.item>`. A report of `software-developer` or `software-debugger` does not count.
+  A question fails the rule with other than 3 options, with other than one option of each
+  of the three titles, with the number of `Change AC-N` or `Withdraw AC-N` not the number of
+  `about.item`, with no `proposal` on the change option, with a `context` that has no
+  paragraph starting `**Why:**` or none starting `**Checked:**`, and with an `about.item`
+  that is not the lower-case id, such as `ac-3`. A push reads no report, so such a question
+  with none of the three titles passes a push. In a push, and in a folder with no such line,
+  a question about a criterion with none of those titles, such as a question of the spec,
+  has no such rule. The same skill adds the reader of `feedback`, whose items are the ids of
+  its points, and the rule for the question of a point, for an `about` of the type
+  `feedback` or `acceptance-criteria`. The rule reads a new question whose id a point of the
+  feedback has as `question`, in the draft `feedback.json` in a check, else in the newest
+  version, and any new question with an `about` of the type `feedback`. A question fails the
+  rule when it has fewer than 2 or more than 4 options, a `context` that has no words of the
+  point in double quotes, or that goes on after them in none of the forms "can mean
+  <reading> or <reading>", "cannot be built as written: <cause>" and "adds", "changes" or
+  "removes", or an `about` other than that of the point. A push of questions reads no
+  feedback, so there the rule checks only an `about` of the type `feedback`, with any words
+  in double quotes;
 - each entry of the questions, the review comments, the replies and the sources is a JSON
   object;
 - the proposal's `## Track`: the line "Standard track." alone, or the line "Fast track:
@@ -2678,9 +2732,35 @@ newest version of each type that the check reads.
 
 `build-plan`, `verification`, `walkthrough` and `acceptance-lock` read one criteria version,
 the target: the approved version, or the newest version that a person stored after it (a
-writer of kind `person` in `index.json`). A run's version never counts, and a `decision` of
-a version counts neither, because `index.json` has no time of a decision to compare with
-the newest lock. One function, `criteriaTarget` of
+writer of kind `person` in `index.json`), or the newest version that a note links and that
+the check passes. A run's version never counts. A version is linked to a note when its
+`decision` is a non-empty string and its `decision_at` parses as a time; it counts when
+`decision_at` is later than the newest lock that is older than the version, and the kind of
+the `decision` passes. For an answer (`an_`), the question rule also passes (see
+`acceptance-lock` below), or the newest lock locks that version: that lock passed the rule
+when it was pushed, and a push store has the newest lock only, not the lock before the
+version that the rule compares. `build-plan`, `verification` and `walkthrough` read
+`acceptance-lock` and `questions` for this, as `acceptance-lock` does, so the four types
+apply one rule, and a check and a push give the same result for the same facts, with one
+exception: a push store has the newest lock only, so a push fails closed whenever the lock
+before the version is not the newest lock (for example while `acceptance-lock` is withdrawn,
+or when a later lock locks an older version), where a check that pulled that lock passes.
+A version that fails the rule is never the target, and the finding shows the reason: a
+criterion that the version changes with no answered question about it, or a lock or the
+questions that the store lacks. For a store that lacks them, a check has the pull as its
+first line (`Run \`qory artifact pull acceptance-lock --version <N>\`, then check again.`,
+or `qory artifact pull questions`), and a push, which cannot pull, has the usual first line
+and the reason.
+The newest lock opens the version that it locks only while `acceptance-lock` is not
+withdrawn, and only when the lock is live (no cancelled run wrote it, and it is no
+withdrawal), the store has its document, and it locks that version: a later version that the
+same answer links needs an answer about its version. The question rule reads the locks of
+`index.json` that no cancelled run wrote and that are no withdrawal, also while `acceptance-lock` is
+withdrawn. `matrix` pulls `acceptance-lock`, each live lock that the store lacks by its
+number (a plain pull fetches one version), and `questions`, for the same target. The plan,
+the verification and the walkthrough may read an older version than the one that Qory
+Apiary feeds the run; a check that finds a newer version stops with a finding for a member.
+One function, `criteriaTarget` of
 `running-a-software-workflow/lib/build.cjs`, computes the target for the four types. A check
 and a push read the versions in `index.json`, not the folders of the store, so that they
 agree. The build plan, the verification and the walkthrough read the target before any other
@@ -2693,11 +2773,13 @@ three types get "Write the build plan after a person approves the acceptance cri
 with the verification or the walkthrough in place of the build plan, and the lock gets its
 line below. When `index.json` lists a version above the target, the push gets that version
 in place of the target, and a check and a push of each of the four types get one finding,
-such as "Ask a member to upload the acceptance criteria they accept as a new version." with
+such as "Ask a member to write the change in a request for changes." with
 the line "Then push the build plan again: the run stored version 2 after the approved
 version 1." after it, with the verification or the walkthrough in place of the build plan,
 and "Then lock that version" for the lock. When the writer of that version is not of kind
-`run`, the reason is "no member uploaded the newer criteria version 2". Two criteria
+`run`, the reason is "no member wrote the newer criteria version 2". When a note links
+that version and no lock opens for it, the reason is the one that the lock check gives, such
+as "Version 2 is linked to "xx_1", and no lock opens for a note of that kind.". Two criteria
 versions of one number in `index.json` exit 3 with "Run `qory artifact pull`, then check
 the build plan again.", with the verification, the walkthrough or the lock in place of the
 build plan, and so does the check of one of those three types with no `index.json`. A push
@@ -2775,18 +2857,61 @@ find:
   another order of members, is that lock, and passes again. A new lock passes
   only at the target, and only when the target is not older than the criteria version of a
   lock in `index.json`, and either the target is the approved version and no lock locks it,
-  or a person stored the target after the newest lock. With no lock before, any upload of a
-  person counts. An upload with no `at` that parses as a time counts as older than every
-  lock, and a lock with no such `at` as newer than every upload. A `decision` of a criteria
-  version or of the lock opens nothing, because `index.json` has no time of a decision. A
-  version's `note` never counts, because the run that stores the version writes the note. A
-  finding has the fix to set the criteria version only to the target, and only when a lock
-  of the target passes: a new lock, or the newest lock again when it locks the target. Else,
-  with an approved version, the finding opens with its one action, "Ask a member to upload
-  the acceptance criteria they accept as a new version.", and its second line has the next
-  step and the reason after the colon: "Then lock that version: acceptance-lock version 1
-  already locks criteria version 1." or "Then lock that version: no member uploaded
-  criteria after acceptance-lock version 1, the lock that counts."; a run passes the line
+  or a person stored the target after the newest lock, or a note links the target and is
+  newer than the newest lock. With no lock before, any upload of a person counts. An upload
+  with no `at` that parses as a time counts as older than every lock, and a lock with no
+  such `at` as newer than every upload. A criteria version is linked to a note when its
+  `decision` is a non-empty string and its `decision_at` parses as a time. A linked version
+  counts when `decision_at` is later than the `at` of the newest lock; a cancelled version
+  and a withdrawal never count. The kind of the id in `decision` is its prefix: `gd_`, `es_`
+  and `rc_` are free text, which the check cannot bind to a criterion; `an_` is the answer
+  to a question; a lock of a version with any other prefix is refused. For an answer, each
+  live criterion that the version changes or removes since the criteria version that the
+  newest lock locks, a Demo criterion included, needs a question in `questions` whose `about`
+  has the type `acceptance-criteria`, the name `main` and that criterion as `item`, and whose
+  `answer.at` is later than the lock. The lock has `/criteria/sha256`, an object that maps
+  the id of each live criterion of the version that it locks to the SHA-256 of the
+  criterion's text and check, made as `criterion_sha256` is made. `lock` fills it, and the
+  check recomputes it. The rule compares the recorded hashes with the hashes of the
+  version: an id with another hash, or an id that is no longer live, is changed or removed,
+  and a criterion that the version only adds needs no question. A lock counts every
+  criterion as changed, with no migration, when `/criteria/sha256` is missing, is empty or
+  has a value that is not 64 lower-case hexadecimal digits; a check of the lock whose
+  criterion the member lacks counts that criterion as changed too. The time of an answer
+  can be trusted because the questions store of Qory Apiary does not accept a run's write
+  of an `answer`, so only a member's answer has one, and the server sets its time. The
+  rule does not apply when a counted version above the locked one is linked to a free-text
+  note newer than the lock, a known gap: such a note can contain any change, and the check
+  cannot bind it to a criterion. The rule fails closed when the store lacks the lock before
+  the version, the version, or the questions that index.json lists. A push store has the
+  newest lock and the newest criteria version only, and the rule needs no older criteria
+  text, so a push binds an answer as a check does. The rule reads `questions`, so
+  `acceptance-lock` reads `acceptance-criteria` and `questions`.
+  A version's `note` never counts, because the run that stores the version writes the note.
+  `criteriaTarget` uses the same test (`linkProblem` of `lib/build.cjs`) beside the newest
+  lock that is older than the version, for all four types. Each check of a lock has a
+  `criterion_sha256`, the SHA-256 of the criterion's text and check in the version that the
+  lock locks, which `lock` fills and the check recomputes. A new lock keeps the checks of
+  each criterion that did not change, as a whole list, because the push store has only the
+  newest lock and the newest criteria version, so "unchanged" is the same
+  `criterion_sha256`: the checks of that
+  criterion in the new lock and in the newest lock must have the same `sha256`, `path`,
+  `repository`, `command`, `failed_with` and `criterion_sha256` each, so that a changed
+  check is refused, and so is a second check that the new lock drops. A support file of the
+  newest lock keeps its hash: a new lock that lists its path (with `//` collapsed and the
+  repository in lower case) with other bytes is refused, so a helper that changes gets a
+  new path, and a new lock that leaves it out is refused while the lock keeps a check of an
+  unchanged criterion. The lock links a support file to no criterion, so every support file
+  stays listed. When the store lacks the newest lock, the check fails closed with "Report to
+  a member: the store lacks acceptance-lock version <N>.". A finding has the
+  fix to set the criteria version only to the target, and only when a lock of the target
+  passes: a new lock, or the newest lock again when it locks the target. Else, with an
+  approved version, the finding opens with its one action, "Ask a member to write the change
+  in a request for changes.", and its second line has the next step and the reason after
+  the colon: "Then lock that version: acceptance-lock version 1 already locks criteria
+  version 1." or "Then lock that version: no member wrote criteria after acceptance-lock
+  version 1, the lock that counts." or the reason that a linked note opens no lock, such as
+  that it is from before the lock; a run passes the line
   to the member as a point, as `running-a-workflow` lists under "Locked files". A finding
   line shows a version from 1 to 999999 in digits, and any other version,
   outside a folder path, as "over 999999" or "below 1", so that no line is longer than 196
@@ -2821,7 +2946,8 @@ find:
   newest lock that counts gives the push the same result as the check. A push store with
   the newest lock by number, cancelled or not, gives it only when the store also has the
   file of the lock that counts. Else the push cannot read which criteria version the lock
-  that counts locks, so only a person's upload after that lock opens a new lock;
+  that counts locks, so only a person's upload, or a free-text note, after that lock opens
+  a new lock;
 - `demo-script` and `demo-evidence`, one file `scenario-<N>.json` per scenario: a file name
   other than the `scenario`. A demo script whose scenario is not in the approved demo
   scenarios, or is removed, and a title, a step count, a step number, a step's `title` or
@@ -3097,10 +3223,13 @@ reviewer. For the plan it is `plan-reviewer` on `build-plan.md`; for `checks` it
 in the artifact folder. The report is `.step-reports/<reviewer>/<sha256>.json`, in the
 review report format (`review-report.schema.json` of qory), which `step end` reads as
 `findings round` does. `<sha256>` is the SHA-256 of that file. For `checks` it is the
-SHA-256 of the content of the lock with no `commit`, with the `sha256` of each listed file
-from the working folder, and with the members of each object in the order of their names. So
-it is the same before and after `freeze` and `lock`, and an edit of the draft or of a check
-file after the review changes it. A listed file with no hash, such as a missing file or a
+SHA-256 of the content of the lock with no `commit`, no `/criteria/sha256` and no
+`criterion_sha256` of a check, with the `sha256` of each listed file from the working
+folder, and with the members of each object in the order of their names. `lock` fills the
+two hash members again, and the lock check and the push check verify them exactly, so the
+review leaves them out. So it is the same before and after `freeze` and `lock`, and an edit
+of the draft or of a check file after the review changes it. A listed file with no hash,
+such as a missing file or a
 link, is a finding of `step end`, and so is a lock that is no JSON: "Write
 acceptance-lock.json as valid JSON."
 
@@ -3196,10 +3325,12 @@ push_checks:
 ```
 
 `decision-record` and `feedback` read `[acceptance-criteria, questions]`, `review-comments`
-reads `[questions]`, `build-plan`, `acceptance-lock` and `verification` read
-`[acceptance-criteria]`, `demo-script` reads `[demo-scenarios, build-ledger]`, `demo-evidence`,
-`demo-video` and `screenshot` read `[demo-script]`, `walkthrough` reads
-`[verification, acceptance-criteria]`, and the other types read nothing. A module without
+reads `[questions]`, `acceptance-lock` reads `[acceptance-criteria, questions]`, `build-plan`
+and `verification` read `[acceptance-criteria, acceptance-lock, questions]`, `demo-script`
+reads `[demo-scenarios, build-ledger]`, `demo-evidence`, `demo-video` and `screenshot` read
+`[demo-script]`, `walkthrough` reads
+`[verification, acceptance-criteria, acceptance-lock, questions]`, and the other types read
+nothing. A module without
 `push_checks` pushes with no check. `core` declares the entries of `questions` and
 `review-comments`, with the program `scripts/push-check.cjs`. `software-factory` declares
 the entries of its 17 types, with the program `workflow-checks.cjs`. Neither declares one
@@ -3555,14 +3686,21 @@ and one `answer` point per question. Otherwise it starts `feedback-triager`, whi
 source into points by `sorting-feedback`: a `fix` inside the approved criteria, a
 `criterion-change`, or a `question`. `check feedback` runs after it, at most 3 times. Then
 `questions-writer` writes one question per `question` point, and `reply-writer` adds the
-`reply` of each new point. The session pushes `feedback`, then `questions`, and ends with
-`escalate` and one `answer` point per open question, else with `passed`. A point outside the
-kind of the fast track ends with `escalate` and one `run_again` point. The stack lists the
-workflow with `tier: thinking`, `access: write` and `plan: build-plan`. Build's `sequence` in
-`process.yaml` is empty, so no run starts it yet. `shortcut:` a criterion-change point changes
-no criterion; replace this when the workflow gets the step that writes the criteria. Until
-then, such a point stays in `feedback points`. `shortcut:` an answer to a question is no
-source yet, so a run builds nothing from it; read it once each answer has an id.
+`reply` of each new point. The session pushes `feedback`, then `questions`. Then, for each
+group that `feedback points` prints, it starts `spec-writer` or `scenario-writer` with that
+group alone, checks the draft with `feedback amended`, at most 3 times, starts `spec-reviewer`
+or `scenario-reviewer`, at most 3 times, and pushes one version linked to the source with
+`--decision`, also when its bytes are the same as the newest version. A group with `waiting`
+waits for its questions. A writer that needs a person adds a question and keeps an `answer`
+point; a change that the writers cannot write ends with `escalate` and a `run_again` point,
+and earlier pushes stay. The session ends with `escalate` and one `answer` point per open
+question, else with `passed`. A point outside the kind of the fast track ends with `escalate`
+and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
+and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
+yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
+`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
+to a question is no source yet, so a run builds nothing from it; read it once each answer
+has an id.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -3617,8 +3755,21 @@ the workflow with `tier: thinking`, `access: write` and `plan: build-plan`.
   although the second option says so, and the planner of the next round does not read it.
   The ledger step is `failed`, with no escalation reason.
 - **Blocks.** A criterion that cannot be built as written ends the planner's report with
-  `Blocked: needs a change to criterion <ac-N>: <the change>`, as in the other small
-  workflows.
+  `Blocked: needs a change to criterion <ac-N>: <the change>`. The session ends as "A
+  blocked criterion" of `running-a-software-workflow` lists: `step end plan failed`, one
+  question per criterion with no open question on it, and one `answer` point on it, then
+  `escalate`. The question is "What do you want to do with AC-3, "<first sentence>"?", its
+  `context` has a `**Why:**` paragraph, the cause, and a `**Checked:**` paragraph, the
+  proof, its `about.item` is the criterion, and its options are `Change AC-3, "…"` with the
+  proposed wording in `proposal`, `Make it met another way` and `Withdraw AC-3, "…"`. The
+  point is "AC-3, "<first sentence>", cannot be met as approved: <the cause>." `check
+  points` exits with 1 for a `points.json` with no `answer` point on such a question for
+  each criterion of such a line in the newest report of `build-planner` or
+  `acceptance-check-writer`, and the check at the end stops a session that ends with such a
+  line and no `points.json`. A line of `software-developer` or `software-debugger` needs no
+  such point: `workflow-implement-changes` ends the run as "Failures" lists, and
+  `review-changes` finds the step not built. `write-acceptance-checks` ends the same way for
+  a line of `acceptance-check-writer`.
 
 `workflow-write-acceptance-checks`, process entry `write-acceptance-checks`, writes and
 locks the acceptance checks of one ticket, after its build plan and before any step changes
@@ -3687,7 +3838,7 @@ characters, the quote of the criterion is cut in both to its first 8 words and "
   again, the session pushes one question per such check to a member, with `about` set to
   `{"type": "acceptance-criteria", "name": "main", "item": "<id>"}`. The context has the
   path of the check, the criterion as `AC-<N>, "<first sentence>"` and what each run printed
-  for the check. The options are to upload the acceptance criteria as a new version, so that
+  for the check. The options are to write the change in a request for changes, so that
   the next round writes a new check (recommended), or to keep the locked check and let the
   build go on. The run ends with `escalate` and one `answer` point per check. The ledger
   step stays `done`, so a new criteria version starts a new pass of `checks`, and an
@@ -4714,17 +4865,54 @@ replace ref, a graft or a commit graph file changes nothing that they read.
 - `feedback open`: prints each open note of `qory work-item show` that no version of
   `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
   line "Not asked: <point>, <question>" per question that the newest questions lack, and one
-  line "Waiting for an answer: <point>, <question>" per open one. The notes are those of the
-  kinds `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id
-  has the key of its time and text, and an answer to a question is left out. It exits with 1
-  for a source or a question not asked, with 0 for neither, and with 3 when the notes cannot
-  be read. A line of a source is not cut.
+  line "Waiting for an answer: <point>, <question>" per open one. It also prints that line for
+  each open question that a group of `feedback points` waits for and no `question` point has,
+  such as one that a writer raised, with the point of the group that the question is about,
+  a ripple point's included, and "Words of <point>: <words>" after it. For a ripple point,
+  the words are those of the criterion change of the source on that criterion; with no such
+  change, as for an added criterion, those of the first criterion change of the source with
+  no item; else the text of the source. A question with no item in its `about`, asked at or
+  after the time of the source (`asked.at`), is about the first point of a group of that
+  output, and a question about a criterion is also about a ripple point of that criterion.
+  A question has no member for the agent that asked it. The session then ends with an
+  `answer` point on it, not with `passed`. The notes are those of the kinds
+  `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
+  key of its time and text, and an answer to a question is left out. It exits with 1 for a
+  source or a question not asked, with 0 for neither, and with 3 when the notes cannot be
+  read. A line of a source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
-  changes that have not ended, oldest source first: `decision`, `at`, `output` and `points`,
-  each with `id`, `quote`, `item` and `change`. A criterion change has ended when a version of
-  its output that counts, from a run, has the id of its source as `decision`. It exits with 1
-  when it prints one. It runs no git command and needs no network.
+  changes that have not ended: the groups of `acceptance-criteria` first, then those of
+  `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
+  `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
+  questions with no answer of the source about the output, and of the open questions about
+  a point of the group, such as one that a writer raised. While a source has a group of
+  `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
+  that the group after the criteria version has both kinds of points. A criterion change has
+  ended when a version of its output that counts, from a run, has the id of its source as
+  `decision`. A criteria version from a run, linked to a source, that adds, changes or
+  removes a criterion checked by `Demo` also adds a ripple point to the group of
+  `demo-scenarios` of that source: `id` is the criterion id, `quote` has its row `before` and
+  `after` (`text` and `check`, or `null`), and `item` is each scenario that shows the
+  criterion or has the title of its new check, or there is no `item` when a new scenario must
+  show it. The ripple ends with a version of `demo-scenarios` linked to that source whose `at`
+  is later than that of the newest such criteria version, so a scenario version that a
+  person's note linked before the criteria changed ends nothing. It exits with 1 when it
+  prints one. It runs no git command and needs no network.
+- `feedback amended <output> --decision <id> [--same <point>]...`: checks the draft of
+  `<output>`, `acceptance-criteria.json` or `demo-scenarios.md` at the top of the artifact
+  folder, against the newest version that counts, as stored with its line ends, for the group
+  of `<id>` that `feedback points` prints. The items are the entries of `criteria` and the
+  `###` sections of the scenarios. The draft changes the item of each point that `--same`
+  does not name, and adds one item at the end for each such point with no item. Every other
+  byte stays: each other item and its place, and the text outside the items, the summary and
+  the key order included. A removed criterion keeps each member and adds only `removed`, and
+  a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
+  exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
+  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
+  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
+  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft, with
+  the last line "No part of acceptance-criteria.json was checked."
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
@@ -5121,6 +5309,110 @@ Take "src/app.js" out of the commits since the base: it is not a document file.
 
 The values of `kind_data` are in `short-path.json`, beside `kinds`, and no setting of
 `qory.yaml` changes them.
+
+### The verb changes and change mode
+
+`checks.cjs changes` of `running-a-software-workflow` is the first call of the workflows
+`plan-the-build` and `write-acceptance-checks` after `resume`. It reads the newest lock that
+counts, as `lock --verify` does, pulls the criteria version that the lock locks, and
+compares it with the target, the criteria version that `criteriaTarget` returns, by the id,
+the text and the check of each criterion (`criteriaDiff`). It writes
+`.qory/build/changes.json` in the working folder. The tool guard denies a write below
+`.qory/build/` by the tools and the shell forms that it reads, and it denies a call of an
+agent that runs this verb; a script that writes there is not seen. The binding gates are
+the push check of the lock and `lock --verify`, which compare the lock with the criteria.
+
+The file has `mode`, and with the modes `changes` and `none` also `lock`, `criteria`,
+`target`, `changed`, `added`, `removed`, `unchanged`, `tests`, `leaves` and `paths`. The verb
+pulls both criteria versions in a run, so that a file in the artifact folder cannot change
+the diff, and exits 3 with "Report to a member: acceptance-lock was withdrawn..." when the
+acceptance lock is withdrawn. A record whose lock number or target differs from the
+newest lock and the target that `check build-plan` reads is refused.
+
+- `mode` is `full` when no lock counts, the work item has no build plan or no criteria
+  version is approved; the file then has only `reason`, and the last line is "Full run:
+  <reason>.". The workflow runs as before.
+- `mode` is `none` when no criterion changed, and the last line is "No criterion changed
+  since acceptance-lock version <N>.". Both workflows then run no `step begin`, start no
+  agent, push nothing and end `passed`, also when a build plan is newer than the lock. The
+  workflow `write-acceptance-checks` reads no build plan, and does not stop for a missing
+  check path.
+- `mode` is `changes` otherwise. The lines before the last, "Changed:", "Added:",
+  "Removed:", "Checks to write:" and "Checks to drop:", each list ids, and the last line is
+  "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed.".
+  `tests` is "Checks to write": the changed and added criteria planned as Tests; `leaves`
+  is "Checks to drop": the criteria of the lock that the target no longer plans as Tests.
+  `paths` lists the check files of the changed Tests criteria, except a file that a check
+  of another criterion or a support file also has.
+
+In change mode, the build planner gets the ids and changes only the deliverables that list
+them: `check build-plan` finds a deliverable that differs from the newest build plan and
+lists no changed, added or removed criterion. The acceptance check writer gets only the
+criteria of "Checks to write", starts its draft from the newest lock, and keeps each check
+of an unchanged criterion whole; `run locked <criterion>...` runs only the new checks.
+
+The tool guard lifts the locked check files of changed criteria for the writer of the checks,
+and reads no `changes.json` for it. A file is lifted only when all of these hold:
+
+- The agent is the `acceptance-check-writer`.
+- The lock that counts lists the file, and every entry of the lock at that file is a check of
+  a criterion.
+- The criteria version that `criteriaTarget` returns is newer than the one that the lock
+  locks, and the store has its file with at least one criterion.
+- For each entry at the file, the `criterion_sha256` of the entry is a SHA-256, and either the
+  target version has no live criterion with that id, or it has one that it plans as Tests and
+  whose hash differs from `criterion_sha256`.
+
+A support file, a file with an entry of an unchanged criterion, a criterion that left Tests,
+every other agent and the main session stay denied, and so does every file when the target
+cannot be read. The guard has no source for the name of the workflow, so it keys on the agent.
+`changes.json` is written by the verb `changes`, printed by the workflows and read by the check
+of a build plan in a session, which finds no record that is a link or has more than one link.
+In a run, `qory artifact pull <type>` writes `index.json` and a version folder of that type into
+`.qory/artifacts`, and the folders that earlier pulls or an agent left there stay. The lift pulls,
+each by version number, what `criteriaTarget` reads: the target version, and for each version
+above the approved one that a note links to an answer and no person wrote, the newest lock, the
+lock before it, that version, and the version of the questions that `index.json` counts; a
+person's version, a version linked to another kind of note, a version that no lock is older than,
+and the approved version need no other pull. The first pull of the criteria has no number, and the
+lift reads `index.json` from it only. The lift reads only the versions that these pulls returned,
+and in them only the files that the entry of the version in `index.json` lists: a folder, a name,
+a version or a file that no pull of the call returned, or that the entry does not list, does not
+exist for it, so planted questions, a planted name, a planted file, a withdrawn name, and the
+newest version of a cancelled run count for nothing. After the last pull it reads `index.json`
+again. A pull that fails or has no time left, and an `index.json` that needs a version that no
+pull returned or has another target, lift nothing, and the deny of the locked file then has a
+third line with the cause and the command to run again. Outside a run the lift reads the artifact
+folder. These limits stay:
+
+- Outside a run, the artifact folder is agent-writable. The limit ends when the guard reads a
+  store that no agent call can write.
+- The lift pulls the questions, and the criteria version unless it is the target, also when a
+  free-text note frees the question rule, so those pulls are needless. The limit ends when
+  `criteriaReads` repeats that test of the rule.
+- An agent call that rewrites a pulled file after its pull and before the read is not stopped.
+  The limit ends when the read checks each file against the SHA-256 of `index.json`, or the
+  pulls make a folder that no agent call can write.
+- A forged `.qory/build/changes.json` can steer what `plan-the-build` plans, and the guard no
+  longer reads it. `keptFiles` and `lock --verify` reject a wrong result. The limit ends when
+  the record is written where no agent call can write.
+- The lock check, `sameFile` included, applies to paths inside the working folder only, so a
+  hard link outside it to a locked file passes the file tools; `keptFiles`, the push check and
+  `lock --verify` catch it. The limit ends when every written path is compared by device and
+  inode.
+- A brace range of one word, such as `{b..b}`, writes the file that it expands to, and the brace
+  rule skips the main session. The limit ends when ranges are expanded like lists and the main
+  session is read.
+
+The guard does not know these rules: the type `acceptance-lock` of `running-a-software-workflow`
+has them in `lock.writable` and `lock.refused`, next to `lock.files` and `lock.fill`. The
+guard calls `lock.writable({ io, agent, checks, fold })` for a call of an agent, with the `io`
+of the lock reader and the entries of `lock.files` as `{ file, ...record }`, and lifts the
+files that it returns. `lock.refused({ command })` returns the start of the reason for a shell
+command of an agent that runs `checks.cjs changes`. When the type has no `lock.writable`, when
+it throws, or when it returns no list, the guard lifts nothing, and every locked file stays
+locked. When the type has no `lock.refused`, when it throws, or when it returns no text, the
+guard refuses no command for that reason.
 
 ## The process template, process.yaml
 

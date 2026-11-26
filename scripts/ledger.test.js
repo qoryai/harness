@@ -1089,6 +1089,11 @@ test('ledger: the report of the checks is named by the lock and its files, not b
     checks: draft.checks.map((one) => ({ ...one, sha256: sha('check\n') })) };
   put(JSON.stringify(locked, null, 2));
   assert.equal(reportOf(), first);
+  // The members that lock fills from the criteria change nothing either.
+  put({ ...locked, criteria: { ...draft.criteria, sha256: { 'ac-1': 'f'.repeat(64) } },
+    checks: locked.checks.map((one) => ({ ...one, criterion_sha256: 'e'.repeat(64) })) });
+  assert.equal(reportOf(), first);
+  put(JSON.stringify(locked, null, 2));
   const report = path.join(call.artifacts, first);
   fs.mkdirSync(path.dirname(report), { recursive: true });
   fs.writeFileSync(report, JSON.stringify({ reviewer: 'check-reviewer', findings: [] }));

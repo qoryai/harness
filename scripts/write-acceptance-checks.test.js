@@ -620,6 +620,58 @@ test('a session on a test work item stores the checks and acceptance-lock and en
   assert.equal(call('lock', '--verify').status, 0);
 });
 
+test('with no criterion changed since the lock, the skill ends before any plan stop and pushes nothing', () => {
+  const order = oneLine(section(WORKFLOW, 'The order of the run'));
+  const first = order.slice(0, order.indexOf(' 2. Read'));
+  says(first, '`<skill folder>/checks.cjs changes` once');
+  says(first, 'With the line "No criterion changed since", do "No criterion changed" and go ' +
+    'no further in this list: read no build plan and run no later step.');
+  const none = oneLine(section(WORKFLOW, 'No criterion changed'));
+  says(none, 'read no build plan, run no `step begin`, start no agent, and push nothing');
+  says(none, 'also when the build plan is newer than the lock');
+  says(none, '"No criterion changed since acceptance-lock version <N>, so the run changed no ' +
+    'plan and wrote no checks."');
+  // The run: the lock is stored, then a newer build plan exists and no criterion changed.
+  const w = work();
+  const call = session(w);
+  begin(w, call);
+  writeChecks(w, call);
+  assert.equal(lockChecks(w, call).locked.status, 0);
+  const plan = path.join(w.artifacts, 'build-plan', 'main');
+  fs.mkdirSync(path.join(plan, 'v2'), { recursive: true });
+  fs.copyFileSync(path.join(plan, 'v1', 'build-plan.md'), path.join(plan, 'v2', 'build-plan.md'));
+  const index = path.join(w.artifacts, 'index.json');
+  const listed = JSON.parse(fs.readFileSync(index, 'utf8'));
+  const entry = listed.artifacts.find((one) => one.type === 'build-plan');
+  entry.versions.push({ ...entry.versions.at(-1), id: 'av_bp2', number: 2 });
+  entry.newest_version = 2;
+  fs.writeFileSync(index, JSON.stringify(listed));
+  const pushes = () => logOf(w).filter((line) => line.startsWith('artifact push')).length;
+  const before = pushes();
+  const result = call('changes');
+  assert.equal(result.status, 0, result.out + result.err);
+  assert.deepEqual(result.lines, ['No criterion changed since acceptance-lock version 1.']);
+  assert.equal(pushes(), before);
+  const record = JSON.parse(fs.readFileSync(path.join(w.repo, '.qory', 'build', 'changes.json'),
+    'utf8'));
+  assert.equal(record.mode, 'none');
+});
+
+test('in change mode, the skill passes the writer the changed Tests criteria only and runs only their checks', () => {
+  const order = oneLine(section(WORKFLOW, 'The order of the run'));
+  says(order, 'In change mode (`changes` printed "Changes since"), the Tests criteria that ' +
+    'need a check are the ids of its line "Checks to write:"');
+  says(order, 'give the writer only the criteria of "Checks to write:" and the check paths of ' +
+    'their rows');
+  const run = oneLine(section(WORKFLOW, 'The run on the start commit'));
+  says(run, 'In change mode, run `<skill folder>/checks.cjs run locked <criterion>... ' +
+    '--inputs <inputs>` with the criteria of "Checks to write:" instead');
+  const drafting = oneLine(section(read(SOFTWARE, 'skills/writing-acceptance-checks/SKILL.md'),
+    'The draft in change mode'));
+  says(drafting, 'Copy the `checks` entry of each other criterion');
+  says(drafting, 'Leave out the `checks` entry of each criterion on "Checks to drop:".');
+});
+
 // ---- The lock refusal ----------------------------------------------------------------------
 
 test('lock refuses a lock with no check of a criterion planned as Tests, and names it', () => {
@@ -719,8 +771,8 @@ test('a check judged wrong 2 times goes to a member, with the check, criterion a
     'starts with a header line" must fail before the build changes code, and in two runs it did ' +
     'not fail with a failed test. The first run: it passed. The second run: it passed. ' +
     'Build does not start until you pick.');
-  assert.equal(question.options[0].title, 'Upload the acceptance criteria you accept as a new ' +
-    'version, so that the next round writes a new check for this criterion.');
+  assert.equal(question.options[0].title, 'Write the change of this criterion in a request ' +
+    'for changes, so that the next round writes a new check for it.');
   assert.equal(question.options[1].title,
     'Keep the locked check, and let the build go on with it.');
   // The question passes the questions check, and its point the points check.
@@ -1184,4 +1236,56 @@ test('preflight: an app that does not start ends the session, and a draft counts
   const drafted = session(draft, { preflight: { browsers: [process.execPath], startMs: 5000 } });
   assert.equal(drafted('preflight', '--inputs', draft.inputs).lines[0],
     'End the session with points.json: the app did not start in the dev container.');
+});
+
+// ---- The question about a criterion that cannot be met (blocked-criterion) -----------------
+
+test('blocked-criterion: a Blocked: line of acceptance-check-writer on a criterion ends with its question and an answer point', () => {
+  const w = work();
+  const call = session(w);
+  begin(w, call);
+  const failures = section(WORKFLOW, 'Failures').replace(/\s+/g, ' ');
+  assert.ok(failures.includes('starts with `needs a change to criterion` ends the run as "A ' +
+    'blocked criterion" of `running-a-software-workflow` lists'), failures);
+  const [id, sentence] = CRITERIA[1];
+  const name = id.toUpperCase();
+  const quoted = `${name}, "${sentence.replace(/\.$/, '')}"`;
+  const blocked = report(w, 'acceptance-check-writer-1', `What you read:\n- a\n\nFiles:\n- none\n\nBlocked: needs a ` +
+    `change to criterion ${id}: The code has no such state.\n\nblocked\n`);
+  assert.equal(call('report', 'acceptance-check-writer', blocked).status, 0);
+  // With no points.json, the check at the end stops the session, as the test of
+  // blocked-criterion in checks.test.js shows: no review finds the stage unbuilt.
+  // A point with no question on the criterion fails.
+  const points = path.join(w.artifacts, 'points.json');
+  fs.writeFileSync(points, JSON.stringify([{ text: 'The run could not finish the step.',
+    action: 'run_again' }]));
+  const refused = call('check', 'points', points);
+  assert.equal(refused.status, 1, refused.out);
+  assert.equal(refused.lines[0], `Add an answer point for ${id}.`);
+  // The question of "A blocked criterion" and its answer point pass.
+  const question = { id: 'q1', question: `What do you want to do with ${quoted}?`,
+    about: { type: 'acceptance-criteria', name: 'main', item: id },
+    context: `**Why:** The code has no such state, so ${quoted} cannot be met.\n\n**Checked:** ` +
+      'The files of the plan, and the command of the suite, which exits with 0.',
+    options: [
+      { title: `Change ${quoted}`, proposal: 'The criterion with a state that the code has.',
+        explanation: 'The criterion reads as the proposed wording, and Build meets it.' },
+      { title: 'Make it met another way', explanation: 'Write in the note how.' },
+      { title: `Withdraw ${quoted}`,
+        explanation: `${quoted}, stays in the criteria, marked withdrawn by you.` },
+    ],
+    state: 'open', asked: { run: 1, at: T } };
+  const file = path.join(w.artifacts, 'questions.json');
+  fs.writeFileSync(file, JSON.stringify({ questions: [question] }));
+  const asked = call('check', 'questions', file);
+  assert.equal(asked.status, 0, asked.out);
+  // The same question with two answers fails.
+  fs.writeFileSync(file, JSON.stringify({ questions: [{ ...question,
+    options: question.options.slice(1) }] }));
+  assert.equal(call('check', 'questions', file).status, 1);
+  fs.writeFileSync(file, JSON.stringify({ questions: [question] }));
+  fs.writeFileSync(points, JSON.stringify([{ text: `${quoted}, cannot be met as approved: the ` +
+    'code has no such state.', action: 'answer', question: 'q1' }]));
+  const answered = call('check', 'points', points);
+  assert.equal(answered.status, 0, answered.out);
 });

@@ -7,6 +7,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -220,8 +221,8 @@ test('the example report of tamper-reviewer has a helper and a new skip mark, ea
 });
 
 test('each finding of the rule for the question about a criterion has a first line within 100', () => {
-  const lib = { MATRIX_RECORD: 'm', isObject: (v) => v !== null && typeof v === 'object' &&
-    !Array.isArray(v), short: (text) => text };
+  const lib = { blockedCriteria: () => new Map(), isObject: (v) => v !== null &&
+    typeof v === 'object' && !Array.isArray(v), short: (text) => text };
   const rule = require(path.join(FACTORY,
     'skills/running-a-software-workflow/lib/ac-question.cjs'))(lib);
   const who = `"${'x'.repeat(24)}"`;
@@ -309,7 +310,7 @@ const check = (criterion, state, extra = {}) => ({ criterion, path: `tests/${cri
 // folder. forge changes the local store after the copy, as an agent can, and down lists the
 // types that the fake qory cannot pull.
 function work({ records = [], ledger = null, evidence = {}, plugin = layout(), forge = null,
-  down = [] } = {}) {
+  down = [], served = null, lean = false } = {}) {
   const dir = next('work');
   fs.mkdirSync(dir, { recursive: true });
   const git = (...args) => childProcess.execFileSync('git', ['-C', dir, ...args]);
@@ -335,15 +336,26 @@ function work({ records = [], ledger = null, evidence = {}, plugin = layout(), f
     write(path.join(store, 'demo-evidence', scenario, 'v1', `${scenario}.json`), {
       scenario, commit, planned: 'film', evidence: 'film', verdict: 'passed', steps: [], ...doc });
   }
+  if (served) served(store);
   const server = next('server');
   fs.cpSync(store, server, { recursive: true });
+  // With lean, qory serves one folder, and a pull of acceptance-lock with no --version leaves
+  // out version 1, as the real pull fetches one version; --version <N> adds that version.
+  const lone = `${server}-lean`;
+  if (lean) {
+    fs.cpSync(server, lone, { recursive: true });
+    fs.rmSync(path.join(lone, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+  }
   const bin = next('bin');
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 case "$1 $2" in
 'artifact pull')
+  echo "$3 $4 $5" >> '${bin}.pulls'
   case "$3" in ${down.map((type) => `${type}) exit 1;;`).join(' ')} esac
-  echo '${server}'
+  ${lean ? `[ "$3 $4" = 'acceptance-lock --version' ] && cp -R '${server}/acceptance-lock/main/v'"$5" \
+    '${lone}/acceptance-lock/main/'
+  echo '${lone}'` : `echo '${server}'`}
   exit 0;;
 esac
 exit 1
@@ -597,6 +609,91 @@ test('matrix: a type that cannot be pulled gives no state to what rests on it, a
   assert.match(result.lines[0], /^Run `qory artifact pull acceptance-criteria`, then matrix again\./);
 });
 
+// answerServed adds to store, the folder of a work(), the store of the run API in which lock 1
+// locks version 1, a member answered a question about ac-4, the run's version 2 changes ac-4,
+// adds ac-5 and is linked to that answer, and lock 2, the approved one, locks version 2.
+function answerServed(store) {
+  const dir = (...names) => path.join(store, ...names);
+  const first = JSON.parse(fs.readFileSync(dir('acceptance-criteria', 'main', 'v1',
+    'acceptance-criteria.json'), 'utf8'));
+  const second = JSON.parse(JSON.stringify(first));
+  second.criteria.find((one) => one.id === 'ac-4').text += ' Within a day.';
+  second.criteria.push({ id: 'ac-5', text: 'The reply has a footer.', check: 'Tests' });
+  const hashes = (doc) => Object.fromEntries(doc.criteria.filter((one) => !one.removed)
+    .map((one) => [one.id, crypto.createHash('sha256')
+      .update(JSON.stringify([one.text, one.check])).digest('hex')]));
+  write(dir('acceptance-criteria', 'main', 'v2', 'acceptance-criteria.json'), second);
+  write(dir('acceptance-lock', 'main', 'v1', 'acceptance-lock.json'),
+    { criteria: { version: 1, sha256: hashes(first) }, checks: [] });
+  write(dir('acceptance-lock', 'main', 'v2', 'acceptance-lock.json'),
+    { criteria: { version: 2, sha256: hashes(second) }, checks: [] });
+  write(dir('questions', 'main', 'v1', 'questions.json'), { questions: [{ id: 'q-1',
+    question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main',
+      item: 'ac-4' }, state: 'answered',
+    answer: { option: 'A', by: { name: 'Sam Example' }, at: '2026-11-21T11:30:00Z' } }] });
+  const index = JSON.parse(fs.readFileSync(dir('index.json'), 'utf8'));
+  const entry = (id, number, at, more = {}) => ({ id, number, writer: { kind: 'run',
+    run_id: 'run_7c3k1' }, cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at,
+  files: [], approvals: [], ...more });
+  const of = (type) => index.artifacts.find((one) => one.type === type);
+  of('acceptance-criteria').versions.unshift(entry('av_ac2', 2, '2026-11-21T11:00:00Z',
+    { decision: 'an_1', decision_at: '2026-11-21T11:00:00Z' }));
+  of('acceptance-criteria').newest_version = 2;
+  const lock = of('acceptance-lock');
+  lock.versions.unshift(entry('av_lock2', 2, '2026-11-21T12:00:00Z'));
+  lock.newest_version = 2;
+  lock.approved_version = 'av_lock2';
+  index.artifacts.push({ type: 'questions', name: 'main', stage_id: 'st_6ns22c4pav',
+    approved_version: null, newest_version: 1, changed_after_approval: false,
+    versions: [entry('av_q1', 1, '2026-11-21T11:30:00Z')] });
+  write(dir('index.json'), index);
+}
+
+test('matrix: it pulls the lock, so a version that lock 2 locks is the criteria of the matrix', () => {
+  const wk = work({ served: answerServed, records: [{ lock: 2,
+    checks: [check('ac-4', 'green')] }] });
+  const result = call(wk, ['matrix', '--version', '2']);
+  assert.equal(result.status, 0, result.out + result.err);
+  // ac-5 is a criterion of version 2 only.
+  assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-5'));
+  const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock')) &&
+    pulls.some((line) => line.startsWith('questions')), pulls.join(','));
+  // A lock that cannot be pulled exits 3, as a criteria pull does.
+  const down = work({ served: answerServed, down: ['acceptance-lock'] });
+  const failed = call(down, ['matrix', '--version', '2']);
+  assert.equal(failed.status, 3, failed.out + failed.err);
+  assert.match(failed.lines[0], /^Run `qory artifact pull acceptance-lock`, then matrix again\./);
+});
+
+// laterServed adds to answerServed a criteria version 3, written before lock 2 and linked to the
+// same answer, which adds ac-6. Only lock 1 can bind it to the answer.
+function laterServed(store) {
+  answerServed(store);
+  const dir = (...names) => path.join(store, ...names);
+  const third = JSON.parse(fs.readFileSync(dir('acceptance-criteria', 'main', 'v2',
+    'acceptance-criteria.json'), 'utf8'));
+  third.criteria.push({ id: 'ac-6', text: 'The reply has a header.', check: 'Tests' });
+  write(dir('acceptance-criteria', 'main', 'v3', 'acceptance-criteria.json'), third);
+  const index = JSON.parse(fs.readFileSync(dir('index.json'), 'utf8'));
+  const criteria = index.artifacts.find((one) => one.type === 'acceptance-criteria');
+  criteria.versions.unshift({ ...criteria.versions[0], id: 'av_ac3', number: 3,
+    at: '2026-11-21T11:30:00Z', decision_at: '2026-11-21T11:30:00Z' });
+  criteria.newest_version = 3;
+  write(dir('index.json'), index);
+}
+
+test('matrix: it pulls the lock before a version that an answer links, by its number', () => {
+  const wk = work({ served: laterServed, lean: true,
+    records: [{ lock: 2, checks: [check('ac-4', 'green')] }] });
+  const result = call(wk, ['matrix', '--version', '2']);
+  assert.equal(result.status, 0, result.out + result.err);
+  // Version 3 is the target, because lock 1 binds its answer, so ac-6 is a criterion.
+  assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-6'));
+  const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock --version 1')), pulls.join(','));
+});
+
 test('matrix: it refuses a lock version that is not the approved one', () => {
   const wk = work({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
   const other = call(wk, ['matrix', '--version', '2']);
@@ -656,7 +753,7 @@ test('the skill has its name, a description, its sections and short lines', () =
     /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
   let at = -1;
   for (const heading of ['## What the session writes', '## The order of the run',
-    '## The reviewers', '## The round', '## The walkthrough', '## The questions', '## The end',
+    '## The reviewers', '## The round', '## The walkthrough', '## The end',
     '## Failures']) {
     const place = WORKFLOW.indexOf(`\n${heading}\n`);
     assert.ok(place > at, `${heading} is missing or out of order`);
@@ -682,8 +779,7 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
     '7. Read the demo evidence of the run',
     '8. Run `<skill folder>/checks.cjs check verification <folder>/verification.json`',
     '9. Do "The reviewers", then "The round".', '10. Push the draft',
-    '11. Take the time of the version',
-    '12. Do "The walkthrough", then "The questions", then "The end".');
+    '11. Do "The walkthrough", then "The end".');
   // The only command that runs lock --verify has --version <N>.
   const runs = oneLine(steps).match(/`<skill folder>\/checks\.cjs lock --verify[^`]*`/g);
   assert.deepEqual(runs, ['`<skill folder>/checks.cjs lock --verify --version <N>`']);
@@ -707,7 +803,7 @@ test('the skill runs the calls in order and verifies the lock at the approved ve
   // The version of a demo evidence is D, and N stays the version of the lock.
   assert.ok(flat.includes('demo-evidence/<name>/v<D>/<name>.json'));
   assert.ok(!flat.includes('v<N>/<name>.json'));
-  // The matrix is pushed for each verdict that step 12 records; an end before step 10 pushes
+  // The matrix is pushed for each verdict that step 11 records; an end before step 10 pushes
   // nothing.
   assert.ok(flat.includes('A run that ends before this step pushes nothing: each `run_again` ' +
     'end, the `changes-requested` end of step 4 and each end as "Failures" lists.'));
@@ -749,34 +845,29 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.doesNotMatch(WORKFLOW,
     /submission-writer|QORY_SUBMISSION_HANDOFF|report-build|pull-request\.json/);
   assert.doesNotMatch(WORKFLOW, /qory\.outbox|<outbox>/);
-  assert.ok(oneLine(WORKFLOW).includes('Push only `verification`, `walkthrough` and ' +
-    '`questions`.'));
+  assert.ok(oneLine(WORKFLOW).includes('Push only `verification` and `walkthrough`.'));
   assert.ok(oneLine(WORKFLOW).includes('Start no agent that is not one of the two reviewers or ' +
     'one of the two walkthrough agents.'));
 });
 
-test('the skill asks one question for each criterion that is not met, with three answers', () => {
-  const questions = oneLine(section(WORKFLOW, 'The questions'));
-  assert.ok(questions.includes('Ask one question for each row of `<folder>/verification.json` ' +
-    'whose `state` is `not_met`.'));
-  for (const title of ['`Change AC-3, "<first sentence>"`, with `proposal`',
-    '`Make it met another way`', '`Withdraw AC-3, "<first sentence>"`']) {
-    assert.ok(questions.includes(title), title);
+test('the skill asks no question: a criterion that is not met makes the verdict changes-requested', () => {
+  // A question about a criterion comes from Build, as "A blocked criterion" of
+  // running-a-software-workflow lists, and the tests of blocked-criterion cover it.
+  assert.ok(!WORKFLOW.includes('## The questions'));
+  for (const text of ['questions.json', 'artifact push questions', 'Change AC-',
+    'Make it met another way', 'leaves the acceptance criteria', 'Take the time of the version']) {
+    assert.ok(!WORKFLOW.includes(text), text);
   }
-  assert.ok(questions.includes('Quote a criterion in each text of a question as its id in ' +
-    'capitals, a comma, a space and its first sentence in double quotes'));
-  assert.ok(questions.includes('When `work-item show` gave no `run.number`, write no question.'));
-  assert.ok(questions.includes('The first starts `**Why:**`'));
-  assert.ok(questions.includes('The second starts `**Checked:**`'));
-  assert.ok(questions.includes('Apiary adds a fourth answer that the person writes, so write ' +
-    'no option for it.'));
+  assert.ok(oneLine(section(WORKFLOW, 'The end')).includes('`changes-requested`, when any of ' +
+    'them fails: a criterion is not met or not verified'));
+  assert.match(frontOf(WORKFLOW), /push the walkthrough, and record passed or changes-requested\./);
 });
 
 test('the stack lists verify-a-ticket with write-no-push and the group verify-reviewers', () => {
   const stack = fs.readFileSync(path.join(__dirname, '../stacks/software/qory-stack.yaml'), 'utf8');
   assert.match(stack, new RegExp('\\n {2}verify-a-ticket: \\{tier: thinking, ' +
     'access: write-no-push, review_group: verify-reviewers\\}\\n'));
-  // The entry sets no plan: Verify pushes the matrix and its questions, and no code.
+  // The entry sets no plan: Verify pushes the matrix and the walkthrough, and no code.
   assert.doesNotMatch(stack, /verify-a-ticket:[^\n]*plan:/);
   const manifest = read('qory-module.yaml');
   assert.ok(manifest.includes('verify-reviewers: [tamper-reviewer, verification-reviewer]'));
@@ -833,7 +924,7 @@ test('the skill makes the walkthrough after the verification and before the verd
     assert.ok(steps.includes(`"${reason}"`), reason);
   }
   assert.ok(steps.includes('A step that says "keep the reason" ends this section: go to ' +
-    '"The questions", and push no walkthrough.'));
+    '"The end", and push no walkthrough.'));
   // The end line has one more line for a reason, in "The end", and "The round" has no
   // walkthrough.
   assert.ok(oneLine(section(WORKFLOW, 'The end')).includes('End with one line, and a second ' +
@@ -948,39 +1039,17 @@ test('a session: a reviewer with no report is one blocking finding of that revie
     'verification-reviewer wrote no report.');
 });
 
-test('a session: a failed check is not met, and the question for it passes its check', () => {
+test('a session: a failed check is not met, and the matrix writes no question', () => {
   const wk = sessionOf({ records: [{ state: 'red', checks: [check('ac-4', 'red')] }],
     evidence: DEMO_1 });
+  const file = path.join(wk.store, 'questions.json');
+  const before = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
   const wrote = matrix(wk);
   assert.equal(wrote.status, 0);
   assert.match(wrote.lines.at(-1), /: 3 met, 1 not met, 0 not verified\.$/);
-  const quoted = 'AC-4, "Each customer who got the reply with the old hours receives a ' +
-    'corrected reply that lists the new hours."';
-  const question = { id: 'q1', question: `What do you want to do with ${quoted}?`,
-    about: { type: 'acceptance-criteria', name: 'main', item: 'ac-4' },
-    context: `**Why:** The locked check of ${quoted} exits 1, because one of its 2 tests ` +
-      'fails.\n\n**Checked:** `tests/ac-4.test.js` ran on the commit under review: exit 1, ' +
-      '1 of 2 tests failed.',
-    options: [
-      { title: 'Make it met another way', recommended: true,
-        explanation: 'The work item returns to Build, which fixes the code under test.' },
-      { title: `Change ${quoted}`,
-        explanation: 'The criterion states what the check can show.',
-        proposal: 'Each customer who got the reply with the old hours receives a corrected ' +
-          'reply within one day.' },
-      { title: `Withdraw ${quoted}`,
-        explanation: 'The criterion leaves the acceptance criteria.' }],
-    state: 'open', asked: { run: 1, at: '2026-11-22T10:00:00Z' } };
-  const file = path.join(wk.store, 'questions.json');
-  write(file, { questions: [question] });
-  const checked = call(wk, ['check', 'questions', file]);
-  assert.equal(checked.status, 0, checked.out + checked.err);
-  // The same question with two answers is refused.
-  write(file, { questions: [{ ...question, options: question.options.slice(0, 2) }] });
-  const refused = call(wk, ['check', 'questions', file]);
-  assert.equal(refused.status, 1, refused.out + refused.err);
-  assert.match(refused.out,
-    /Give .* 3 options: Change AC-N, Make it met another way and Withdraw AC-N/);
+  assert.equal(recordOf(wk).matrix.find((row) => row.criterion === 'ac-4')?.state, 'not_met',
+    JSON.stringify(recordOf(wk).matrix));
+  assert.equal(fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null, before);
 });
 
 // ---- Scripted sessions of the walkthrough step ----------------------------------------------------

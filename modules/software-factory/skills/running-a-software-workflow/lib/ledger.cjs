@@ -204,8 +204,10 @@ module.exports = (lib) => {
   }
 
   // lockSha returns { sha, problems } of the lock of text: the SHA-256 of its content with no
-  // commit and with the sha256 of each listed file from the working folder, so that it is the
-  // same before and after freeze and lock, and the findings of a text or a file with no hash.
+  // commit, no `/criteria/sha256` and no `criterion_sha256` of a check (the members that `lock`
+  // fills from the criteria), and with the sha256 of each listed file from the working folder,
+  // so that it is the same before and after freeze and lock, and the findings of a text or a
+  // file with no hash.
   function lockSha(io, text) {
     const { lockType, fill } = lib.lockReader;
     let data;
@@ -216,7 +218,13 @@ module.exports = (lib) => {
       return { sha: null, problems: [error.message] };
     }
     const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
-    if (isObject(data)) delete data.commit;
+    if (isObject(data)) {
+      delete data.commit;
+      if (isObject(data.criteria)) delete data.criteria[lib.CRITERIA_HASHES];
+      if (Array.isArray(data.checks)) {
+        for (const check of data.checks.filter(isObject)) delete check.criterion_sha256;
+      }
+    }
     return { sha: sha256(JSON.stringify(sorted(data))), problems };
   }
 

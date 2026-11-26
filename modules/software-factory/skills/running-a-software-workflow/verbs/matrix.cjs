@@ -41,7 +41,7 @@ function familyOf(id) {
 module.exports = (lib) => {
   const { pull } = lib.lockReader;
   const { Context, MATRIX_RECORD, Missing, agentModel, approvedNumber, artifactFolder, cut,
-    isObject, liveCriteria, parseJson, plainLine, plural, writeJson } = lib;
+    isObject, liveCriteria, liveLocks, lockDoc, parseJson, plainLine, plural, writeJson } = lib;
 
   // families returns the families of the models of Build's ledger, in the newest
   // version of build-ledger of context, and of the agents of Verify, once each. With no
@@ -177,6 +177,22 @@ module.exports = (lib) => {
         return null;
       }
     };
+    // The target of the criteria reads the locks and the answered questions beside the
+    // criteria, so they are pulled too; a pull of the lock that fails exits 3. A plain pull
+    // fetches one version of the lock (the approved one, or the newest), so each other live
+    // lock of index.json that the store lacks is pulled by its number: the target compares an
+    // answer with the lock before the version.
+    // shortcut: it pulls every live lock, one call each; replace it when a pull takes a list.
+    const locks = new Context(pull(io, 'acceptance-lock', null, 'matrix'), 'check', io.home);
+    for (const one of liveLocks(locks)) {
+      if (lockDoc(locks, one.number) === null) pull(io, 'acceptance-lock', one.number, 'matrix');
+    }
+    try {
+      pull(io, 'questions', null, 'matrix');
+    } catch (error) {
+      // A work item may have no questions, and then there is nothing to pull.
+      if (!(error instanceof Missing)) throw error;
+    }
     const context = pulled('acceptance-criteria', true);
     const finds = [];
     const probe = { context, did() {}, find: (line) => finds.push(line) };

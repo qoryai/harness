@@ -415,8 +415,7 @@ agents and the settings for a run of those workflows:
   at the version that a member approved, runs `run locked` and `matrix --version <N>`,
   starts `tamper-reviewer` and `verification-reviewer` in turn, and decides the round with
   `checks.cjs findings round`, which takes `--suite` only when qory writes a suite result.
-  It pushes the verification, asks one question for each criterion that is not met, with
-  the answers `Change AC-N`, `Make it met another way` and `Withdraw AC-N`, and records
+  It pushes the verification and the walkthrough, asks no question, and records
   `passed` only when every criterion is met, no scenario of the commit has a failed
   verdict and no finding is blocking. Verify's stage in `process.yaml` runs no workflow
   yet, and qory does not write `qory.review_session` yet.

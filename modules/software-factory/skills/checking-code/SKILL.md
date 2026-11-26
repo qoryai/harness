@@ -38,7 +38,9 @@ out: its reviewer writes it. The review of the code never judges whether a chang
 for. When a bug also breaks a criterion, write the cause in the code: the review of the
 acceptance writes the criterion that is not met. When the change skips, deletes or loosens
 a failing test, write the bug in the code under that test: the review of the tests writes
-that test.
+that test. Where the spec and a newer criterion differ, the criterion applies: code that
+follows the criterion and not the spec is no bug, because a change from a person's feedback
+changes the criteria and leaves the spec as it was.
 
 ## Earlier findings
 

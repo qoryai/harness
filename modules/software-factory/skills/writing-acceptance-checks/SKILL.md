@@ -20,7 +20,9 @@ the largest `<N>`, and the newest approved acceptance criteria. A check path is 
 path with no space and no `.` or `..` part, whose file name has an extension, such as
 `tests/export.test.ts`; `n/a`, `none`, `-`, `TBD` and a scenario id are none. Each row of
 `## Deliverables` whose Check is a check path has one check: the file at that path. Its
-criteria are the ones of the Criteria cell of that row.
+criteria are the ones of the Criteria cell of that row. Where the spec and a newer criterion
+differ, the criterion applies: a change from a person's feedback changes the criteria and
+leaves the spec as it was.
 
 The check scope of a row is its Check path, and each folder of its Files that is the first
 folder of the Check path or lies below it (`src/` and `src/test/resources/` for
@@ -124,7 +126,27 @@ Write `acceptance-lock.json` at the top of the artifact folder, as JSON in this 
 - `checks`: one entry for each criterion planned as `Tests`, in the order of the criteria.
   `failed_with` is the exit of the last run of that check.
 - `support`: each support file. Leave `support` out when there is none.
-- Write no `sha256` and no `repository`: the lock fills each `sha256`.
+- Write no `sha256`, no `criterion_sha256`, no `/criteria/sha256` and no `repository`: the
+  lock fills each `sha256`, each `criterion_sha256` and `/criteria/sha256`.
+
+## The draft in change mode
+
+When you get the lines "Changed:", "Added:", "Removed:" or "Checks to drop:", a member changed
+those criteria since the newest acceptance lock, and you write checks for the criteria of
+"Checks to write:" only. Start the draft from the newest lock in
+`<folder>/acceptance-lock/main/v<N>/acceptance-lock.json`:
+
+- Set `criteria.version`, `start_commit` and `commit` as the draft above lists them.
+- Copy the `checks` entry of each other criterion, with its `criterion`, `path`, `command`
+  and `failed_with`, as it is. Run none of these checks again. Copy each `support` entry
+  that one of these checks still needs, with its `path`.
+- Leave out the `checks` entry of each criterion on "Checks to drop:".
+- For each criterion of "Checks to write:", write the check as the sections above list it,
+  and add its entry. You may rewrite a file that the newest lock lists as the check of
+  these criteria alone, at its path. A helper that another check imports keeps its path and
+  its content: for a helper that must change, add a new file at a new path.
+
+Your report lists under "Checks:" the entries that you wrote.
 
 When you get a line of `scope` or `lock`, change only the file or the field that the line is
 about. A line that sets `/criteria/version` contains the version to write.

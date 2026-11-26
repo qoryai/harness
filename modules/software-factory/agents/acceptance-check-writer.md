@@ -77,6 +77,11 @@ the line "Further repositories: yes" or "no", the path of each check, and any fi
 line of a check to fix. Read what the pull wrote, never the memory of an earlier session. A
 refused tool call stays refused. Read through no link, and fetch no web page.
 
+When you get the lines "Changed:", "Added:", "Removed:" or "Checks to drop:", write checks
+only for the criteria that you are given, and start the draft from the newest acceptance lock,
+as "The draft in change mode" of `writing-acceptance-checks` lists. List under "Checks:"
+the entries that you wrote.
+
 When you start again, change only the checks and the lines of the draft that the findings or
 the lines are about, and repeat the lists of your newest report, changed for this start.
 
@@ -125,8 +130,8 @@ Blocked: <what you tried, why it failed, and the state it left>
 ```
 
 List under "Files:" every file you wrote, `acceptance-lock.json` included. List under
-"Checks:" one item per entry of `checks` in the draft, in its order, with the record of the
-last run of that check and the first line that the run printed for it. Leave out
+"Checks:" one item per entry of `checks` in the draft that you wrote, in its order, with the
+record of the last run of that check and the first line that the run printed for it. Leave out
 "Checks:" when you report `blocked`. Only `blocked` has one "Blocked:" line, in one of these
 seven forms. The last line is one word. Put any other line, such as a list of sources,
 before the last line.

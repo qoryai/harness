@@ -22,7 +22,9 @@ document" of `reviewing-drafts`, with its parts, pictures and word limit. The re
 
 1. Before you read the plan, list what the person's words ask: the ticket, the notes, a
    person's word that a fact or finding quotes, and the newest approved acceptance
-   criteria. A quote that differs from its source is a finding.
+   criteria. A quote that differs from its source is a finding. Where the spec and a newer
+   criterion differ, the criterion applies, and a plan that follows the criterion needs no
+   finding: a change from a person's feedback changes the criteria and leaves the spec.
 2. Each criterion that is not removed is in a row whose Check fits the criterion's
    `check`: a test file path for `Tests`, a scenario id for `Demo`. A row that lists
    criteria of two checks is a finding, because its Check has one value.

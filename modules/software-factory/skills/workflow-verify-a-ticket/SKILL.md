@@ -1,6 +1,6 @@
 ---
 name: workflow-verify-a-ticket
-description: Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, write, check, review and push the walkthrough, ask one question for each criterion that is not met, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket.
+description: Verify the change of a Build run as a review session: verify the acceptance lock, run the locked checks, write the verification matrix from their records with the matrix verb, start tamper-reviewer and verification-reviewer, each of which writes one report into the report folder, decide the round from the reports, push the verification, write, check, review and push the walkthrough, and record passed or changes-requested. Use in a headless run of the workflow verify-a-ticket.
 ---
 
 # Verify a ticket
@@ -36,11 +36,10 @@ Write nothing in the checkout: Verify changes no file of the change. The files a
 - `<reports>/<agent>.json`, the report of each reviewer, which only that reviewer writes;
 - `<folder>/verification.json` and `<folder>/.reports/matrix-record.json`, which `matrix`
   writes, so that no agent types a state;
-- `<folder>/walkthrough.md`, which only walkthrough-writer writes, in step 12;
-- `<folder>/questions.json`, which you write in step 12;
+- `<folder>/walkthrough.md`, which only walkthrough-writer writes, in step 11;
 - the other files under `<folder>/.reports/` that the checks script writes.
 
-Push only `verification`, `walkthrough` and `questions`. Write `points.json` in `<folder>`
+Push only `verification` and `walkthrough`. Write `points.json` in `<folder>`
 only for an end through "Points" of `running-a-workflow`, and write no outbox file, no build
 report and no submission text. Start no agent that is not one of the two reviewers or one of
 the two walkthrough agents.
@@ -109,13 +108,12 @@ the two walkthrough agents.
     `<skill folder>/versions.cjs compare verification <V> <folder>/verification.json`,
     where `<V>` is the `newest_version` of `verification` in `<folder>/index.json`, and push
     when it exits with a status other than 0 or the type has no version. Push the matrix
-    for each verdict that step 12 records, so that the members read what the verdict rests
+    for each verdict that step 11 records, so that the members read what the verdict rests
     on. A run that ends before this step pushes nothing: each `run_again` end, the
     `changes-requested` end of step 4 and each end as "Failures" lists. When the push is
     still refused after the third attempt, end with "The run could not push its
     verification." and record no verdict.
-11. Take the time of the version, as "The time of a version" of `run-artifacts` lists.
-12. Do "The walkthrough", then "The questions", then "The end".
+11. Do "The walkthrough", then "The end".
 
 ## The reviewers
 
@@ -156,7 +154,7 @@ The walkthrough guides a member through the change before the member approves it
 blocks nothing: it changes no verdict, and the verdict stays the last command of the run.
 Its two agents load the skills for its layout. No stage requires it.
 
-A step that says "keep the reason" ends this section: go to "The questions", and push no
+A step that says "keep the reason" ends this section: go to "The end", and push no
 walkthrough. "The end" adds one line that shows the reason. Round 1 is the first
 write of `walkthrough.md`, round 2 the write after the findings of round 1, and the removal
 is the write after the findings of round 2.
@@ -201,62 +199,10 @@ is the write after the findings of round 2.
      after the removal".
 7. Push the walkthrough with `<qory> artifact push walkthrough <folder>/walkthrough.md`.
    When the push is still refused after the third attempt, keep the reason "the push was
-   refused 3 times". Go on to "The questions" in either case: a refused push ends nothing.
+   refused 3 times". Go on to "The end" in either case: a refused push ends nothing.
 
 A reviewer finding never enters "The round", the verdict or the findings ledger. Start no
-agent of this section after "The questions" begins.
-
-## The questions
-
-Ask one question for each row of `<folder>/verification.json` whose `state` is `not_met`.
-Read the file with the file tool of your runtime. A criterion in `not_verified` gets no
-question, and the verdict is `changes-requested` for it.
-
-Leave out a criterion that has an open question in the newest `questions` with `about.item`
-set to its id in lower case, such as `ac-3`. With no row left, write no file and skip the
-push of the questions.
-
-Quote a criterion in each text of a question as its id in capitals, a comma, a space and
-its first sentence in double quotes, with the words of the criterion and no other:
-`AC-3, "<first sentence>"`. An id with no words is wrong, and the check refuses it.
-
-Write the whole document in `<folder>/questions.json` at the top of the artifact folder.
-Start from the newest `questions` version, `<folder>/questions/main/v<V>/questions.json`, or
-from `{"questions": []}` when the type has no version. Keep every question that exists, in
-its order, with all its members as they are, and add each new question at the end, with the
-time of step 11 as `at` and these members:
-
-- `id`: `q` and a number above every id in the document.
-- `question`: one sentence of at most 500 characters that asks what to do with the
-  criterion, quoted as above.
-- `state`: `open`.
-- `asked`: `{"run": <run.number>, "at": <the time>}`. When `work-item show` gave no
-  `run.number`, write no question.
-- `about`: `{"type": "acceptance-criteria", "name": "main", "item": "ac-3"}`, with the id of
-  the criterion in lower case.
-- `context`: two paragraphs. The first starts `**Why:**`, with the fact that the answer
-  depends on in its first sentence: why the criterion is not met. The second starts
-  `**Checked:**`, with what the row's `evidence` shows, and the check or the scenario. Write
-  no plain id: each criterion in the context is quoted the same way.
-- `options`: exactly three, each with a `title` and an `explanation` of at most 2
-  sentences. Mark the one that the evidence favours with `recommended: true`, and list it
-  first.
-  1. `Change AC-3, "<first sentence>"`, with `proposal`: the wording of the criterion that
-     the change can meet.
-  2. `Make it met another way`: the person's change to the work, which sends the work item
-     back to Build.
-  3. `Withdraw AC-3, "<first sentence>"`: the criterion leaves the acceptance criteria.
-
-  Apiary adds a fourth answer that the person writes, so write no option for it.
-
-Run `<skill folder>/checks.cjs check questions <folder>/questions.json`. With 1, fix the
-lines that the script prints, in the file, at most twice, then check again. When it still
-exits with 1 or exits 2 or 3, push nothing and end as "Failures" lists for a later step.
-Then push: `<qory> artifact push questions <folder>/questions.json`. When the push of the
-questions fails after the third attempt, end with "The run stopped after it pushed the
-verification, so its questions are missing." and record no verdict.
-
-An open question stops no verdict.
+agent of this section after "The end" begins.
 
 ## The end
 
