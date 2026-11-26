@@ -1259,7 +1259,7 @@ rule_front_matter() {
 		file=${file#./}
 		tr -d '\000' <"$1/$file" | cmp -s - "$1/$file" || continue
 		while IFS= read -r key; do
-			[ -z "$key" ] || add "Quote the value of $key in $file."
+			[ -z "$key" ] || add "Quote $key in $file."
 		done <<EOF
 $(front_matter "$1/$file" | awk "$PLAIN_AWK")
 EOF
@@ -2804,7 +2804,7 @@ while IFS= read -r case; do
 	fixture
 	front_with "${case#*|}"
 	expect_broken_first "rule 15 fails on ${case#*|}" \
-		"Quote the value of ${case%%|*} in modules/core/skills/sample/SKILL.md." \
+		"Quote ${case%%|*} in modules/core/skills/sample/SKILL.md." \
 		rule_front_matter "$FIX"
 done <<'EOF'
 description|description: a: b
@@ -2831,7 +2831,7 @@ EOF
 fixture
 front_with 'name: a: b' 'description: c: d'
 expect_broken "rule 15 states the reason once, after the findings" \
-	'Quote the value of description in modules/core/skills/sample/SKILL.md.' \
+	'Quote description in modules/core/skills/sample/SKILL.md.' \
 	rule_front_matter "$FIX"
 [ "$(printf '%s\n' "$OUT" | grep -c 'Use double quotes')" -eq 1 ] &&
 	printf '%s\n' "$OUT" | sed -n '$p' | grep -Fq 'write \" for each " and \\ for each \.' ||
@@ -2840,19 +2840,19 @@ expect_same_with_bom "rule 15 gives the same result after a byte order mark" "$S
 	rule_front_matter
 printf -- '---\r\nname: sample\r\ndescription: a: b\r\n---\r\n' >"$SKILL" || exit 1
 expect_broken_first "rule 15 fails on a plain value in CRLF front matter" \
-	'Quote the value of description in modules/core/skills/sample/SKILL.md.' \
+	'Quote description in modules/core/skills/sample/SKILL.md.' \
 	rule_front_matter "$FIX"
 fixture
 mkdir -p "$FIX/modules/core/prompts" || exit 1
 printf -- '---\ndescription: a: b\n---\n' >"$FIX/modules/core/prompts/x.prompt" || exit 1
 expect_broken_first "rule 15 fails on front matter in a file of any type" \
-	'Quote the value of description in modules/core/prompts/x.prompt.' rule_front_matter "$FIX"
+	'Quote description in modules/core/prompts/x.prompt.' rule_front_matter "$FIX"
 printf -- '---\ndescription: a: b\n---\n\000\n' >"$FIX/modules/core/prompts/x.prompt" || exit 1
 expect_passes "rule 15 skips a file with a NUL byte" rule_front_matter "$FIX"
 fixture
 printf -- '---\nname: page #1\n---\n\nText.\n' >"$FIX/docs/page.md" || exit 1
 expect_broken_first "rule 15 fails on a value of a page outside modules/" \
-	'Quote the value of name in docs/page.md.' rule_front_matter "$FIX"
+	'Quote name in docs/page.md.' rule_front_matter "$FIX"
 mkdir -p "$FIX/docs/other/.git" || exit 1
 mv "$FIX/docs/page.md" "$FIX/docs/other/page.md" || exit 1
 expect_passes "rule 15 skips a folder with a .git entry, another checkout" \

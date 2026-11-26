@@ -5705,9 +5705,8 @@ the rule passes on that file.
     and a comment. The rule reads an anchor or a tag before the value, and skips the lines
     of a block scalar, a flow value such as `paths: [...]` and a comment. It skips a folder
     below the root with a `.git` entry, which is another checkout such as a worktree, and a
-    file with a NUL byte. Each finding is "Quote the value of <key> in <path>.", and one
-    line after the findings states the reason and how to escape `"` and `\` in double
-    quotes.
+    file with a NUL byte. Each finding is "Quote <key> in <path>.", and one line after the
+    findings states the reason and how to escape `"` and `\` in double quotes.
 
 Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
