@@ -9993,8 +9993,8 @@ test('end: the header of a draft counts the findings that follow, and the lines 
     allowed: (name) => names.includes(name),
     check() { throw error; },
     verdict: () => ['Record the verdict again.'] });
-  const lines = (error) => endDrafts(root, tmp, [def(error)], { verdict: () => ({ verdict: 'passed' }) })
-    .map((one) => one.line);
+  const lines = (error) => endDrafts(root, tmp, [def(error)],
+    { verdict: () => ({ verdict: 'passed' }), place: { phraseFiles: [] } }).map((one) => one.line);
   const header = (count) => `Fix the ${count} findings of the acceptance-criteria draft in the ` +
     `lines after this one:\nThe acceptance-criteria draft has 6 files: ${names.join(', ')}.`;
   // A Missing with lines after its first line: they are no findings, but the cause of the

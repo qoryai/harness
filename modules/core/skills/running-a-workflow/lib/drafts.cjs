@@ -40,14 +40,19 @@ function draftFile(mode, root, file) {
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
 // set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
 // as a picture, the check reads no byte and checks no size: files maps its name to null.
-// place, when given, is { workingFolder, inputs, phraseFiles }: the working folder of the
-// check, the path of the run's inputs.json, from which Context.extensions reads the extensions,
-// and the reply-phrases.json files of the registry, which replyCheck reads with the core list
-// after def.check. With no phraseFiles, as for points.json, which is no type of the registry,
-// replyCheck does not run.
+// place is { workingFolder, inputs, phraseFiles }. workingFolder is the working folder of the
+// check. inputs is the path of the run's inputs.json, from which Context.extensions reads the
+// extensions. phraseFiles is the list of reply-phrases.json files of the registry, which
+// replyCheck reads with the core list after def.check. phraseFiles is null for points.json,
+// which is no type of the registry, and replyCheck then does not run. A call without
+// phraseFiles is a fault of the harness, so that no caller skips the phrases by mistake.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
   place = {}) {
   const { type } = def;
+  if (place.phraseFiles === undefined) {
+    throw new Error(`Fix the call of checkFiles for ${type}: give place.phraseFiles, or null ` +
+      'for a type that the registry does not have.');
+  }
   const context = new Context(root, mode, home, store, view);
   context.plugin = plugin;
   context.workingFolder = place.workingFolder || null;
@@ -91,7 +96,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     run.find(`Add ${mainFile} to the files: a ${type} version has it.`);
   } else {
     def.check(run, files);
-    if (place.phraseFiles) replyCheck(run, def, files, place.phraseFiles);
+    if (place.phraseFiles !== null) replyCheck(run, def, files, place.phraseFiles);
   }
   const names = [...files.keys()].join(', ') || 'no file';
   const note = run.note ? `; ${run.note}` : '';

@@ -194,6 +194,14 @@ test('outbox: the file of a type with schema null is checked as JSON, with no sc
   assert.match(typed.text, /^Pull the artifacts first\.\n\s+The check of review-comments /m);
 });
 
+test('outbox: a reply phrase in a string of a file of a module type is a finding', () => {
+  const found = end(session([entry('pull-request', true)],
+    { 'pull-request': JSON.stringify({ title: 'As discussed, add export to CSV' }) }));
+  assert.equal(found.status, 1, found.text);
+  assert.match(found.text,
+    /^Remove "as discussed" from \/title of pull-request\.json and state the outcome\.$/m);
+});
+
 test('outbox: with no qory.outputs, an empty list or no inputs file, the check passes', () => {
   assert.equal(end(session(undefined)).status, 0);
   assert.equal(end(session([])).status, 0);

@@ -483,15 +483,26 @@ test('lock of core takes the working directory as the working folder, with no re
   assert.deepEqual(qory.calls(), [`artifact push notes-lock ${file}`]);
 });
 
-// notesLock runs lock on a notes-lock draft whose files are files, in a folder with notes.md.
-function notesLock(files) {
+test('lock finds a reply phrase in the draft, with and without a list of locked files', () => {
+  for (const files of [[{ path: 'notes.md' }], 'notes.md']) {
+    const result = notesLock(files, { note: 'As discussed, the note is locked.' });
+    exitsWith(result, 1);
+    assert.equal(result.lines[0],
+      'Remove "as discussed" from /note of notes-lock.json and state the outcome.');
+    assert.deepEqual(result.calls, []);
+  }
+});
+
+// notesLock runs lock on a notes-lock draft whose files are files, and with the members of more,
+// in a folder with notes.md.
+function notesLock(files, more = {}) {
   const { plugin, trusted } = notesPlugin();
   const work = next('plain');
   writeJson(path.join(work, 'notes.md'), 'a note\n');
   const root = next('notes');
   writeJson(path.join(root, 'index.json'), { artifacts: [] });
   const file = path.join(root, 'notes-lock.json');
-  writeJson(file, { files });
+  writeJson(file, { files, ...more });
   const qory = fakeQory();
   return { ...call({ cwd: work, artifacts: [root], plugin, trusted, env: qory.env },
     ['lock', file]), calls: qory.calls() };

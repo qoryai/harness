@@ -211,7 +211,8 @@ function verdict(io, points) {
 function endPoints(root, file, io) {
   let found;
   try {
-    found = checkFiles('check', root, pointsType, [file], io.home, io.plugin).findings;
+    found = checkFiles('check', root, pointsType, [file], io.home, io.plugin, root, null,
+      { phraseFiles: null }).findings;
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     // The lines of more are the cause of the message, on the lines after it.
