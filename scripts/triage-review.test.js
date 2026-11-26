@@ -1278,6 +1278,12 @@ test('the answer to a question about a criterion that Build cannot meet gets a p
   // A change of another criterion is no point of the pick.
   assert.deepEqual(linesOf(sortedAs(change, 'criterion-change', 'ac-3')),
     missing('criterion-change', 'ac-4', 'Change AC-4'));
+  // A question with no item in its about binds the pick to no criterion: no point of a pick.
+  const noItem = check({ ...answered('ac-4', change), points: [P1, P2, { ...P1, id: 'p3',
+    source: 'an_1', quote: change }] }, { notes: [GD1, note('an_1', 'answer', change)],
+  types: { questions: [{ data: { questions: [{ ...blocked({}), about: { type:
+    'acceptance-criteria', name: 'main' } }] } }] } });
+  assert.ok(!noItem.lines.some((line) => line.startsWith('Add a ')), noItem.out);
   // An answer that picks no such option, or a note with no option, needs no point of a pick.
   const other = blocked({ option: undefined, note: 'Keep it.' });
   const free = answered('ac-4', 'Keep it.');

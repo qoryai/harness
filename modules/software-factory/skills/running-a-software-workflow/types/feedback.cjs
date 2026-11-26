@@ -227,8 +227,7 @@ module.exports = (lib) => {
   function picks(run, data, before, asks) {
     for (const source of data.sources.slice(before.sources.length)) {
       const ask = asks.get(source.id);
-      const pick = ask && typeof ask.option === 'string' &&
-        PICKS.find((one) => one.title.test(ask.option));
+      const pick = ask && PICKS.find((one) => one.title.test(ask.option));
       if (!pick || typeof ask.item !== 'string') continue;
       const item = pick.sort === 'fix' ? undefined : ask.item;
       const sorted = data.points.slice(before.points.length).some((point) =>
