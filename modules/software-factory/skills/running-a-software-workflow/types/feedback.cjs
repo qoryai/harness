@@ -11,8 +11,9 @@ const { isDeepStrictEqual } = require('node:util');
 const { sizeLimit } = require('../lib/template.cjs');
 
 module.exports = (lib) => {
-  const { commentKey, criterionItems, jsonFile, kindOf, lists, pointQuestion, readableFeedback,
-    sentences, short, sourcesOf, storedFeedback, workItemNotes } = lib;
+  const { commentKey, criterionItems, jsonFile, kindOf, lists, pairingOrder, pointQuestion,
+    questionsOf, readableFeedback, sentences, short, sourcesOf, storedFeedback,
+    workItemNotes } = lib;
 
   const FILE = 'feedback.json';
   const POINT_ID = /^p[1-9][0-9]{0,2}$/;
@@ -36,8 +37,10 @@ module.exports = (lib) => {
     }
   }
 
-  // sources checks the ids and the kinds, and the new sources against the notes. In a check,
-  // each open note has a source.
+  // sources checks the ids and the kinds, and the new sources against the notes, in the order
+  // of `feedback open`, because a later check pairs equal answers in the stored order. In a
+  // check, each open note has a source. It returns the sources of the notes, or null when the notes
+  // cannot be read.
   function sources(run, data, before) {
     run.did('sources');
     const seen = new Set();
@@ -55,10 +58,10 @@ module.exports = (lib) => {
     const read = workItemNotes(run.context);
     if (read.why !== undefined) {
       run.note = 'the notes of the work item could not be read';
-      return;
+      return null;
     }
     run.did('notes of the work item');
-    const open = sourcesOf(read.notes, stored(run.context));
+    const open = sourcesOf(read.notes);
     const all = new Map(open.map((source) => [source.id, source]));
     for (const source of data.sources.slice(before.sources.length)) {
       const note = all.get(source.id);
@@ -69,13 +72,21 @@ module.exports = (lib) => {
           'from the note.');
       }
     }
-    if (run.context.mode !== 'check') return;
+    const added = new Set(data.sources.slice(before.sources.length).map((source) => source.id));
+    const order = open.filter((source) => added.has(source.id)).map((source) => source.id);
+    const written = [...added].filter((id) => all.has(id));
+    if (written.some((id, place) => id !== order[place])) {
+      run.find('Write the new sources in the order that `feedback open` prints them.\nThe ' +
+        `order is ${order.join(', ')}.`);
+    }
+    if (run.context.mode !== 'check') return open;
     for (const note of open) {
       if (!lists(data, note)) {
         run.find(`Add the source ${note.id} to ${FILE}.\nThe work item has that note, ` +
           'and no source has its id.');
       }
     }
+    return open;
   }
 
   // stored returns the questions of the newest version.
@@ -122,8 +133,27 @@ module.exports = (lib) => {
     }
   }
 
-  function points(run, data, before) {
+  // answered returns, for each source of an answer, its question: { id, item, note }, with item
+  // the item of its about and note the note beside the option, as questionsOf returns it. It
+  // pairs the sources in the order of `feedback open`: those of before, then those of open,
+  // the sources of the notes; with no notes to read, those of data. Only an about of the
+  // criteria has an item of the form ac-N. A source whose question is not found has none.
+  function answered(run, data, before, open) {
+    const questions = stored(run.context);
+    const out = new Map();
+    const order = open ? pairingOrder(before, open) : data.sources;
+    for (const [source, { question, note }] of questionsOf(order, questions)) {
+      out.set(source, { id: question, item: questions.find((one) => one.id === question)
+        .about?.item, note });
+    }
+    return out;
+  }
+
+  function points(run, data, before, open) {
     run.did('points');
+    const asks = answered(run, data, before, open);
+    // beside returns the note that the person wrote beside the option of an answer source.
+    const beside = (source) => (asks.get(source.id) || {}).note;
     const byId = new Map(data.sources.map((source) => [source.id, source]));
     const fresh = data.points.slice(before.points.length);
     const items = fresh.some((point) => point.output === 'acceptance-criteria' && point.item)
@@ -140,9 +170,12 @@ module.exports = (lib) => {
       if (!source) {
         run.find(`Set the source of ${which} to the id of a source of ${FILE}.\nNone has the id ` +
           `${point.source}.`);
-      } else if (!source.text.includes(point.quote) || !point.quote.trim()) {
-        run.find(`Quote ${which} word for word from the text of its source.\nThe text of ` +
-          `${source.id} does not contain the quote.`);
+      } else if (!point.quote.trim() || ![source.text, beside(source)].some((text) =>
+        text !== undefined && text.includes(point.quote))) {
+        const note = beside(source) !== undefined;
+        run.find(`Quote ${which} word for word from the text of its source` +
+          `${note ? ' or the note of its answer' : ''}.\nThe text of ${source.id}` +
+          `${note ? ' and the note beside its option do' : ' does'} not contain the quote.`);
       }
       members(run, point, which, source);
       if (point.question !== undefined) {
@@ -157,6 +190,15 @@ module.exports = (lib) => {
       if (point.question !== undefined && old.has(point.question)) {
         run.find(`Set the question of ${which} to an id that no question has.\n` +
           `The newest questions have ${point.question}.`);
+      }
+      // An answer approves a change of the criterion that its question is about, and of no
+      // other: a member decides a change of another criterion in a question about it.
+      const ask = asks.get(point.source);
+      if (point.sort === 'criterion-change' && point.output === 'acceptance-criteria' &&
+        point.item && ask && ask.item !== point.item) {
+        run.find(`Set the sort of ${which} to question, about ${point.item}.\nIts source is ` +
+          `the answer to ${ask.id}, which is not about ${point.item}, so a member decides ` +
+          `that change in a question about ${point.item}.`);
       }
       if (items && point.output === 'acceptance-criteria' && point.item &&
         !items.has(point.item)) {
@@ -198,8 +240,8 @@ module.exports = (lib) => {
     if (!data) return;
     const before = storedFeedback(run.context);
     kept(run, data, before);
-    sources(run, data, before);
-    points(run, data, before);
+    const open = sources(run, data, before);
+    points(run, data, before, open);
   }
 
   // items is the reader of the ids of the points, which the questions check of core reads for

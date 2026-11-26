@@ -32,22 +32,10 @@ module.exports = (lib) => {
   // kindOf returns the kind of the source with id.
   const kindOf = (id) => KINDS[id.slice(0, 2)];
 
-  // isAnswer reports whether note, with no id, has the text and the time, to the second, of
-  // an answer in questions. The text of the note is the title of the option, else the note of
-  // the answer.
-  function isAnswer(note, questions) {
-    const second = (at) => Math.floor(Date.parse(at) / 1000);
-    return questions.some((question) => [question.answer,
-      ...(Array.isArray(question.history) ? question.history : [])].some((answer) =>
-      isObject(answer) && [answer.option, answer.note].includes(note.note) &&
-      second(answer.at) === second(note.at)));
-  }
-
   // sourcesOf returns the source of each note of notes, the list notes[] of `work-item show`,
-  // that a person wrote and that has a text, once each, oldest first. questions are the
-  // newest questions.
-  // shortcut: no answer to a question is a source yet; read it once each answer has an id.
-  function sourcesOf(notes, questions = []) {
+  // that a person wrote and that has a text, once each, oldest first. An answer to a question
+  // is a source with its id an_.
+  function sourcesOf(notes) {
     const out = new Map();
     for (const note of notes) {
       if (!isObject(note) || !WRITTEN.includes(note.kind) || typeof note.note !== 'string' ||
@@ -55,8 +43,7 @@ module.exports = (lib) => {
       const text = clean(note.note);
       const known = typeof note.id === 'string' && NOTE_ID.test(note.id);
       const id = known ? note.id : commentKey(note.at, text);
-      if (!text.trim() || kindOf(id) === 'answer') continue;
-      if (!known && note.kind === 'answer' && isAnswer(note, questions)) continue;
+      if (!text.trim()) continue;
       const name = isObject(note.by) && typeof note.by.name === 'string'
         ? clean(note.by.name).replace(/\s+/g, ' ').trim() : '';
       out.set(id, { kind: kindOf(id), id, at: note.at, ...(name ? { by: name } : {}), text });
@@ -64,8 +51,47 @@ module.exports = (lib) => {
     return [...out.values()];
   }
 
+  // questionsOf returns, for each source of an answer in sources, oldest first, { question,
+  // note }: question is the id of the question in questions, the objects of the newest
+  // questions, that has the answer: one whose answer, or an earlier answer in its history, has
+  // the text of the source and its time, to the second. A missing or unreadable time matches
+  // no source. The text of an answer note is the title of the option, else the note of the
+  // answer, so note is the note that the person wrote beside an option, when it is not blank.
+  // Each answer of a question pairs with one source. A source with no such question has none.
+  // shortcut: two answers with one time and one text pair with their questions in the order
+  // of the questions, which can differ from the order in which the person gave them; replace
+  // when a note has the id of its question.
+  function questionsOf(sources, questions) {
+    const second = (at) => Math.floor(Date.parse(at) / 1000);
+    const words = (answer) => [answer.option, answer.note].find((one) => typeof one === 'string');
+    const given = questions.filter((question) => typeof question.id === 'string')
+      .flatMap((question) => [question.answer,
+        ...(Array.isArray(question.history) ? question.history : [])]
+        .filter((answer) => isObject(answer) && words(answer))
+        .map((answer) => ({ id: question.id, at: second(answer.at), text: clean(words(answer)),
+          note: typeof answer.option === 'string' && typeof answer.note === 'string' &&
+            answer.note.trim() ? clean(answer.note) : undefined })));
+    const out = new Map();
+    for (const source of sources) {
+      if (source.kind !== 'answer') continue;
+      const place = given.findIndex((one) => one.text === source.text &&
+        one.at === second(source.at));
+      if (place < 0) continue;
+      const { id, note } = given[place];
+      out.set(source.id, { question: id, ...(note === undefined ? {} : { note }) });
+      given.splice(place, 1);
+    }
+    return out;
+  }
+
   // lists reports whether data, a feedback, has a source with the id of source.
   const lists = (data, source) => data.sources.some((one) => one.id === source.id);
+
+  // pairingOrder returns the sources in the order that questionsOf pairs them in, so that
+  // `feedback open` and the check of feedback pair equal answers alike: the sources of stored,
+  // the newest feedback, then each of open, the sources of the notes, that stored lacks.
+  const pairingOrder = (stored, open) => [...stored.sources,
+    ...open.filter((source) => !lists(stored, source))];
 
   // feedbackOf returns the JSON value of text when it has the two lists of a feedback, or null.
   function feedbackOf(text) {
@@ -173,6 +199,6 @@ module.exports = (lib) => {
     return finds;
   }
 
-  return { commentKey, kindOf, lists, pointQuestion, readableFeedback, sourcesOf, storedFeedback,
-    wordsOf };
+  return { commentKey, kindOf, lists, pairingOrder, pointQuestion, questionsOf, readableFeedback,
+    sourcesOf, storedFeedback, wordsOf };
 };
