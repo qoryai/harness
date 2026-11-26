@@ -1,6 +1,6 @@
 ---
 name: workflow-make-mockups
-description: Orchestrate the clickable mockup of one ticket: start the agents, decide on each finding, and push the result. Use in a headless run of the workflow make-mockups, or when a higher workflow's skill lists this one.
+description: "Orchestrate the clickable mockup of one ticket: start the agents, decide on each finding, and push the result. Use in a headless run of the workflow make-mockups, or when a higher workflow's skill lists this one."
 ---
 
 # Make mockups
