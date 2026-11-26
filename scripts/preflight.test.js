@@ -37,6 +37,16 @@ const { watch } = require('./first-line.js');
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+// harnessHome returns a new harness home whose inputs.json has the members of qory.
+const harnessHome = (qory) => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'home-'));
+  fs.writeFileSync(path.join(dir, 'inputs.json'), JSON.stringify({ qory }));
+  return dir;
+};
+// The harness home of the sign-in tests, which lists APP_SECRET, the password of the app, as a
+// run secret, so that the serve command gets it.
+const APP_HOME = harnessHome({ run_secret_names: ['APP_SECRET'] });
+
 // A browser of this machine for the sign-in tests: one that the preflight looks for, else the
 // Chrome of macOS.
 const BROWSER = findBrowser(process.env) ||
@@ -67,8 +77,9 @@ const p03Text = (names) => `The run could not sign in to the app with the values
   'in the workspace\'s variables.';
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
-// when the password is APP_PHRASE, and shows the form again when it is not. The name has no
-// word of a secret's name, such as SECRET: the serve command gets no such variable. /away
+// when the password is APP_SECRET, and shows the form again when it is not. The serve command
+// gets a variable whose name is that of a secret only when qory.run_secret_names lists it, as
+// in APP_HOME. /away
 // redirects to the form of another origin, the port OTHER_PORT, /link and /framed show a
 // link to it and a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done",
 // /popup posts the form to it in a new window, /popup-same opens /orders in a new window at
@@ -89,7 +100,7 @@ http.createServer((req, res) => {
     let body = '';
     req.on('data', (chunk) => { body += chunk; });
     req.on('end', () => {
-      if (new URLSearchParams(body).get('password') === process.env.APP_PHRASE) {
+      if (new URLSearchParams(body).get('password') === process.env.APP_SECRET) {
         res.writeHead(303, { Location: '/orders' });
         res.end();
       } else {
@@ -476,7 +487,8 @@ async function signIn(setup, value, more = {}) {
   const other = await freePort();
   const otherLog = path.join(here.dir, 'other.log');
   fs.writeFileSync(otherLog, '');
-  const env = { APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41', OTHER_PORT: String(other),
+  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME, OTHER_PORT: String(other),
     OTHER_LOG: otherLog, ...more };
   if (value !== undefined) env.DEMO_PASSWORD = value;
   else env.DEMO_PASSWORD = '';
@@ -571,7 +583,8 @@ const outsidePoint = (address, origin) => ({
 async function runSteps(actions, value) {
   const here = checkout();
   const port = await freePort();
-  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: value };
   const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env,
     preflight: { browsers: [BROWSER], startMs: 10000, actionMs: 3000, signedInMs: 3000,
@@ -833,6 +846,37 @@ test('preflight: the serve command gets no variable that a step of a demo script
   assert.equal(given.includes('DEMO_CODE'), false);
   assert.ok(given.includes('APP_NOTE'));
   assert.equal(await isFree(port), true);
+});
+
+// servedNames runs the preflight with APP_SECRET set and the members of qory in inputs.json,
+// and returns the names of the environment of the serve command.
+async function servedNames(qory) {
+  const here = checkout();
+  const port = await freePort();
+  const names = path.join(here.dir, 'names.json');
+  const done = run(here, { serve: { command: `node -e 'require("fs").writeFileSync(` +
+    `${JSON.stringify(names)}, JSON.stringify(Object.keys(process.env)))'; node app/server.cjs`,
+  url: `http://127.0.0.1:${port}/`, cwd: here.dir },
+  scripts: [script('scenario-1', [{ do: 'open', url: '/sign-in' }])] },
+  { browsers: [process.execPath], env: { APP_PORT: String(port), APP_SECRET: 'fake-value-0011',
+    QORY_HARNESS_HOME: harnessHome(qory) } });
+  assert.deepEqual(done.findings, []);
+  assert.equal(await isFree(port), true);
+  return JSON.parse(fs.readFileSync(names, 'utf8'));
+}
+
+test('preflight: the serve command gets a run secret of qory.run_secret_names', async () => {
+  assert.ok((await servedNames({ run_secret_names: ['APP_SECRET'] })).includes('APP_SECRET'));
+});
+
+test('preflight: a run secret on the credential list too does not reach the app', async () => {
+  const given = await servedNames({ run_secret_names: ['APP_SECRET'],
+    credential_variables: ['APP_SECRET'] });
+  assert.equal(given.includes('APP_SECRET'), false);
+});
+
+test('preflight: without qory.run_secret_names no secret name reaches the app', async () => {
+  assert.equal((await servedNames({})).includes('APP_SECRET'), false);
 });
 
 test('preflight: a FIFO or a symbolic link at the log of the serve command is replaced by a new file', async () => {
@@ -1278,13 +1322,8 @@ test('preflight: halt stops a child of the browser that keeps stderr open, and t
   }
 });
 
-test('preflight: a demo script that types a name of the credential list exits 3, and a bad entry too', () => {
-  const home = (list) => {
-    const dir = fs.mkdtempSync(path.join(tmp, 'home-'));
-    fs.writeFileSync(path.join(dir, 'inputs.json'),
-      JSON.stringify({ qory: { credential_variables: list } }));
-    return dir;
-  };
+test('preflight: a demo script that types a credential name exits 3, and a bad entry too', () => {
+  const home = (list) => harnessHome({ credential_variables: list });
   const here = checkout();
   const setup = [...SIGN_IN.slice(0, 2),
     { do: 'type', target: '#password', variable: 'ACME_HOST' }];
@@ -1298,8 +1337,8 @@ test('preflight: a demo script that types a name of the credential list exits 3,
   });
   assert.throws(() => run(here, parts, { browsers: [process.execPath],
     env: { QORY_HARNESS_HOME: home(['ACME_*', '*']) } }), (error) => {
-    assert.equal(error.message, 'Fix qory.credential_variables in inputs.json: "*" is no ' +
-      'variable name or prefix.');
+    assert.equal(error.message, 'Fix qory.credential_variables in inputs.json.');
+    assert.deepEqual(error.more, ['"*" is no variable name or prefix.']);
     return true;
   });
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1319,8 +1358,8 @@ test('preflight: a demo script that types a key of qory, of an agent or of a cod
     url: 'http://127.0.0.1:9/', cwd: here.dir }, scripts: [script('scenario-1', setup)] },
   { browsers: [process.execPath] }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
-    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of qory, of an ' +
-      'agent or of a code forge.',
+    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of the run\'s ' +
+      'credential list.',
     'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
     return true;
   });
@@ -1396,7 +1435,8 @@ test('demo run: a script that passes prints its sha256, and a step that fails ge
   assert.equal(childProcess.spawnSync('git', ['-C', here.dir, 'init', '-q']).status, 0);
   const port = await freePort();
   const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
-  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
@@ -1901,7 +1941,8 @@ async function filming(scripts) {
   pushed(here.root, scripts);
   const port = await freePort();
   const plan = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
-  const env = { ...process.env, APP_PORT: String(port), APP_PHRASE: 'parcel-blue-41',
+  const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };

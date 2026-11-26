@@ -1326,7 +1326,7 @@ const KIND = (name) => `a key of the shape ${name}`;
 // keyFile returns a harness home whose qory.key_shapes is k.json, with the shapes of shapes.
 const keyFile = (shapes) => harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes } });
 
-test('credential names: the floor matches a prefix and an exact name, and a list adds to it', () => {
+test('credential names: the floor and a list add prefixes and exact names', () => {
   // The floor: GEMINI_* is a prefix, GL_TOKEN an exact name.
   assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE'].map((name) =>
     secrets.runKey(name)), [true, true, false, false]);
@@ -1349,17 +1349,44 @@ test('credential names: the floor matches a prefix and an exact name, and a list
   assert.equal(secrets.runKey('VENDOR_SECRET', runLists.credentialNames({}, folders).names), true);
   fs.writeFileSync(path.join(modules, 'vendor', 'credential-variables.json'),
     JSON.stringify({ credential_variables: ['*'] }));
-  assert.deepEqual(runLists.credentialNames({}, folders),
-    { problem: 'Fix vendor/credential-variables.json: "*" is no variable name or prefix.' });
+  assert.deepEqual(runLists.credentialNames({}, folders), { problem:
+    ['Fix vendor/credential-variables.json.', '"*" is no variable name or prefix.'] });
+});
+
+test('credential names: a composed home adds the file of each module that it links', () => {
+  // qory links each module of the harness at $QORY_HARNESS_HOME/modules/<name>.
+  const source = path.join(tmp, `source-${++homes}`);
+  fs.mkdirSync(source);
+  fs.writeFileSync(path.join(source, 'credential-variables.json'),
+    JSON.stringify({ credential_variables: ['RUNTIME_*'] }));
+  const home = harnessHome({});
+  fs.mkdirSync(path.join(home, 'modules', 'core'), { recursive: true });
+  fs.symlinkSync(source, path.join(home, 'modules', 'runtime'));
+  const { names } = runLists.credentialNames({ QORY_HARNESS_HOME: home });
+  assert.equal(secrets.runKey('RUNTIME_KEY', names), true);
+  assert.equal(secrets.runKey('RUNTIME_KEY', runLists.credentialNames({}).names), false);
+  fs.writeFileSync(path.join(source, 'credential-variables.json'), '{');
+  assert.deepEqual(runLists.credentialNames({ QORY_HARNESS_HOME: home }), { problem:
+    ['Write runtime/credential-variables.json as {"credential_variables": [<name or prefix>, ' +
+      '...]}.'] });
 });
 
 test('credential names: an entry that is no name or prefix, such as *, is a problem', () => {
   for (const [entry, shown] of [['*', '"*"'], ['ACME-*', '"ACME-*"'], ['1_KEY', '"1_KEY"'],
     ['A*B', '"A*B"'], [42, '42']]) {
-    const env = { QORY_HARNESS_HOME: harnessHome({ credential_variables: ['ACME_*', entry] }) };
-    assert.deepEqual(runLists.credentialNames(env), { problem: 'Fix qory.credential_variables in ' +
-      `inputs.json: ${shown} is no variable name or prefix.` });
+    for (const field of ['credential_variables', 'run_secret_names']) {
+      const env = { QORY_HARNESS_HOME: harnessHome({ [field]: ['ACME_*', entry] }) };
+      const got = field === 'run_secret_names' ? runLists.runSecretNames(env)
+        : runLists.credentialNames(env);
+      assert.deepEqual(got, { problem: [`Fix qory.${field} in inputs.json.`,
+        `${shown} is no variable name or prefix.`] });
+    }
   }
+  // Without the field, no run secret is listed.
+  assert.deepEqual(runLists.runSecretNames({ QORY_HARNESS_HOME: harnessHome({}) }),
+    { names: null });
+  assert.deepEqual(runLists.runSecretNames({ QORY_HARNESS_HOME:
+    harnessHome({ run_secret_names: ['APP_SECRET'] }) }), { names: ['APP_SECRET'] });
 });
 
 test('key shapes: each default shape finds a token of min characters and none of min - 1', () => {
