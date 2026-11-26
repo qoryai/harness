@@ -4431,9 +4431,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   digits, so that no ref named like a short id takes its place. The scan catches keys
   committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
   find leaves HEAD and the index as they were, and its line shows the file, the line and the
-  kind of key, never the value: "the <name>" of its key shape, such as "the GitHub personal
-  access token". When the line would have more than 100 characters, it has "a key", and the
-  line after it has the kind. A commit message with a key is the step id alone. After the
+  kind of key, never the value: "a key of the shape <name>", such as "a key of the shape
+  github-personal-access-token". When the line would have more than 100 characters, it has
+  "a key", and the line after it is "The key has the shape <name>." A commit message with
+  a key is the step id alone. After the
   commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
   each session. The commits that qory pushes are, with a base, each commit since the base,
@@ -4446,24 +4447,31 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `running-a-software-workflow`, a copy of Forager's `contracts/forager/v1/key-shapes.json`
   with its schema in `key-shapes.schema.json`, and the shapes that the deployment adds. qory
   writes those in `$QORY_HARNESS_HOME/key-shapes.json` and sets `qory.key_shapes` of
-  `inputs.json` to the file name. The scan uses both lists; a shape of the file that equals
-  a default shape counts once. A file is `{"shapes": [...]}`, and each shape has `name`,
-  `prefix`, `alphabet`, `min` and `max`, and may have `any_case`, `blank` and `word_start`:
-  - the prefix, of printable ASCII without a space; `any_case` matches its ASCII letters in
-    either case;
+  `inputs.json` to the file name. The scan uses both lists. A file is `{"shapes": [...]}`
+  with at least 1 shape, and each shape has all of `name`, `prefix`, `any_case`, `blank`,
+  `alphabet`, `min` and `max`; it may have `word_start`, which is false when it is missing:
+  - the name, the id of the shape: 1 to 64 lower-case letters and digits in parts that
+    single hyphens join, such as `github-personal-access-token`;
+  - the prefix, 1 to 64 characters of printable ASCII without a space; `any_case` matches
+    its ASCII letters in either case;
   - `blank` requires 1 to 16 spaces or tabs after the prefix;
   - `word_start` requires that the prefix starts the text, or comes right after a byte that
     is no ASCII letter, digit or `_`, or right after the end of an escape: `\` and a
     letter, `\u` and 4 hex digits, `\x` and 2 hex digits, or `%` and 2 hex digits, such as
     `\n` or `%3D`; of the default shapes, only the generic `sk-` key has it;
-  - the alphabet, the exact bytes of the token: single characters and ranges such as `A-Z`,
-    where a `-` that starts no range is the character itself;
-  - `min` and `max`, the fewest and the most characters of the token that a find covers.
+  - the alphabet, the exact bytes of the token, of printable ASCII without a space: ranges
+    such as `A-Z` and single characters, where a `-` is the end of a range or the last
+    character, such as `A-Za-z0-9_-`;
+  - `min`, the fewest characters of the token, 8 to 4096, and `max`, the most that a find
+    covers, from `min` to 4096.
 
-  The names are unique, an alphabet has no range whose end comes before its start, and `min`
-  is at most `max`. `scripts/key-shapes.test.js` compares both copies with Forager's files,
-  at the Forager version that qory pins. When `qory.key_shapes` names a file that is
-  missing, cannot be read or breaks those rules, `scope` and `freeze` exit 3 before the
+  The rules of Forager's `mask.Merge` that the schema does not state hold too: each name is
+  used once and by no default shape; the default shapes and the file have at most 64 shapes
+  together; and `max` is at most 256 unless `blank` is true or a byte of the prefix is
+  outside the alphabet, since a prefix that can occur inside its token is slow to mask.
+  `scripts/key-shapes.test.js` compares both copies with Forager's files, byte for byte, at
+  the Forager version that qory pins. When `qory.key_shapes` names a file that is missing,
+  cannot be read or does not match those rules, `scope` and `freeze` exit 3 before the
   scan, and the end check of a session has a finding, both with the fix "Start the run
   again with qory, which writes key-shapes.json: the scan for keys cannot run." and the
   cause on the next line. When `inputs.json` has no `qory.key_shapes` and `QORY_RUN_ID` is
@@ -4527,9 +4535,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   of the credential list of the run, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY` or
   `GITHUB_TOKEN`, without each variable whose name contains TOKEN, SECRET, KEY, PASSWORD,
   PASSWD or CREDENTIAL, such as `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` or
-  `GOOGLE_APPLICATION_CREDENTIALS`, and without each variable that a `type` action of
-  a demo script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of
-  qory, it gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
+  `GOOGLE_APPLICATION_CREDENTIALS`, unless `qory.run_secret_names` lists it and the
+  credential list does not, and without each variable that a `type` action of a demo
+  script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of qory, it
+  gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
   secret of the run reaches `preflight` only as a placeholder of the gateway, so a
   variable that passes is a variable of the workspace or a placeholder. In a walled run on
   Linux, the command can still read the environment of the runner of the check in
@@ -4570,12 +4579,21 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `ANTHROPIC_*`, `CLAUDE_*`, `OPENAI_*`, `CODEX_*`, `GEMINI_*` and seven tokens of code
   forges; the file `credential-variables.json` in the folder of a module, where a module of
   a runtime or a vendor adds its names, read from the plugin folder and, when the plugin
-  folder is a module of the harness home, from each module beside it; and
-  `qory.credential_variables` of `inputs.json`, which qory writes with the names of the
+  folder is a module of the harness home, from each module beside it, and in a composed run
+  from each folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module;
+  and `qory.credential_variables` of `inputs.json`, which qory writes with the names of the
   runtime and those that the deployment adds. An entry is the exact name of a variable or a
   prefix that ends in `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no
-  entry. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json: <entry> is
-  no variable name or prefix.", or with the module's file in place of the member.
+  entry. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the
+  line "<entry> is no variable name or prefix.", or with "Fix
+  <module>/credential-variables.json." as the first line for the file of a module.
+
+  `qory.run_secret_names` of `inputs.json` lists the names of the run secrets that qory puts
+  in the environment of the run, with entries of the same form and the same check: "Fix
+  qory.run_secret_names in inputs.json." and the line of the entry. The `serve` command gets
+  a variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL only
+  when the list has its name and the credential list does not. Without the member, it gets
+  none of them.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
