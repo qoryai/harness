@@ -1,6 +1,6 @@
 ---
 name: workflow-triage-review
-description: Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, write each criterion change as a new version of the criteria or the scenarios linked to its source, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review.
+description: "Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, write each criterion change as a new version of the criteria or the scenarios linked to its source, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review."
 ---
 
 # Triage the review

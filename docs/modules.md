@@ -5726,11 +5726,22 @@ the rule passes on that file.
     from the agent to the skill, such as "Remove ${qory:skills/workflow-flow} from
     modules/m/skills/s1/references/more.md: agent a reaches it through a > s1 >
     workflow-flow".
+15. Each text file of the repository whose first line is `---`, in every module and folder,
+    has front matter that the rule reads as strict YAML reads it, as GitHub does. A plain
+    value, of a key or of a list item, has no `: `, no `:` and a tab, and no ` #` in it, no
+    `:` at its end, and does not start with `*`, `@`, `%`, a backtick, `,`, `]`, `}`, or
+    `-`, `?` or `:` and a space. A quoted value has no text after its closing quote, also
+    when it spans lines, and a block scalar header has only `|` or `>`, `-` or `+`, a digit
+    and a comment. The rule reads an anchor or a tag before the value, and skips the lines
+    of a block scalar, a flow value such as `paths: [...]` and a comment. It skips a folder
+    below the root with a `.git` entry, which is another checkout such as a worktree, and a
+    file with a NUL byte. Each finding is "Quote <key> in <path>.", and one line after the
+    findings states the reason and how to escape `"` and `\` in double quotes.
 
 Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
-read the same file without it.
+there. Rules 1 to 4, rule 8 and rule 15 read a file that starts with a UTF-8 byte order
+mark as they read the same file without it.
 
 The script also checks that the compose of the `software` stack writes `roles.json` with
 six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and

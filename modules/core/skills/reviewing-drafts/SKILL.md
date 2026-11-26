@@ -1,6 +1,6 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, how to check the sentence rules of simple-communication, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you.
+description: "Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, how to check the sentence rules of simple-communication, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you."
 ---
 
 # Reviewing drafts

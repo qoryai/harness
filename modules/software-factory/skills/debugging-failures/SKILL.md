@@ -1,6 +1,6 @@
 ---
 name: debugging-failures
-description: Load before you look for the cause of a check that stays red after two changes of a build step. Contains what you get, how you find the cause from the records of the checks, how you prove it, the fix of the cause, and the line Cause: of your report.
+description: "Load before you look for the cause of a check that stays red after two changes of a build step. Contains what you get, how you find the cause from the records of the checks, how you prove it, the fix of the cause, and the line Cause: of your report."
 ---
 
 # Debugging failures
