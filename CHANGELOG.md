@@ -122,11 +122,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   asked at or after the time of the source, and a ripple point for each criterion checked by
   `Demo` that a linked criteria version changed, until a later linked scenario version.
   `feedback open` also lists each open question that a group waits for as "Waiting for an
-  answer:", so the run ends with an `answer` point on it. The group of an answer that picked
-  `Change AC-N` has `wording`: the member's edit of the criterion in the note beside the
-  option, after "Change AC-N: " up to a blank line, else the option's `proposal`. The group of
-  an answer changes only the criterion that its question is about, and `feedback amended`
-  fails a change of another criterion with "Remove the change of ac-4."
+  answer:", so the run ends with an `answer` point on it. The triager sorts an answer in which
+  the member picked `Change AC-N` as one `criterion-change` of the criterion of the question.
+  Its group has `wording`: the member's edit of the criterion in the note beside the option,
+  after "Change AC-N: " up to a blank line, else the option's `proposal`, and the writer writes
+  it. The group of an answer changes only the criterion that its question is about, and
+  `feedback amended` fails a change of another criterion with "Remove the change of ac-4."
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,

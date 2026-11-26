@@ -1428,6 +1428,19 @@ test('the skill writes each group as one linked version that feedback amended an
     assert.ok(flat(read(`software-factory/agents/${agent}.md`)).includes('"A change from a ' +
       'person\'s feedback:"'), agent);
   }
+  // The wording of a Change pick: the triager sorts it, the writer writes it, the reviewer
+  // compares it, and the group of an answer changes only its question's criterion.
+  assert.ok(flat(WORKFLOW).includes('- `wording`: only for a group of the acceptance criteria'));
+  assert.ok(flat(SORTING).includes('An answer whose text is the title of an option "Change ' +
+    'AC-N" is one `criterion-change` of the criterion that its question is about'));
+  const writing = flat(read('software-factory/skills/writing-specs/SKILL.md'));
+  for (const line of ['Write the person\'s words from `wording`, else from `quote`',
+    'changes only the criterion that its question is about. Never split its change into a ' +
+      'second criterion.']) {
+    assert.ok(writing.includes(line), line);
+  }
+  assert.ok(flat(read('software-factory/skills/checking-specs/SKILL.md')).includes('Read each ' +
+    'point\'s `quote`, and the group\'s `wording` when it has one.'));
   for (const skill of ['planning-builds', 'checking-build-plans', 'writing-acceptance-checks',
     'checking-code']) {
     assert.ok(flat(read(`software-factory/skills/${skill}/SKILL.md`)).includes('Where the spec ' +

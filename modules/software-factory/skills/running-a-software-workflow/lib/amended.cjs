@@ -10,8 +10,9 @@
 // no answer of the source about the output, the open questions about a point of the group,
 // and the open questions about the output with no item that were asked at or after the time
 // of the source: the run changes nothing of such a group. wording is only in a group of the
-// acceptance criteria whose source is an answer that picked the option to change the criterion
-// of its question: the wording of that criterion that the member approved (wordingOf).
+// acceptance criteria whose source is an answer in which the member picked the option to
+// change the criterion of the question: the wording of that criterion that the member
+// approved (wordingOf).
 'use strict';
 
 const fs = require('node:fs');

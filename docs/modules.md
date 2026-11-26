@@ -3638,7 +3638,9 @@ and one `run_again` point. The stack lists the workflow with `tier: thinking`, `
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
 `writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
-question is a source with the id `an_` of its note, which a version can link to. After it,
+question is a source with the id `an_` of its note, which a version can link to. The triager
+sorts an answer in which the member picked `Change AC-N` as one `criterion-change` of the
+criterion of the question, and the writer writes the `wording` of its group. After it,
 `feedback open` prints a line `Question of <id>: <question>` with the question whose answer
 has the text and the time of the note, and a line `Note of <id>: <note>` with the note that
 the member wrote beside the option, which the note of the work item lacks. A point may quote
@@ -4818,10 +4820,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `points`, each with `id`, `quote`, `item` and `change`, then `wording`, and `waiting`, the
   ids of the questions with no answer of the source about the output, and of the open
   questions about a point of the group, such as one that a writer raised. `wording` is only in
-  a group of `acceptance-criteria` whose source is an answer that picked the option to change
-  the criterion of its question, the first option with a `proposal`: the text after "Change
-  AC-4: ", with the item of the question's `about` in upper case, in the note beside the
-  option, up to a blank line, else the `proposal`. While a source has a group of
+  a group of `acceptance-criteria` whose source is an answer in which the member picked the
+  option to change the criterion of the question, the first option with a `proposal`: the
+  text after "Change AC-4: ", with the item of the question's `about` in upper case, in the
+  note beside the option, up to a blank line, else the `proposal`. While a source has a group of
   `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
   that the group after the criteria version has both kinds of points. A criterion change has
   ended when a version of its output that counts, from a run, has the id of its source as
