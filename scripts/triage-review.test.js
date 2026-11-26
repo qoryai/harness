@@ -420,7 +420,7 @@ test('feedback open takes each kind of note that a person wrote, with its text',
   passes(push(data, { notes }));
   assert.equal(open(store({ feedback: [{ data }] }), notes).status, 0);
   // A comment with an id of another form keeps the key of its time and text.
-  const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'rc_8' } : one));
+  const later = notes.map((one) => (one.note === 'Show the total.' ? { ...one, id: 'xx_8' } : one));
   assert.equal(open(store({ feedback: [{ data }] }), later).status, 0);
   // The key has to be the one of the time and text.
   const other = clone(data);
@@ -433,9 +433,36 @@ test('a criterion change in a comment is a question, also in a comment with an i
   const data = { sources: [sourceOf(key, 'comment', 'Raise the limit to 100.')],
     points: [{ ...P2, id: 'p1', source: key, quote: 'Raise the limit to 100.' }] };
   const comment = (id) => note(id, 'answer', 'Raise the limit to 100.');
-  for (const id of [null, 'rc_4']) {
+  for (const id of [null, 'xx_4']) {
     fails(check(data, { notes: [comment(id)] }), 'Set the sort of point p1 to question.');
   }
+});
+
+test('the comment of Run another round is a note by its id rc_, which a version can link to', () => {
+  const text = 'Raise the row limit of AC-2 from 50 to 100.';
+  const rc1 = note('rc_1', 'answer', text);
+  // Two such comments with one time and one text are two sources, by their ids, of the kind
+  // note; two comments with no id are one source.
+  const found = sourcesIn(open(store(), [rc1, note('rc_2', 'answer', text),
+    note(null, 'answer', text), note(null, 'answer', text)]));
+  assert.deepEqual(found, [sourceOf('rc_1', 'note', text), sourceOf('rc_2', 'note', text),
+    sourceOf(commentKey(AT, text), 'comment', text)]);
+  // Its text and time are those of an answer to q1: only the answer pairs with q1.
+  const q1 = { ...clone(Q5), id: 'q1', state: 'answered',
+    answer: { option: Q5.options[0].title, by: SAM, at: AT } };
+  const both = open(store({ questions: [{ data: { questions: [q1] } }] }),
+    [note('rc_3', 'answer', Q5.options[0].title), note('an_4', 'answer', Q5.options[0].title)]);
+  assert.deepEqual(both.lines.filter((line) => line.startsWith('Question of')),
+    ['Question of an_4: q1']);
+  // A criterion change in it is no question: the group has the id rc_1 as its decision.
+  const data = { sources: [sourceOf('rc_1', 'note', text)],
+    points: [{ ...P2, id: 'p1', source: 'rc_1' }] };
+  passes(check(data, { notes: [rc1] }));
+  passes(push(data, { notes: [rc1] }));
+  assert.deepEqual(sourcesIn(points(store({ feedback: [{ data }] }))),
+    [{ ...GROUP, decision: 'rc_1', points: [{ ...GROUP.points[0], id: 'p1' }] }]);
+  fails(check({ ...data, sources: [sourceOf('rc_1', 'comment', text)] }, { notes: [rc1] }),
+    'Set the kind of source rc_1 to note.');
 });
 
 test('feedback open lists an answer to a question as a source, with the question it answers', () => {
@@ -1097,6 +1124,259 @@ test('feedback open lists a question about a scenario that only a ripple point o
       `Words of ac-5: ${wordsOf('Raise the row limit to 100.')}`]);
 });
 
+// ---- The group of an answer to a question about a criterion ---------------------------------
+
+// blocked returns the question about item that Build asks for a criterion it cannot meet,
+// answered with answer: the option to change the criterion has the proposal.
+const changeTitle = (item) => `Change ${item.toUpperCase()}, "The criterion as approved"`;
+const PROPOSAL = 'Each customer who got the reply with the old hours receives a corrected ' +
+  'reply within one day.';
+const ANOTHER = 'Make it met another way';
+function blocked(answer, { item = 'ac-4', proposal = PROPOSAL, more = {} } = {}) {
+  return { id: 'q3', question: `What do you want to do with ${item.toUpperCase()}, "The ` +
+    'criterion as approved"?', about: { type: 'acceptance-criteria', name: 'main', item },
+  context: '**Why:** The service sends one reply a day.\n\n**Checked:** The send job.',
+  options: [{ title: changeTitle(item), explanation: 'The criterion then reads so.', proposal,
+    recommended: true }, { title: ANOTHER, explanation: 'Write in the note how.' },
+  { title: `Withdraw ${item.toUpperCase()}, "The criterion as approved"`,
+    explanation: `${item.toUpperCase()}, "The criterion as approved", stays in the criteria, ` +
+      'marked withdrawn by you.' }],
+  state: 'answered', asked: { run: 2, at: AT },
+  answer: { option: changeTitle(item), by: SAM, at: AT, ...answer }, ...more };
+}
+// answered returns the feedback with the answer an_1, whose text is title, and its point p3 on
+// item, beside the case.
+const answered = (item = 'ac-4', title = changeTitle(item), more = []) => ({
+  sources: [S1, sourceOf('an_1', 'answer', title)],
+  points: [P1, P2, { id: 'p3', source: 'an_1', quote: title, sort: 'criterion-change',
+    output: 'acceptance-criteria', item, change: 'Send the corrected reply within one day.',
+    reply: 'The run changes the criterion as you approved.' }, ...more] });
+const answerStore = (questions, data = answered(), more = {}) => store({ feedback: [{ data }],
+  questions: [{ data: { questions } }], ...more });
+const groupOfAnswer = (root) => sourcesIn(points(root)).find((one) => one.decision === 'an_1');
+const amendedFor = (root, draft, ...more) => {
+  write(path.join(root, 'acceptance-criteria.json'), draft);
+  return run(root, [], ['feedback', 'amended', 'acceptance-criteria', '--decision', 'an_1',
+    ...more]);
+};
+
+test('the group of a question answered with Change AC-N has the wording of the note, else the proposal', () => {
+  const wordingOf = (answer, options) => groupOfAnswer(answerStore([blocked(answer, options)]))
+    .wording;
+  const edited = 'Each customer gets a corrected reply within 2 hours.';
+  // With no edit, the proposal; with an edit, the note after the label up to a blank line.
+  assert.equal(wordingOf({}), PROPOSAL);
+  assert.equal(wordingOf({ note: `Change AC-4: ${edited}\n\nSend it by email too.` }), edited);
+  assert.equal(wordingOf({ note: 'Change AC-4: Line one,\nline two.' }), 'Line one,\nline two.');
+  // Line ends of CRLF, and a line of only spaces and tabs between the wording and the note.
+  assert.equal(wordingOf({ note: `Change AC-4: ${edited}\r\n\r\nSend it by email too.` }), edited);
+  assert.equal(wordingOf({ note: `Change AC-4: ${edited}\n \t\nSend it by email too.` }), edited);
+  // A note with no label, the label of another criterion or in lower case, or a blank
+  // wording: the proposal.
+  for (const note of ['Send it by email too.', `Change AC-3: ${edited}`, `Change ac-4: ${edited}`,
+    'Change AC-4:  \n\nSend it by email too.']) {
+    assert.equal(wordingOf({ note }), PROPOSAL, note);
+  }
+  // The member's edit of an answer in the history of a reopened question.
+  const reopened = blocked({ option: ANOTHER, at: '2026-11-25T10:00:00Z' }, { more: {
+    history: [{ option: changeTitle('ac-4'), note: `Change AC-4: ${edited}`, by: SAM, at: AT }] } });
+  assert.equal(groupOfAnswer(answerStore([reopened])).wording, edited);
+  // The group's JSON line has wording after points.
+  assert.deepEqual(Object.keys(groupOfAnswer(answerStore([blocked({})]))),
+    ['decision', 'at', 'output', 'points', 'wording']);
+  // No wording: a blank proposal with no edit, a pick of another option, an about with no
+  // item, a proposal on no option, or a group of a gate's note.
+  assert.equal(wordingOf({}, { proposal: ' ' }), undefined);
+  const other = groupOfAnswer(answerStore([blocked({ option: ANOTHER })],
+    answered('ac-4', ANOTHER)));
+  assert.equal('wording' in other, false);
+  const noItem = blocked({});
+  delete noItem.about.item;
+  assert.equal('wording' in groupOfAnswer(answerStore([noItem])), false);
+  const noProposal = blocked({});
+  delete noProposal.options[0].proposal;
+  assert.equal('wording' in groupOfAnswer(answerStore([noProposal])), false);
+  // The option to change is the first one with a proposal, as Qory Apiary reads it.
+  const second = blocked({ option: ANOTHER }, { more: {} });
+  second.options[1].proposal = 'Another wording.';
+  assert.equal('wording' in groupOfAnswer(answerStore([second], answered('ac-4', ANOTHER))),
+    false);
+  const gate = sourcesIn(points(answerStore([blocked({})]))).find((one) => one.decision === 'gd_1');
+  assert.equal('wording' in gate, false);
+  // On the fast track no point of the answer is a criterion change.
+  fails(check(answered(), { notes: [GD1, note('an_1', 'answer', changeTitle('ac-4'))],
+    types: { 'acceptance-criteria': [], questions: [{ data: { questions: [blocked({})] } }] } }),
+  'Set the sort of point p3 to fix or question.');
+});
+
+test('the group of the answer to a question changes only the criterion that the question is about', () => {
+  // p4, a point of the answer on ac-3, which an earlier check stored.
+  const p4 = { id: 'p4', source: 'an_1', quote: changeTitle('ac-4'), sort: 'criterion-change',
+    output: 'acceptance-criteria', item: 'ac-3', change: 'Close on 26 December.',
+    reply: 'The run changes the closed day.' };
+  const data = answered('ac-4', changeTitle('ac-4'), [p4]);
+  const root = (question = blocked({})) => answerStore(question ? [question] : [], data);
+  const both = edit(CRITERIA, [AC4, AC4_NEW], ['closed on 25 December', 'closed on 26 December']);
+  const remove = (item, about) => [`Remove the change of ${item}.`,
+    `  The question of an_1 is about ${about}.`];
+  // The criterion of the question changes, and ac-3 stays: no --same for p4.
+  passes(amendedFor(root(), edit(CRITERIA, [AC4, AC4_NEW])));
+  assert.deepEqual(amendedFor(root(), both).lines.slice(0, 2), remove('ac-3', 'ac-4'));
+  assert.deepEqual(amendedFor(root(), both, '--same', 'p4').lines.slice(0, 2),
+    remove('ac-3', 'ac-4'));
+  // A question about a point of the feedback, such as one on an added criterion.
+  const onPoint = blocked({});
+  onPoint.about = { type: 'feedback', name: 'main', item: 'p2' };
+  assert.deepEqual(findingsOf(amendedFor(root(onPoint), edit(CRITERIA, [AC4, AC4_NEW]))),
+    ['Remove the change of ac-4.']);
+  assert.ok(amendedFor(root(onPoint), edit(CRITERIA, [AC4, AC4_NEW])).lines
+    .includes('  The question of an_1 is about p2.'));
+  // An about with no item, or with an item that is no string, binds the answer to no
+  // criterion, as in the check of feedback.
+  const whole = blocked({});
+  delete whole.about.item;
+  const none = ['Remove the change of ac-3.', '  The question of an_1 is about no criterion.',
+    'Remove the change of ac-4.', '  The question of an_1 is about no criterion.'];
+  assert.deepEqual(amendedFor(root(whole), both).lines.slice(0, 4), none);
+  assert.deepEqual(amendedFor(root({ ...blocked({}), about: { ...whole.about, item: 3 } }), both)
+    .lines.slice(0, 4), none);
+  // With no question that has the answer, the check cannot compare, and passes.
+  passes(amendedFor(root(null), both));
+});
+
+test('the group of the answer to a question gets no second criterion for its change', () => {
+  const split = edit(CRITERIA, [AC4, AC4_NEW], ['"check": "Tests"}\n', '"check": "Tests"},\n' +
+    '    {"id": "ac-5", "text": "The corrected reply goes out by email.", "check": "Tests"}\n']);
+  const result = amendedFor(answerStore([blocked({})]), split);
+  assert.deepEqual(result.lines.slice(0, 2), ['Remove the new criterion ac-5 from ' +
+    'acceptance-criteria.json.', '  No point of an_1 adds a criterion.']);
+});
+
+test('the answer to a question about a criterion that Build cannot meet gets a point of its pick', () => {
+  const withdraw = 'Withdraw AC-4, "The criterion as approved"';
+  // sortedAs checks the feedback in which an_1 picks title, with p3 of sort and item.
+  const sortedAs = (title, sort, item = 'ac-4', answer = {}) => {
+    const data = answered('ac-4', title);
+    Object.assign(data.points[2], { sort, item });
+    if (sort === 'fix') {
+      delete data.points[2].output;
+      delete data.points[2].item;
+    }
+    return check(data, { notes: [GD1, note('an_1', 'answer', title)], types: { questions:
+      [{ data: { questions: [blocked({ option: title, ...answer })] } }] } });
+  };
+  const change = changeTitle('ac-4');
+  passes(sortedAs(change, 'criterion-change'));
+  passes(sortedAs(ANOTHER, 'fix'));
+  passes(sortedAs(withdraw, 'criterion-change'));
+  const missing = (sort, item, picked) => [`Add a ${sort} point${item ? ` on ${item}` : ''} ` +
+    'for an_1.', `  The member picked ${picked} in q3.`];
+  const linesOf = (result) => result.lines.filter((line, at, all) => line.startsWith('Add a ') ||
+    all[at - 1]?.startsWith('Add a '));
+  assert.deepEqual(linesOf(sortedAs(change, 'fix')), missing('criterion-change', 'ac-4',
+    'Change AC-4'));
+  assert.deepEqual(linesOf(sortedAs(ANOTHER, 'criterion-change')), missing('fix', null, ANOTHER));
+  assert.deepEqual(linesOf(sortedAs(withdraw, 'fix')), missing('criterion-change', 'ac-4',
+    'Withdraw AC-4'));
+  // A change of another criterion is no point of the pick.
+  assert.deepEqual(linesOf(sortedAs(change, 'criterion-change', 'ac-3')),
+    missing('criterion-change', 'ac-4', 'Change AC-4'));
+  // A pick of Make it met another way keeps the criterion: a criterion change of it needs a
+  // quote from the note beside the option, in which the member asks for it.
+  const declined = (quote, answer) => {
+    const data = answered('ac-4', ANOTHER, [{ ...P1, id: 'p4', source: 'an_1', quote: ANOTHER }]);
+    data.points[2].quote = quote;
+    return check(data, { notes: [GD1, note('an_1', 'answer', ANOTHER)], types: { questions:
+      [{ data: { questions: [blocked({ option: ANOTHER, ...answer })] } }] } });
+  };
+  const keep = 'Remove point p3, or quote the change from the note beside the option.';
+  fails(declined(ANOTHER), keep);
+  assert.ok(declined(ANOTHER).lines.includes('  The member picked Make it met another way in ' +
+    'q3, which keeps ac-4 as approved.'));
+  fails(declined('Send it within a day.', { note: 'Use a queue. Send it within two days.' }),
+    /^Quote point p3 word for word/);
+  passes(declined('Send it within two days.', { note: 'Use a queue. Send it within two days.' }));
+  // A change of another criterion is a question about it, not a declined change.
+  const elsewhere = (() => {
+    const data = answered('ac-3', ANOTHER, [{ ...P1, id: 'p4', source: 'an_1', quote: ANOTHER }]);
+    return check(data, { notes: [GD1, note('an_1', 'answer', ANOTHER)], types: { questions:
+      [{ data: { questions: [blocked({ option: ANOTHER })] } }] } });
+  })();
+  fails(elsewhere, 'Set the sort of point p3 to question, about ac-3.');
+  assert.ok(!elsewhere.lines.includes(keep), elsewhere.out);
+  // A question with no item in its about binds the pick to no criterion: no point of a pick.
+  const noItem = check({ ...answered('ac-4', change), points: [P1, P2, { ...P1, id: 'p3',
+    source: 'an_1', quote: change }] }, { notes: [GD1, note('an_1', 'answer', change)],
+  types: { questions: [{ data: { questions: [{ ...blocked({}), about: { type:
+    'acceptance-criteria', name: 'main' } }] } }] } });
+  assert.ok(!noItem.lines.some((line) => line.startsWith('Add a ')), noItem.out);
+  // An answer that picks no such option, or a note with no option, needs no point of a pick.
+  const other = blocked({ option: undefined, note: 'Keep it.' });
+  const free = answered('ac-4', 'Keep it.');
+  free.points[2].sort = 'fix';
+  delete free.points[2].output;
+  delete free.points[2].item;
+  passes(check(free, { notes: [GD1, note('an_1', 'answer', 'Keep it.')],
+    types: { questions: [{ data: { questions: [other] } }] } }));
+});
+
+// pushed adds to root a version of the acceptance criteria with text, from a run, with the
+// members of more, and returns root.
+function pushed(root, text, more = {}) {
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  const entry = index.artifacts.find((one) => one.type === 'acceptance-criteria');
+  const number = entry.versions.length + 1;
+  entry.versions.push({ id: `av_ac_${number}`, number, at: '2026-11-25T10:00:00Z',
+    writer: { kind: 'run', run_id: 'run_2' }, ...more });
+  entry.newest_version = number;
+  write(path.join(root, 'index.json'), index);
+  write(path.join(root, 'acceptance-criteria', 'main', `v${number}`, 'acceptance-criteria.json'),
+    text);
+  return root;
+}
+
+test('a stub of the triage step for a question answered with Change AC-4: one version linked to the answer', () => {
+  const edited = 'Each customer gets a corrected reply within 2 hours.';
+  const root = answerStore([blocked({ note: `Change AC-4: ${edited}` })]);
+  const group = groupOfAnswer(root);
+  assert.deepEqual([group.points.map((point) => point.id), group.wording], [['p3'], edited]);
+  // A crash before the push prints the group again.
+  assert.deepEqual(groupOfAnswer(root), group);
+  const draft = edit(CRITERIA, [AC4, `"text": ${JSON.stringify(edited)}`]);
+  passes(amendedFor(root, draft));
+  passes(run(root, [], ['check', 'acceptance-criteria',
+    path.join(root, 'acceptance-criteria.json')]));
+  // The push links the version to the answer and ends its group; the note's group stays.
+  pushed(root, draft, { decision: 'an_1' });
+  assert.deepEqual(sourcesIn(points(root)).map((one) => one.decision), ['gd_1']);
+  const changedLines = draft.split('\n').flatMap((line, at) =>
+    (line === CRITERIA.split('\n')[at] ? [] : [at]));
+  assert.deepEqual(changedLines, [CRITERIA.split('\n').findIndex((line) => line.includes('"ac-4"'))]);
+});
+
+test('a question answered with the wording that the criteria already have ends with a push of the same text', () => {
+  const root = answerStore([blocked({})]);
+  const same = edit(CRITERIA, [AC4, `"text": ${JSON.stringify(PROPOSAL)}`]);
+  // A person stored the wording before the run: the newest version that counts has it.
+  pushed(root, same, { writer: { kind: 'person', account: 'u_1' } });
+  fails(amendedFor(root, same), 'Change ac-4 in acceptance-criteria.json, or add --same p3.');
+  passes(amendedFor(root, same, '--same', 'p3'));
+  pushed(root, same, { decision: 'an_1' });
+  assert.equal(groupOfAnswer(root), undefined);
+});
+
+test('a question answered with Change AC-2, a Demo criterion, prints the scenarios of the answer after its version', () => {
+  const data = answered('ac-2');
+  const root = scenarioStore({ feedback: [{ data }],
+    questions: [{ data: { questions: [blocked({}, { item: 'ac-2' })] } }] });
+  assert.deepEqual(sourcesIn(points(root)).map((one) => [one.decision, one.output]),
+    [['gd_1', 'acceptance-criteria'], ['an_1', 'acceptance-criteria']]);
+  pushed(root, edit(CRITERIA, [AC2, AC2_NEW]), { decision: 'an_1' });
+  const [ripple] = sourcesIn(points(root)).filter((one) => one.decision === 'an_1');
+  assert.deepEqual([ripple.output, ripple.points.map((point) => [point.id, point.item]),
+    'wording' in ripple], ['demo-scenarios', [['ac-2', 'scenario-1']], false]);
+});
+
 // The triage step of plan.md as a stub of its calls, with no agent and no qory: the points, a
 // draft of the writer, amended, the check of the type, and the push as a linked version.
 test('a stub of the triage step: one change makes one linked criteria version, other lines kept', () => {
@@ -1222,6 +1502,25 @@ test('the skill writes each group as one linked version that feedback amended an
     assert.ok(flat(read(`software-factory/agents/${agent}.md`)).includes('"A change from a ' +
       'person\'s feedback:"'), agent);
   }
+  // The wording of a Change pick: the triager sorts it, the writer writes it, the reviewer
+  // compares it, and the group of an answer changes only its question's criterion.
+  assert.ok(flat(WORKFLOW).includes('- `wording`: only for a group of the acceptance criteria'));
+  for (const line of ['## A pick on a criterion that Build cannot meet',
+    '- "Change AC-N": a `criterion-change` with the `output` `acceptance-criteria`',
+    '- "Make it met another way": a `fix`.', 'Ask no question for it.',
+    '- "Withdraw AC-N": a `criterion-change` that removes the criterion',
+    'those are the options of the question of Build about a criterion that it cannot meet.']) {
+    assert.ok(flat(SORTING).includes(line), line);
+  }
+  assert.ok(!flat(SORTING).includes('a question of Verify'));
+  const writing = flat(read('software-factory/skills/writing-specs/SKILL.md'));
+  for (const line of ['Write the person\'s words from `wording`, else from `quote`',
+    'changes only the criterion that its question is about. Never split its change into a ' +
+      'second criterion.']) {
+    assert.ok(writing.includes(line), line);
+  }
+  assert.ok(flat(read('software-factory/skills/checking-specs/SKILL.md')).includes('Read each ' +
+    'point\'s `quote`, and the group\'s `wording` when it has one.'));
   for (const skill of ['planning-builds', 'checking-build-plans', 'writing-acceptance-checks',
     'checking-code']) {
     assert.ok(flat(read(`software-factory/skills/${skill}/SKILL.md`)).includes('Where the spec ' +

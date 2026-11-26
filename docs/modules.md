@@ -2923,21 +2923,24 @@ find:
   not the commit of the record. A check with a record that is missing or is not a record of
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
-- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
-  `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
-  time and text; a new source that differs from its note, or that has none; new sources in
-  another order than `feedback open` prints them, because a later check pairs equal answers in
-  the stored order; in a check, an open note that is no source; a changed or missing source or
-  point of the newest version; a point id out of order; a `quote` that is no part of the
-  source's text, or, for an answer, of the note beside its option; a member that the sort does
-  not have, or lacks; an `item` that is no id of the `output`, or a criterion that the criteria
-  do not have; a `criterion-change` whose source has a `cm_` key, or in a work item with no
-  acceptance criteria; a new `criterion-change` of a criterion whose source is an answer to a
-  question about another item, as `feedback open` pairs them; a question of two points, or one
-  that the newest questions have; in a check with a draft `questions.json`, a point whose
-  question it lacks, and a new question of a point that breaks the rule for the question of a
-  point, whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point
-  with no `reply`;
+- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_`, `es_` and
+  `rc_`, `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the
+  source's time and text; a new source that differs from its note, or that has none; new
+  sources in another order than `feedback open` prints them, because a later check pairs
+  equal answers in the stored order; in a check, an open note that is no source; a changed
+  or missing source or point of the newest version; a point id out of order; a `quote` that
+  is no part of the source's text, or, for an answer, of the note beside its option; a
+  member that the sort does not have, or lacks; an `item` that is no id of the `output`, or
+  a criterion that the criteria do not have; a `criterion-change` whose source has a `cm_`
+  key, or in a work item with no acceptance criteria; a new `criterion-change` of a
+  criterion whose source is an answer to a question about another item, as `feedback open`
+  pairs them; a new answer in which the member picked `Change AC-N` or `Withdraw AC-N` with
+  no `criterion-change` of the criterion of its question, or `Make it met another way` with
+  no `fix`, or with a `criterion-change` of that criterion whose `quote` is not in the note
+  beside the option; a question of two points, or one that the newest questions have; in a
+  check with a draft `questions.json`, a point whose question it lacks, and a new question
+  of a point that breaks the rule for the question of a point, whatever its `about`; a
+  `reply` of more than 3 sentences; and, in a push, a new point with no `reply`;
 - `walkthrough`: a file that does not start with `# Walkthrough: <title>` and one header
   line `Commit <7 or more hex digits>`, optionally followed by ` · <text>`, with no other
   text before the first `##`. The commit must be the start of the verified commit, the
@@ -3638,7 +3641,12 @@ and one `run_again` point. The stack lists the workflow with `tier: thinking`, `
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
 `writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
-question is a source with the id `an_` of its note, which a version can link to. After it,
+question is a source with the id `an_` of its note, which a version can link to. The triager
+sorts an answer to the question of Build about a criterion that it cannot meet by the option
+that the member picked, on the criterion of the question: `Change AC-N` as a
+`criterion-change`, whose group's `wording` the writer writes, `Make it met another way` as
+a `fix`, and `Withdraw AC-N` as a `criterion-change` that removes the criterion, with the
+question of a removed criterion when a built part is not mentioned. After it,
 `feedback open` prints a line `Question of <id>: <question>` with the question whose answer
 has the text and the time of the note, and a line `Note of <id>: <note>` with the note that
 the member wrote beside the option, which the note of the work item lacks. A point may quote
@@ -4800,7 +4808,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   criterion is also about a ripple point of that criterion. A question has no member for the
   agent that asked it. The session then ends with an `answer` point on it, not with `passed`.
   The notes are those of the kinds `request_changes`, `move`, `escalation` and `answer` with a
-  text. A note with no id has the key of its time and text. An answer to a question has the id
+  text. The comment that a member gives with **Run another round** has the id `rc_` of its
+  note, and is a note of free text, as the note of a gate is. A note with no id, or with an id
+  of another form, has the key of its time and text. An answer to a question has the id
   `an_` of its note, and after its words comes the line "Question of <id>: <question>", with the
   question in the newest questions whose answer, or an earlier answer in its history, has the
   text of the note and its time to the second; each answer pairs with one note, the sources of
@@ -4813,9 +4823,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   in the newest `build-ledger`, then one JSON line per source and output with criterion
   changes that have not ended: the groups of `acceptance-criteria` first, then those of
   `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
-  `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
-  questions with no answer of the source about the output, and of the open questions about
-  a point of the group, such as one that a writer raised. While a source has a group of
+  `points`, each with `id`, `quote`, `item` and `change`, then `wording`, and `waiting`, the
+  ids of the questions with no answer of the source about the output, and of the open
+  questions about a point of the group, such as one that a writer raised. `wording` is only in
+  a group of `acceptance-criteria` whose source is an answer in which the member picked the
+  option to change the criterion of the question, the first option with a `proposal`: the
+  text after "Change AC-4: ", with the item of the question's `about` in upper case, in the
+  note beside the option, up to a blank line, else the `proposal`. While a source has a group of
   `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
   that the group after the criteria version has both kinds of points. A criterion change has
   ended when a version of its output that counts, from a run, has the id of its source as
@@ -4836,12 +4850,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   does not name, and adds one item at the end for each such point with no item. Every other
   byte stays: each other item and its place, and the text outside the items, the summary and
   the key order included. A removed criterion keeps each member and adds only `removed`, and
-  a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
-  exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
-  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
-  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
-  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft, with
-  the last line "No part of acceptance-criteria.json was checked."
+  a removed scenario keeps its heading. An item that `--same` names keeps every byte. The
+  group of an answer changes only the criterion that its question's `about` has as `item`: a
+  point of it on another criterion keeps that criterion as it is, with the finding "Remove
+  the change of ac-4." for a change. With an `about` that has no item, the group changes no
+  criterion, as the check of `feedback` requires. An answer that pairs with no question is
+  not compared. It exits with 1 for each finding, as "Restore ac-3 in
+  acceptance-criteria.json." or "Change ac-2 in acceptance-criteria.json, or add --same
+  p2.", and with 0 and the line "Checked nothing" when the output has no version. For a
+  draft over 256 KB, it exits with 1 and the finding "Cut acceptance-criteria.json to at
+  most 256 KB." before it reads the draft, with the last line "No part of
+  acceptance-criteria.json was checked."
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
