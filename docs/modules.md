@@ -936,12 +936,12 @@ After the check of each type, `checks.cjs` finds the phrases of a reply to the r
 rule 21 of `simple-communication`. Core lists them in
 `running-a-workflow/references/reply-phrases.json`, as `{"phrases": [...]}`. A skill folder
 whose `workflow-checks.cjs` the registry loads may add a `reply-phrases.json` of the same
-form. The check uses the phrases of all these files, in the order of the registry, and the
-hash of a skill folder covers its `reply-phrases.json`. A file adds phrases and removes
-none. A phrase is text of 1 to 60 characters, with no double quote. The registry keeps only
-the paths, and the check of a type reads the files. A file that is missing or cannot be
-read stops the verb that runs the check, such as `push`, `check`, `lock` or `end`. So does
-a phrase of another form. The verb prints `Fix <file>: …`. Every other verb that reads the
+form. The check uses the phrases of all these files, in the order of the registry. The hash
+of a skill folder covers its `reply-phrases.json`. A file adds phrases and removes none. A
+phrase is text of 1 to 60 characters, with no double quote. The registry keeps only the
+paths, and the check of a type reads the files. A file that is missing or cannot be read
+stops the verb that runs the check, such as `push`, `check`, `lock` or `end`. So does a
+phrase of another form. The verb prints `Fix <file>: …`. Every other verb that reads the
 registry, and the tool guard, works as before. The check reads each text file of a version,
 without text in double quotes on one line:
 

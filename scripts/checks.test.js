@@ -6563,6 +6563,7 @@ test('reply phrases: a bad reply-phrases.json is a fault of the harness', () => 
     ['{"phrases": [3]}', /^Fix .*reply-phrases\.json: write phrase 1 as text of 1 to 60 characters, not a number\.$/],
     ['{"phrases": ["the \\"note\\""]}', /^Fix .*reply-phrases\.json: remove the double quote from phrase 1\. The check skips text in double quotes, so the phrase never matches\.$/],
     [JSON.stringify({ phrases: ['as asked', 'the “note”'] }), /^Fix .*reply-phrases\.json: remove the double quote from phrase 2\. /],
+    [JSON.stringify({ phrases: ['\u0000'] }), /^Fix .*reply-phrases\.json: remove the control character from phrase 1\. /],
   ]) {
     const notes = phrasePlugin('', text);
     assert.throws(() => pushNotes(notes, [['notes.md', 'The shop opens at 8:00.\n']]), { message: pattern });
@@ -6602,9 +6603,16 @@ test('reply phrases: check points finds none, since points is no type of the reg
 });
 
 test('reply phrases: end --offline finds them in a draft of a type with no code for them', () => {
-  const run = offlineRun({ edits: [['spec.md', 'This spec follows', 'As discussed, this spec follows']] });
-  const result = offline(run);
-  fails(result, /^Remove "as discussed" from line 7 of spec\.md and state the outcome\. The line is "As discussed, this spec follows/);
+  // The phrase is in the list of a further module alone.
+  const home = harnessHome();
+  const extra = path.join(home, 'modules', 'phrases', 'skills', 'extra');
+  fs.mkdirSync(extra, { recursive: true });
+  fs.writeFileSync(path.join(extra, 'workflow-checks.cjs'), 'module.exports = () => ({});\n');
+  fs.writeFileSync(path.join(extra, 'reply-phrases.json'), JSON.stringify({ phrases: ['per your note'] }));
+  const run = offlineRun({ edits: [['spec.md', 'This spec follows', 'Per your note, this spec follows']] });
+  const result = call({ cwd: tmp, plugin: path.join(home, 'modules', 'core'), trusted: trusting(extra),
+    env: { HOME: '/tmp' }, home: '/tmp' }, run.args);
+  fails(result, /^Remove "per your note" from line 7 of spec\.md and state the outcome\. The line is "Per your note, this spec follows/);
 });
 
 test('reply phrases: a wide JSON file, a member name with a line break and a top string', () => {
@@ -6700,8 +6708,8 @@ test('reply phrases: the checks of setext headings and of a paragraph', () => {
   // An underline of = makes a heading of level 1, which no title skips.
   fails(pushNotes(notes, [['notes.md', 'Sources\n=======\n\nAs discussed.\n']]),
     /^Remove "as discussed" from line 4 of notes\.md/);
-  // A blank line, a code block, a list item or a heading ends a paragraph: no code span
-  // crosses it.
+  // A blank line, a code block, a list item, a table row or a heading ends a paragraph: no
+  // code span crosses it.
   fails(pushNotes(notes, [['notes.md', 'Run `a\n\nas discussed `b.\n']]),
     /^Remove "as discussed" from line 3 of notes\.md/);
   fails(pushNotes(notes, [['notes.md', 'Run `a\n```\nx\n```\nas discussed `b.\n']]),
@@ -6709,6 +6717,12 @@ test('reply phrases: the checks of setext headings and of a paragraph', () => {
   fails(pushNotes(notes, [['notes.md', '- Press the ` key.\n- As discussed, run `make`.\n']]),
     /^Remove "as discussed" from line 2 of notes\.md/);
   fails(pushNotes(notes, [['notes.md', '## Run `a\nas discussed `b.\n']]),
+    /^Remove "as discussed" from line 2 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', 'Run `a\n| as discussed `b.\n']]),
+    /^Remove "as discussed" from line 2 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', 'Title `a\n---\nAs discussed `b.\n']]),
+    /^Remove "as discussed" from line 3 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', 'Run `a\n## As discussed `b.\n']]),
     /^Remove "as discussed" from line 2 of notes\.md/);
   // A masked code span or quote between two words ends a phrase.
   passes(pushNotes(notes, [['notes.md', 'The shop opens as `x` discussed.\n']]));

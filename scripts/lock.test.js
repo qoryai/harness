@@ -463,6 +463,8 @@ function notesPlugin() {
     '(data) => (Array.isArray(data && data.files) ? data.files.map((entry) => ({ folder: ' +
     "'', path: entry.path, entry, ...(entry.problem === undefined ? {} : { problem: " +
     'entry.problem }) })) : null) } }] });\n');
+  fs.writeFileSync(path.join(plugin, 'skills', 'notes', 'reply-phrases.json'),
+    JSON.stringify({ phrases: ['per your note'] }));
   const { readTrusted, treeHash } = require(path.join(path.dirname(SCRIPT), 'lib/registry.cjs'));
   return { plugin, trusted: [...readTrusted(), treeHash(path.join(plugin, 'skills', 'notes'))] };
 }
@@ -485,10 +487,11 @@ test('lock of core takes the working directory as the working folder, with no re
 
 test('lock finds a reply phrase in the draft, with and without a list of locked files', () => {
   for (const files of [[{ path: 'notes.md' }], 'notes.md']) {
-    const result = notesLock(files, { note: 'As discussed, the note is locked.' });
+    // The phrase is in the list of the module alone.
+    const result = notesLock(files, { note: 'Per your note, the note is locked.' });
     exitsWith(result, 1);
     assert.equal(result.lines[0],
-      'Remove "as discussed" from /note of notes-lock.json and state the outcome.');
+      'Remove "per your note" from /note of notes-lock.json and state the outcome.');
     assert.deepEqual(result.calls, []);
   }
 });

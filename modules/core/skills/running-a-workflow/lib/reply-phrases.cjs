@@ -28,8 +28,8 @@ const BREAK = '\u0000';
 
 // readList returns the phrases of file, { "phrases": [<text>...] }. A file that cannot be
 // read is a fault of the harness, as a workflow-checks.cjs that throws is. So is a phrase that
-// is no text of 1 to MOST characters, or that has a double quote, which masking removes. The
-// Error has the fix and the file.
+// is no text of 1 to MOST characters, or that has a double quote, which masking removes. So is
+// a phrase with a control character, such as BREAK. The Error has the fix and the file.
 function readList(file) {
   let data;
   try {
@@ -50,6 +50,10 @@ function readList(file) {
     if (/["“”]/.test(phrase)) {
       throw new Error(`Fix ${file}: remove the double quote from phrase ${place + 1}. The ` +
         'check skips text in double quotes, so the phrase never matches.');
+    }
+    if (phrase.replace(CONTROL_ALL, '') !== phrase) {
+      throw new Error(`Fix ${file}: remove the control character from phrase ${place + 1}. ` +
+        'The check masks text with one, so the phrase could match a mask.');
     }
   });
   return list;
@@ -127,7 +131,8 @@ function headingOf(list, index) {
 }
 
 // endsBlock is true for a line that ends its block: a heading or the underline of one.
-// startsBlock is true for a line that starts a block: such a line, a list item or a table row.
+// startsBlock is true for a line that starts a block: a line that endsBlock accepts, a list
+// item or a table row.
 const endsBlock = (text) => headingLevel(text) > 0 || UNDERLINE.test(text);
 const startsBlock = (text) => endsBlock(text) || ITEM.test(text) || ROW.test(text);
 
@@ -152,7 +157,7 @@ function markdownLines(text, unchecked) {
   // The code spans of a paragraph are masked together.
   // shortcut: a paragraph ends at no other start of a block, such as a quote with >. A stray
   // backtick there moves the spans of the lines after it. Replace this with the blocks of a
-  // Markdown parser when such a case gives a wrong finding.
+  // Markdown parser when the check gives a wrong finding in such a case.
   const out = [];
   for (let from = 0; from < kept.length;) {
     let to = from + 1;
