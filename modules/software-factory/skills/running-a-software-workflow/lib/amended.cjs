@@ -94,10 +94,9 @@ module.exports = (lib) => {
   // the answer paired, as questionsOf returns it, or undefined. The option that changes the
   // criterion is the first option with a proposal, and its label is "Change AC-4:", with the
   // item of the about in upper case, as ApiaryWeb.WorkItemComponents.change_option/1 of Qory
-  // Apiary makes them. A member who edits its wording writes the note that with_wording/3 of
-  // the work item page makes: the label, a space, the wording, then a blank line before any
-  // note of the member. With no edit, the wording is the proposal. A pick of another option
-  // has none.
+  // Apiary makes them. When a member edits the wording, with_wording/3 of the work item page
+  // writes the note: the label, a space, the wording, then a blank line before any note of the
+  // member. With no edit, the wording is the proposal. A pick of another option has none.
   function wordingOf(question, paired) {
     const item = isObject(question.about) ? question.about.item : undefined;
     const options = Array.isArray(question.options) ? question.options.filter(isObject) : [];
