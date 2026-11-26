@@ -55,9 +55,9 @@ function readList(file) {
   return list;
 }
 
-// pattern returns the pattern that finds the words of a phrase as whole words, without regard
-// to case, with any white space, a line break included, between them, and ' or ’ for each '.
-// Each other character of a word matches itself.
+// pattern returns the pattern that finds the words of a phrase as whole words, in any case.
+// Any white space, a line break included, may stand between the words. ' matches ' or ’, and
+// each other character of a word matches itself.
 function pattern(words) {
   const escaped = words.map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     .replace(/'/g, "['’]"));
@@ -83,17 +83,18 @@ function phraseList(extensions = []) {
 }
 
 // unquoted returns text with each text in double quotes, "…" or “…”, on one line, replaced by
-// spaces of the same length, so that replyCheck skips quoted copy in every file.
+// BREAK of the same length. So replyCheck skips quoted copy in every file, and no phrase
+// crosses it.
 const unquoted = (text) => text.replace(/"[^"\n]*"|“[^“”\n]*”/g,
-  (found) => ' '.repeat(found.length));
+  (found) => BREAK.repeat(found.length));
 
-// withoutSpans returns text with each code span replaced by spaces, and each line break kept,
-// so that a span over two lines of a paragraph is masked too.
+// withoutSpans returns text with each code span replaced by BREAK, with each line break kept.
+// A span over two lines of a paragraph is masked too.
 function withoutSpans(text) {
   let out = '';
   let from = 0;
   for (const span of codeSpans(text)) {
-    out += text.slice(from, span.start) + text.slice(span.start, span.end).replace(/[^\n]/g, ' ');
+    out += text.slice(from, span.start) + text.slice(span.start, span.end).replace(/[^\n]/g, BREAK);
     from = span.end;
   }
   return out + text.slice(from);
@@ -105,55 +106,59 @@ const UNDERLINE = /^ {0,3}(=+|-+)[ \t]*$/;
 // A line that starts a list item, which an underline of - follows as a break, not a heading.
 const ITEM = /^\s*([-*+]|\d+[.)])(\s|$)/;
 
-// headingOf returns the level, the title and the count of lines of the heading, # or setext,
-// that starts at list[index]. It returns null for no heading. A closing # is no part of the
-// title.
+// A line of a table.
+const ROW = /^\s*\|/;
+
+// headingOf returns the level and the title of the heading, # or setext, that starts at
+// list[index]. It returns null for no heading. A closing # is no part of the title.
 function headingOf(list, index) {
   const line = list[index];
   if (line.fenced) return null;
   const level = headingLevel(line.text);
   if (level) {
-    const title = line.text.replace(/^ {0,3}#+/, '').replace(/(^|\s)#+\s*$/, '').trim();
-    return { level, title, size: 1 };
+    return { level, title: line.text.replace(/^ {0,3}#+/, '').replace(/(^|\s)#+\s*$/, '').trim() };
   }
   const next = list[index + 1];
-  const under = next && !next.fenced && UNDERLINE.exec(next.text);
+  const under = next && UNDERLINE.exec(next.text);
   if (!under || !line.text.trim() || ITEM.test(line.text) || UNDERLINE.test(line.text)) {
     return null;
   }
-  return { level: under[1][0] === '=' ? 1 : 2, title: line.text.trim(), size: 2 };
+  return { level: under[1][0] === '=' ? 1 : 2, title: line.text.trim() };
 }
+
+// endsBlock is true for a line that ends its block: a heading or the underline of one.
+// startsBlock is true for a line that starts a block: such a line, a list item or a table row.
+const endsBlock = (text) => headingLevel(text) > 0 || UNDERLINE.test(text);
+const startsBlock = (text) => endsBlock(text) || ITEM.test(text) || ROW.test(text);
 
 // markdownLines returns the lines of a Markdown text that the check reads, each { number,
 // text, read }. It leaves out the lines of a code block. It also leaves out each section whose
 // title unchecked has. Such a section runs from its level 2 heading up to the next heading of
-// level 1 or 2, with its ### subsections. read is the line without its code spans
-// and its text in double quotes.
+// level 1 or 2, with its ### subsections. read is the line without its code spans and its
+// text in double quotes.
 function markdownLines(text, unchecked) {
   const list = lines(text);
   const kept = [];
   let skip = false;
-  for (let index = 0; index < list.length; index += 1) {
+  list.forEach((line, index) => {
     const heading = headingOf(list, index);
     if (heading && heading.level <= 2) {
       skip = heading.level === 2 && unchecked.has(heading.title.toLowerCase());
     }
-    const size = heading ? heading.size : 1;
-    for (let at = index; !skip && at < index + size; at += 1) {
-      if (!list[at].fenced) kept.push({ number: at + 1, text: list[at].text });
-    }
-    index += size - 1;
-  }
-  // A paragraph is a run of lines that follow each other with no blank line: its code spans
-  // are masked together.
-  // shortcut: list items, table rows and a heading with no blank line between them count as
-  // one paragraph, so a stray backtick moves the spans of the lines after it. Replace this with
-  // the blocks of a Markdown parser when such a case gives a wrong finding.
+    if (!skip && !line.fenced) kept.push({ number: index + 1, text: line.text });
+  });
+  // A paragraph is a run of lines that follow each other with no blank line. A line that
+  // startsBlock accepts starts a new one, and so does a line after one that endsBlock accepts.
+  // The code spans of a paragraph are masked together.
+  // shortcut: a paragraph ends at no other start of a block, such as a quote with >. A stray
+  // backtick there moves the spans of the lines after it. Replace this with the blocks of a
+  // Markdown parser when such a case gives a wrong finding.
   const out = [];
   for (let from = 0; from < kept.length;) {
     let to = from + 1;
     while (to < kept.length && kept[to].number === kept[to - 1].number + 1 &&
-      kept[to].text.trim() && kept[to - 1].text.trim()) to += 1;
+      kept[to].text.trim() && kept[to - 1].text.trim() && !startsBlock(kept[to].text) &&
+      !endsBlock(kept[to - 1].text)) to += 1;
     const part = kept.slice(from, to);
     withoutSpans(part.map((line) => line.text).join('\n')).split('\n')
       .forEach((read, place) => out.push({ ...part[place], read: unquoted(read) }));
@@ -167,7 +172,7 @@ function markdownLines(text, unchecked) {
 const plainLines = (text) => text.split('\n')
   .map((line, index) => ({ number: index + 1, text: line, read: unquoted(line) }));
 
-// jsonTexts returns each string value of the JSON text, in the order of the document, as
+// jsonTexts returns each string value of the JSON text, in the order of the document. Each is
 // { at, text }, where at is its JSON pointer. It walks with a list, so a deep or wide document
 // does not overflow the call stack. It returns null for a text that is no JSON, which the check
 // of the type finds.

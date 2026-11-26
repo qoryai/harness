@@ -6669,12 +6669,54 @@ test('reply phrases: the lists of two skill folders count in the order of the fo
 });
 
 test('reply phrases: end finds them in a draft that the run has not pushed', () => {
-  const notes = phrasePlugin();
+  // The phrase is in the list of the module alone.
+  const notes = phrasePlugin('', JSON.stringify({ phrases: ['per your note'] }));
   const root = fs.realpathSync(fs.mkdtempSync(path.join(tmp, 'end-')));
-  write(root, 'notes.md', 'As discussed, the shop opens at 8:00.\n');
+  write(root, 'notes.md', 'Per your note, the shop opens at 8:00.\n');
   const result = call({ cwd: tmp, ...notes, env: RUN_ENV }, ['end', root]);
   assert.equal(result.status, 1, result.out);
-  assert.match(result.out, /^Remove "as discussed" from line 1 of notes\.md and state the outcome\.$/m);
+  assert.match(result.out, /^Remove "per your note" from line 1 of notes\.md and state the outcome\.$/m);
+});
+
+test('reply phrases: end skips them in points.json, which is no type of the registry', () => {
+  const root = fixture();
+  started(root, {});
+  write(root, 'points.json', [{ ...AGAIN_POINT, text: 'The run stopped, as discussed with the team.' }]);
+  older(root);
+  passes(end(root, stub().env));
+});
+
+test('reply phrases: a call of checkFiles without phraseFiles is a fault of the harness', () => {
+  const { checkFiles: filesOf } = require(path.join(path.dirname(SCRIPT), 'lib', 'drafts.cjs'));
+  assert.throws(() => filesOf('check', tmp, { type: 'notes' }, [], tmp),
+    { message: /^Fix the call of checkFiles for notes: give place\.phraseFiles\.\nGive null / });
+});
+
+test('reply phrases: the checks of setext headings and of a paragraph', () => {
+  const notes = phrasePlugin("uncheckedSections: ['Sources']");
+  // A --- after a blank line, after a list item or after another --- is no underline.
+  for (const text of ['## Sources\n\nx\n\n---\nAs discussed.\n', '## Sources\n\n- x\n---\nAs discussed.\n',
+    '## Sources\n\n---\n---\nAs discussed.\n']) passes(pushNotes(notes, [['notes.md', text]]));
+  // An underline of = makes a heading of level 1, which no title skips.
+  fails(pushNotes(notes, [['notes.md', 'Sources\n=======\n\nAs discussed.\n']]),
+    /^Remove "as discussed" from line 4 of notes\.md/);
+  // A blank line, a code block, a list item or a heading ends a paragraph: no code span
+  // crosses it.
+  fails(pushNotes(notes, [['notes.md', 'Run `a\n\nas discussed `b.\n']]),
+    /^Remove "as discussed" from line 3 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', 'Run `a\n```\nx\n```\nas discussed `b.\n']]),
+    /^Remove "as discussed" from line 5 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', '- Press the ` key.\n- As discussed, run `make`.\n']]),
+    /^Remove "as discussed" from line 2 of notes\.md/);
+  fails(pushNotes(notes, [['notes.md', '## Run `a\nas discussed `b.\n']]),
+    /^Remove "as discussed" from line 2 of notes\.md/);
+  // A masked code span or quote between two words ends a phrase.
+  passes(pushNotes(notes, [['notes.md', 'The shop opens as `x` discussed.\n']]));
+  passes(pushNotes(notes, [['notes.md', 'The shop opens as\n"x"\ndiscussed.\n']]));
+  // A file named .JSON is JSON.
+  const json = phrasePlugin('allowed: () => true');
+  fails(pushNotes(json, [['notes.md', 'Fine.\n'], ['notes.JSON', '{"a": "As discussed."}']]),
+    /^Remove "as discussed" from \/a of notes\.JSON and state the outcome\./);
 });
 
 test('reply phrases: a fast-track proposal may have them under ## Commands', () => {

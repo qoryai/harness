@@ -50,8 +50,8 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
   place = {}) {
   const { type } = def;
   if (place.phraseFiles === undefined) {
-    throw new Error(`Fix the call of checkFiles for ${type}: give place.phraseFiles, or null ` +
-      'for a type that the registry does not have.');
+    throw new Error(`Fix the call of checkFiles for ${type}: give place.phraseFiles.\n` +
+      'Give null for a type that the registry does not have.');
   }
   const context = new Context(root, mode, home, store, view);
   context.plugin = plugin;
