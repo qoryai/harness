@@ -1,7 +1,7 @@
 // The rule that no text of an artifact replies to its reviewer, rule 21 of simple-communication.
-// The phrases are in references/reply-phrases.json of simple-communication. A skill folder whose
-// workflow-checks.cjs the registry loads may add a reply-phrases.json. checkFiles of lib/drafts.cjs runs replyCheck after
-// the check of each type.
+// The phrases are in references/reply-phrases.json of simple-communication. A skill folder
+// whose workflow-checks.cjs the registry loads may add a reply-phrases.json. checkFiles of
+// lib/drafts.cjs runs replyCheck after the check of each type.
 'use strict';
 
 const fs = require('node:fs');
@@ -73,7 +73,7 @@ function pattern(words) {
 // as { phrase, pattern }. A file adds phrases and removes none. A phrase that an earlier file
 // has, by its words in any case and with ’ as ', counts once.
 function phraseList(extensions = []) {
-  // The check never runs with no list: a stack without simple-communication stops it.
+  // The check never runs with no list. It stops when the stack composes no simple-communication.
   if (!fs.existsSync(CORE)) {
     throw new Error("Add simple-communication to the stack's core skills.\n" +
       `The check of reply phrases reads ${CORE}, which does not exist.`);
