@@ -54,9 +54,10 @@ Load each skill when its step comes, and no other:
   read forms and the commands you may run.
 
 You get the paths of the input file and the artifact folder, the run's number, the source
-lines with their words, any lines "Not asked:", the next ids, and any finding to fix. Read
-what the pull wrote, never the memory of an earlier session. Do not retry a tool call that a
-permission rule or a hook blocked. Read through no link, and fetch no web page.
+lines with their words and the question of each answer, any lines "Not asked:", the next ids,
+and any finding to fix. Read what the pull wrote, never the memory of an earlier session. Do
+not retry a tool call that a permission rule or a hook blocked. Read through no link, and
+fetch no web page.
 
 When you start again, change the draft for the findings, and repeat the lists of your newest
 report, changed for this start.

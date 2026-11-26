@@ -8,9 +8,9 @@ description: Load before you sort a person's feedback on a change into points. C
 Load ${qory:skills/artifact-text} before you write.
 
 Feedback is what a person asked for after they saw a change: the note of a request for
-changes, of a move back or of an escalation, a review comment, or a reply. You sort each
-note into points. A point is one thing that the person asks for. The note is the person's
-word: a point is never a disagreement, and you never decide against it.
+changes, of a move back or of an escalation, a review comment, a reply, or an answer to a
+question. You sort each note into points. A point is one thing that the person asks for. The
+note is the person's word: a point is never a disagreement, and you never decide against it.
 
 ## The file
 
@@ -19,6 +19,11 @@ Write `feedback.json` at the top of the artifact folder. It has two lists:
 - `sources`: each note, in the order of the lines you got. Copy each JSON line as it is,
   with all its members. Never write a source yourself.
 - `points`: the points, with the ids `p1`, `p2` and so on.
+
+The text of an answer is the title of the option that the member picked, else the member's
+note. A line "Question of <id>: <question>" follows the source line of an answer: read that
+question in the newest `questions`, because its `answer` also has any note that the member
+wrote beside the option.
 
 Start from the newest `feedback`, when the work item has one. Keep each source and each
 point of it as it is, in its place. Add the new ones after them. The line "The next ids are"

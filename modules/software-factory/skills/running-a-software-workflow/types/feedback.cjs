@@ -58,7 +58,7 @@ module.exports = (lib) => {
       return;
     }
     run.did('notes of the work item');
-    const open = sourcesOf(read.notes, stored(run.context));
+    const open = sourcesOf(read.notes);
     const all = new Map(open.map((source) => [source.id, source]));
     for (const source of data.sources.slice(before.sources.length)) {
       const note = all.get(source.id);

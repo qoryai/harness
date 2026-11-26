@@ -3634,9 +3634,11 @@ question, else with `passed`. A point outside the kind of the fast track ends wi
 and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
-`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
-to a question is no source yet, so a run builds nothing from it; read it once each answer
-has an id.
+`writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
+question is a source with the id `an_` of its note, which a version can link to. After it,
+`feedback open` prints a line `Question of <id>: <question>` with the question whose answer
+has the text and the time of the note, because only the question has the note beside an
+option.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It

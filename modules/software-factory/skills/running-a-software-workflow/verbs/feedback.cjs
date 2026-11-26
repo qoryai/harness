@@ -1,5 +1,6 @@
 // feedback open: prints each note of the work item that no version of feedback lists, as its
-// source in JSON, with the words of it that a text of the run may quote, then each point whose
+// source in JSON, with the words of it that a text of the run may quote and, for an answer, the
+// question in the newest questions that has the whole answer, then each point whose
 // question is not in the newest questions and each whose question waits for an answer, and each
 // open question that a group of criterion changes waits for, with the point it is about and the
 // words of that point. Exit 1 when a note is open or a question is missing.
@@ -21,8 +22,8 @@
 
 module.exports = (lib) => {
   const { Context, FEEDBACK_OUTPUTS, aboutPoint, amended, artifactFolder, criterionGroups,
-    isObject, Missing, lists, parseJson, plainLine, plural, sourcesOf, storedFeedback, wordsOf,
-    workItemNotes } = lib;
+    isObject, Missing, lists, parseJson, plainLine, plural, questionsOf, sourcesOf, storedFeedback,
+    wordsOf, workItemNotes } = lib;
 
   // stored returns the list key of the newest version of type, in its file, or none.
   function stored(context, type, key) {
@@ -83,7 +84,9 @@ module.exports = (lib) => {
     if (read.why !== undefined) throw new Missing(`Run feedback open again.\n${read.why}.`);
     const data = storedFeedback(context);
     const questions = stored(context, 'questions', 'questions');
-    const sources = sourcesOf(read.notes, questions).filter((source) => !lists(data, source));
+    const all = sourcesOf(read.notes);
+    const answers = questionsOf(all, questions);
+    const sources = all.filter((source) => !lists(data, source));
     const asked = data.points.filter((point) => point.sort === 'question')
       .map((point) => ({ point, found: questions.find((one) => one.id === point.question) }));
     const missing = asked.filter(({ found }) => !found);
@@ -94,7 +97,9 @@ module.exports = (lib) => {
       Math.max(most, Number((/^q([0-9]+)$/.exec(id) || [])[1]) || 0), 0);
     return print(io, [
       ...sources.flatMap((source) => [JSON.stringify(source),
-        `Words of ${source.id}: ${wordsOf(source.text)}`]),
+        `Words of ${source.id}: ${wordsOf(source.text)}`,
+        ...(answers.has(source.id) ? [`Question of ${source.id}: ${answers.get(source.id)}`]
+          : [])]),
       ...missing.map(({ point }) => `Not asked: ${point.id}, ${point.question}`),
       ...waiting.flatMap(({ point, question, words }) => (question === undefined
         ? [`Waiting for an answer: ${point.id}, ${point.question}`]
