@@ -413,7 +413,7 @@ test('feedback open takes each kind of note that a person wrote, with its text',
   assert.deepEqual(found, [S1, sourceOf('gd_2', 'note', 'Moved\nback.'),
     sourceOf('es_3', 'note', 'Try again.'),
     sourceOf(commentKey(AT, 'Run another round.'), 'comment', 'Run another round.'),
-    sourceOf(key, 'comment', 'Show the total.')]);
+    sourceOf(key, 'comment', 'Show the total.'), sourceOf('an_7', 'answer', 'Keep 50.')]);
   // Each one passes as a source, and is open no more once sorted.
   const data = { sources: found, points: [] };
   passes(check(data, { notes }));
@@ -438,40 +438,171 @@ test('a criterion change in a comment is a question, also in a comment with an i
   }
 });
 
-test('feedback open leaves out an answer to a question, and lists a question with no answer', () => {
+test('feedback open lists an answer to a question as a source, with the question it answers', () => {
   const answered = { ...clone(Q5), id: 'q1', state: 'answered',
     answer: { option: Q5.options[0].title, by: SAM, at: '2026-11-25T09:00:00.4Z' } };
-  const notes = [GD1, GD2, note(null, 'answer', Q5.options[0].title)];
-  const types = (...questions) => ({ feedback: [{ data: ASKED }],
+  const an1 = note('an_1', 'answer', Q5.options[0].title);
+  const notes = [GD1, GD2, an1];
+  const types = (data, ...questions) => ({ feedback: [{ data }],
     questions: [{ data: { questions } }] });
+  const sorted = { ...ASKED, sources: [...ASKED.sources, sourceOf('an_1', 'answer', an1.note)] };
+  const answerLines = ['{"kind":"answer","id":"an_1","at":"2026-11-25T09:00:00Z",' +
+    '"by":"Sam Example","text":"The toolbar shows Export on every page."}',
+  'Words of an_1: The toolbar shows Export on every page', 'Question of an_1: q1'];
   // The question of p3 is not in the newest questions: a crash between the two pushes.
-  const missing = open(store(types(answered)), notes);
+  const missing = open(store(types(ASKED, answered)), notes);
   assert.equal(missing.status, 1);
-  assert.deepEqual(missing.lines, ['Not asked: p3, q5', 'Open feedback: 0 sources; 1 question not ' +
-    'asked; 0 questions with no answer. The next ids are p4 and q6.']);
-  const waiting = open(store(types(answered, Q5)), notes);
+  assert.deepEqual(missing.lines, [...answerLines, 'Not asked: p3, q5', 'Open feedback: 1 ' +
+    'source; 1 question not asked; 0 questions with no answer. The next ids are p4 and q6.']);
+  // Sorted, the answer is open no more, and the question of p3 waits.
+  const waiting = open(store(types(sorted, answered, Q5)), notes);
   assert.equal(waiting.status, 0);
   assert.deepEqual(waiting.lines, ['Waiting for an answer: p3, q5', 'Open feedback: 0 sources; 0 ' +
     'questions not asked; 1 question with no answer. The next ids are p4 and q6.']);
-  const ended = open(store(types(answered, { ...Q5, state: 'answered',
-    answer: { note: 'Both.', by: SAM, at: AT } })), [GD1, GD2, note(null, 'answer', 'Both.')]);
-  assert.deepEqual([ended.status, ended.lines.length], [0, 1]);
-  // An earlier answer of a question, in its history, is left out too.
+  // The answer to q5 ends p3, and is a new source, with the note of the answer as its text.
+  const both = { ...Q5, state: 'answered', answer: { note: 'Both.', by: SAM, at: AT } };
+  const ended = open(store(types(sorted, answered, both)), [...notes,
+    note('an_2', 'answer', 'Both.')]);
+  assert.deepEqual([ended.status, ended.lines.slice(1)], [1, ['Words of an_2: Both',
+    'Question of an_2: q5', 'Open feedback: 1 source; 0 questions not asked; 0 questions with ' +
+      'no answer. The next ids are p4 and q6.']]);
+  // A question that a run reopened and a person answered again has two answers, two notes
+  // and two sources, each of the same question: the earlier answer is in its history.
   const again = { ...answered, answer: { option: Q5.options[1].title, by: SAM,
-    at: '2026-11-25T10:00:00Z' }, history: [answered.answer] };
-  const history = open(store(types(again, Q5)), notes);
-  assert.deepEqual(sourcesIn(history), []);
-  // The check of feedback leaves out the answer too: it needs no source, and gets none.
-  const answer = notes[2];
-  const draft = (data) => {
-    const root = store(types(answered, Q5));
+    at: '2026-11-25T10:00:00Z' }, history: [null, answered.answer] };
+  const twice = open(store(types(ASKED, again, Q5)), [...notes,
+    note('an_3', 'answer', Q5.options[1].title, '2026-11-25T10:00:00.7Z')]);
+  assert.deepEqual(sourcesIn(twice).map((one) => one.id), ['an_1', 'an_3']);
+  assert.deepEqual(twice.lines.filter((line) => line.startsWith('Question of')),
+    ['Question of an_1: q1', 'Question of an_3: q1']);
+  // A review comment or a reply has no id. One with the text and the time of an answer is a
+  // comment, and only the answer has the question.
+  const comment = note(null, 'answer', an1.note);
+  const beside = open(store(types(ASKED, answered)), [GD1, GD2, comment, an1]);
+  assert.deepEqual(sourcesIn(beside).map((one) => one.kind), ['comment', 'answer']);
+  assert.deepEqual(beside.lines.filter((line) => line.startsWith('Question of')),
+    ['Question of an_1: q1']);
+  // The check of feedback needs the answer as a source, and passes with it.
+  const draft = (data, questions = [answered, Q5]) => {
+    const root = store(types(ASKED, ...questions));
     write(path.join(root, 'feedback.json'), data);
     return run(root, notes, ['check', 'feedback', path.join(root, 'feedback.json')]);
   };
-  passes(draft(ASKED));
-  const key = commentKey(answer.at, answer.note);
-  fails(draft({ ...ASKED, sources: [...ASKED.sources, sourceOf(key, 'comment', answer.note)] }),
-    `Remove source ${key} from feedback.json.`);
+  fails(draft(ASKED), /^Add the source an_1 to feedback\.json\.$/);
+  passes(draft(sorted));
+  passes(push(sorted, { notes, before: ASKED }));
+});
+
+test('feedback open pairs each answer with one question by its text and its time', () => {
+  const keep = 'Keep the approved criteria as they are.';
+  const ask = (id, answer) => ({ ...clone(Q5), id, state: 'answered', answer });
+  const given = (at, text = keep) => ({ option: text, by: SAM, at });
+  const pairs = (questions, notes, sorted = []) => open(store({
+    feedback: [{ data: { sources: [S1, ...sorted], points: [P1, P2] } }],
+    questions: [{ data: { questions } }] }), [GD1, ...notes]).lines
+    .filter((line) => line.startsWith('Question of'));
+  // Two answers of one move with one text pair with two questions, one each.
+  const two = [ask('q1', given(AT)), ask('q2', given(AT))];
+  const notes = [note('an_1', 'answer', keep), note('an_2', 'answer', keep)];
+  assert.deepEqual(pairs(two, notes), ['Question of an_1: q1', 'Question of an_2: q2']);
+  // A sorted answer keeps its question, so the open one gets the other.
+  assert.deepEqual(pairs(two, notes, [sourceOf('an_1', 'answer', keep)]),
+    ['Question of an_2: q2']);
+  // Another time, another text, a question with no id or no answer: no question.
+  assert.deepEqual(pairs([ask('q1', given('2026-11-25T09:00:01Z'))], [notes[0]]), []);
+  assert.deepEqual(pairs([ask('q1', given(AT, 'Raise it.'))], [notes[0]]), []);
+  assert.deepEqual(pairs([{ ...ask('q1', given(AT)), id: undefined }, Q5], [notes[0]]), []);
+  assert.deepEqual(pairs([ask('q1', { option: null, by: SAM, at: AT }),
+    ask('q2', { option: keep, by: SAM })], [notes[0]]), []);
+  // The answer of a note alone is its text.
+  assert.deepEqual(pairs([ask('q1', { note: keep, by: SAM, at: AT })], [notes[0]]),
+    ['Question of an_1: q1']);
+});
+
+test('feedback open prints the note beside the option of an answer, which a point may quote', () => {
+  const title = Q5.options[0].title;
+  const beside = 'Only on the export page.\nNot in settings.';
+  const ask = (answer, more = {}) => ({ ...clone(Q5), id: 'q1', state: 'answered', answer,
+    ...more });
+  const given = (more = {}) => ({ option: title, by: SAM, at: AT, ...more });
+  const an1 = note('an_1', 'answer', title);
+  const lines = (questions, notes = [an1]) => open(store({ questions: [{ data: { questions } }] }),
+    [GD1, ...notes]).lines.filter((line) => /^(Question|Note) of/.test(line));
+  // An option with a note: the note follows, as a JSON string on one line.
+  assert.deepEqual(lines([ask(given({ note: beside }))]), ['Question of an_1: q1',
+    `Note of an_1: ${JSON.stringify(beside)}`]);
+  // An option with no note, or a blank one, and a note with no option, which is the text.
+  assert.deepEqual(lines([ask(given())]), ['Question of an_1: q1']);
+  assert.deepEqual(lines([ask(given({ note: ' \n' }))]), ['Question of an_1: q1']);
+  assert.deepEqual(lines([ask({ note: 'Both.', by: SAM, at: AT })],
+    [note('an_1', 'answer', 'Both.')]), ['Question of an_1: q1']);
+  // A reopened question: the earlier answer, in its history, has the note.
+  const later = '2026-11-25T10:00:00Z';
+  const reopened = ask({ option: Q5.options[1].title, by: SAM, at: later },
+    { history: [given({ note: beside })] });
+  assert.deepEqual(lines([reopened], [an1, note('an_3', 'answer', Q5.options[1].title, later)]),
+    ['Question of an_1: q1', `Note of an_1: ${JSON.stringify(beside)}`, 'Question of an_3: q1']);
+  // A point quotes the text of the source or the note, in a check and a push.
+  const answer = sourceOf('an_1', 'answer', title);
+  const quoting = (quote) => ({ sources: [S1, answer], points: [P1, P2,
+    { ...P1, id: 'p3', source: 'an_1', quote }] });
+  const types = (questions) => ({ questions: [{ data: { questions } }] });
+  const notes = [GD1, an1];
+  const sorted = (quote, questions = [ask(given({ note: beside }))]) =>
+    check(quoting(quote), { notes, types: types(questions) });
+  passes(sorted('Not in settings.'));
+  passes(sorted('The toolbar shows Export'));
+  passes(push(quoting('Not in settings.'), { notes, before: CASE,
+    types: types([ask(given({ note: beside }))]) }));
+  fails(sorted('Not on the home page.'), 'Quote point p3 word for word from the text of its ' +
+    'source or the note of its answer.');
+  fails(sorted('Not in settings.', [ask(given())]), 'Quote point p3 word for word from the ' +
+    'text of its source.');
+  // A sorted point keeps its quote of the note after the note closes.
+  const kept = quoting('Not in settings.');
+  passes(push(kept, { notes: [GD1], before: kept, types: types([ask(given({ note: beside }))]) }));
+  // With no notes to read, the check pairs the sources of the draft.
+  passes(push(kept, { notes: null, before: CASE, types: types([ask(given({ note: beside }))]) }));
+});
+
+test('feedback open and the check pair equal answers alike, whatever the order of the draft', () => {
+  const keep = 'Keep the approved criteria as they are.';
+  const criterion = (item) => ({ type: 'acceptance-criteria', name: 'main', item });
+  const ask = (id, item, more = {}) => ({ ...clone(Q5), id, about: criterion(item),
+    state: 'answered', answer: { option: keep, by: SAM, at: AT, ...more } });
+  // One move answers q1 and q2 with one option; the member wrote a note beside the second.
+  const questions = [ask('q1', 'ac-1'), ask('q2', 'ac-2', { note: 'Raise AC-2 to 100.' })];
+  const notes = [GD1, note('an_a', 'answer', keep), note('an_b', 'answer', keep)];
+  const types = { questions: [{ data: { questions } }] };
+  assert.deepEqual(open(store(types), notes).lines.filter((line) => /^(Question|Note) of/
+    .test(line)), ['Question of an_a: q1', 'Question of an_b: q2',
+    'Note of an_b: "Raise AC-2 to 100."']);
+  const [a, b] = [sourceOf('an_a', 'answer', keep), sourceOf('an_b', 'answer', keep)];
+  const point = { ...P2, id: 'p3', source: 'an_b', quote: 'Raise AC-2 to 100.' };
+  passes(check({ sources: [S1, a, b], points: [P1, P2, point] }, { notes, types }));
+  // A draft in another order fails, in a check and a push, so that no version stores an order
+  // in which a later check pairs an_b with q1.
+  const order = 'Write the new sources in the order that `feedback open` prints them.';
+  fails(check({ sources: [S1, b, a], points: [P1, P2, point] }, { notes, types }), order);
+  fails(push({ sources: [S1, b, a], points: [P1, P2, { ...point, reply: P2.reply }] },
+    { notes, before: CASE, types }), order);
+  const reversed = check({ sources: [S1, b, a], points: [P1, P2] }, { notes, types });
+  assert.ok(reversed.lines.some((line) => line.trim() === 'The order is gd_1, an_a, an_b.'),
+    reversed.out);
+  // A source with no open note gets the finding to remove it, and no finding of the order.
+  const stray = check({ sources: [S1, a, b, sourceOf('an_z', 'answer', keep)], points: [P1, P2] },
+    { notes, types });
+  fails(stray, 'Remove source an_z from feedback.json.');
+  assert.ok(!stray.lines.includes(order), stray.out);
+  // A sorted answer keeps its question in both: the sources of the newest feedback come first.
+  const root = store({ ...types, feedback: [{ data: { sources: [S1, a], points: [P1, P2] } }] });
+  assert.deepEqual(open(root, notes).lines.filter((line) => /^(Question|Note) of/.test(line)),
+    ['Question of an_b: q2', 'Note of an_b: "Raise AC-2 to 100."']);
+  write(path.join(root, 'feedback.json'), { sources: [S1, a, b], points: [P1, P2, point] });
+  passes(run(root, notes, ['check', 'feedback', path.join(root, 'feedback.json')]));
+  // The sorted answer pairs first also when its note is no longer open.
+  assert.deepEqual(open(root, [GD1, notes[2]]).lines.filter((line) => /^Question of/
+    .test(line)), ['Question of an_b: q2']);
 });
 
 test('feedback open exits 3 when the notes cannot be read', () => {
@@ -532,6 +663,46 @@ test('a criterion change ends with a version that counts, of a run, with the id 
   assert.equal(ended({ ...version, decision: 'gd_2' }), false);
   assert.equal(ended({ ...version, writer: { kind: 'person', account: 'u_1' } }), false);
   assert.equal(ended({ withdrawn: true, decision: 'gd_1' }), false);
+});
+
+test('a criterion change of an answer is a group of its id, which a version linked to it ends', () => {
+  const answer = sourceOf('an_1', 'answer', 'Raise the row limit of AC-2 from 50 to 100.');
+  const data = { sources: [S1, answer], points: [P1, { ...P2, source: 'an_1' }] };
+  const notes = [GD1, note('an_1', 'answer', answer.text)];
+  // An answer has an id that a version can link to, so its criterion change passes.
+  passes(check(data, { notes }));
+  const groups = (...versions) => sourcesIn(points(store({ feedback: [{ data }],
+    'acceptance-criteria': [{ data: CRITERIA }, ...versions] })));
+  assert.deepEqual(groups(), [{ ...GROUP, decision: 'an_1' }]);
+  const version = { data: CRITERIA, decision: 'an_1' };
+  assert.deepEqual(groups(version), []);
+  for (const other of [{ ...version, decision: 'gd_1' }, { ...version, decision: 'an_2' },
+    { ...version, cancelled: true }, { withdrawn: true, decision: 'an_1' }]) {
+    assert.deepEqual(groups(other).map((one) => one.decision), ['an_1']);
+  }
+});
+
+test('an answer changes only the criterion that its question is about', () => {
+  const text = 'Raise the row limit of AC-3 to 100. Add a total row.';
+  const answer = sourceOf('an_1', 'answer', text);
+  const notes = [GD1, note('an_1', 'answer', text)];
+  const q1 = (about) => ({ ...clone(Q5), id: 'q1', about, state: 'answered',
+    answer: { note: text, by: SAM, at: AT } });
+  const criterion = (item) => ({ type: 'acceptance-criteria', name: 'main', item });
+  const sorted = (point, about = criterion('ac-2')) => check({ sources: [S1, answer],
+    points: [P1, P2, { ...P2, id: 'p3', source: 'an_1', quote: 'Raise the row limit of AC-3 ' +
+      'to 100.', ...point }] }, { notes, types: { questions: [{ data: { questions:
+      [q1(about)] } }] } });
+  passes(sorted({ item: 'ac-3' }, criterion('ac-3')));
+  fails(sorted({ item: 'ac-3' }), 'Set the sort of point p3 to question, about ac-3.');
+  fails(sorted({ item: 'ac-3' }, { type: 'feedback', name: 'main', item: 'p2' }),
+    'Set the sort of point p3 to question, about ac-3.');
+  // A new criterion binds no lock, and a point of the scenarios is not a criterion.
+  passes(sorted({ item: undefined, quote: 'Add a total row.' }));
+  passes(sorted({ output: 'demo-scenarios', item: 'scenario-1' }));
+  // With no question that has the answer, the check cannot compare, and passes.
+  passes(check({ sources: [S1, answer], points: [P1, P2, { ...P2, id: 'p3', source: 'an_1',
+    quote: 'Raise the row limit of AC-3 to 100.', item: 'ac-3' }] }, { notes }));
 });
 
 test('feedback takes open or points alone, or amended with an output and --decision', () => {

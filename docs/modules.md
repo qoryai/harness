@@ -2925,16 +2925,19 @@ find:
   typed by hand fails. A push reads no record;
 - `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
   `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
-  time and text; a new source that differs from its note, or that has none; in a
-  check, an open note that is no source; a changed or missing source or point of the newest
-  version; a point id out of order; a `quote` that is no part of the source's text; a member
-  that the sort does not have, or lacks; an `item` that is no id of the `output`, or a
-  criterion that the criteria do not have; a `criterion-change` whose source has a `cm_` key,
-  or in a work item with no acceptance criteria; a question of two points, or one that the
-  newest questions have; in a check with a draft `questions.json`, a point whose question it
-  lacks, and a new question of a point that breaks the rule for the question of a point,
-  whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point with
-  no `reply`;
+  time and text; a new source that differs from its note, or that has none; new sources in
+  another order than `feedback open` prints them, because a later check pairs equal answers in
+  the stored order; in a check, an open note that is no source; a changed or missing source or
+  point of the newest version; a point id out of order; a `quote` that is no part of the
+  source's text, or, for an answer, of the note beside its option; a member that the sort does
+  not have, or lacks; an `item` that is no id of the `output`, or a criterion that the criteria
+  do not have; a `criterion-change` whose source has a `cm_` key, or in a work item with no
+  acceptance criteria; a new `criterion-change` of a criterion whose source is an answer to a
+  question about another item, as `feedback open` pairs them; a question of two points, or one
+  that the newest questions have; in a check with a draft `questions.json`, a point whose
+  question it lacks, and a new question of a point that breaks the rule for the question of a
+  point, whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point
+  with no `reply`;
 - `walkthrough`: a file that does not start with `# Walkthrough: <title>` and one header
   line `Commit <7 or more hex digits>`, optionally followed by ` · <text>`, with no other
   text before the first `##`. The commit must be the start of the verified commit, the
@@ -3634,9 +3637,12 @@ question, else with `passed`. A point outside the kind of the fast track ends wi
 and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
-`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
-to a question is no source yet, so a run builds nothing from it; read it once each answer
-has an id.
+`writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
+question is a source with the id `an_` of its note, which a version can link to. After it,
+`feedback open` prints a line `Question of <id>: <question>` with the question whose answer
+has the text and the time of the note, and a line `Note of <id>: <note>` with the note that
+the member wrote beside the option, which the note of the work item lacks. A point may quote
+the text of its source or that note.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -4780,24 +4786,29 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   changed lines."
   `shortcut:` after more than one Build run, `pull-request.base` is the start of the last
   run, so the list covers the last run only; replace it when the ledger base reaches Verify.
-- `feedback open`: prints each open note of `qory work-item show` that no version of
-  `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
-  line "Not asked: <point>, <question>" per question that the newest questions lack, and one
-  line "Waiting for an answer: <point>, <question>" per open one. It also prints that line for
-  each open question that a group of `feedback points` waits for and no `question` point has,
-  such as one that a writer raised, with the point of the group that the question is about,
-  a ripple point's included, and "Words of <point>: <words>" after it. For a ripple point,
-  the words are those of the criterion change of the source on that criterion; with no such
-  change, as for an added criterion, those of the first criterion change of the source with
-  no item; else the text of the source. A question with no item in its `about`, asked at or
-  after the time of the source (`asked.at`), is about the first point of a group of that
-  output, and a question about a criterion is also about a ripple point of that criterion.
-  A question has no member for the agent that asked it. The session then ends with an
-  `answer` point on it, not with `passed`. The notes are those of the kinds
-  `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
-  key of its time and text, and an answer to a question is left out. It exits with 1 for a
-  source or a question not asked, with 0 for neither, and with 3 when the notes cannot be
-  read. A line of a source is not cut.
+- `feedback open`: prints each open note of `qory work-item show` that no version of `feedback`
+  lists, as its source in JSON, and "Words of <id>: <words>" after it, then one line "Not asked:
+  <point>, <question>" per question that the newest questions lack, and one line "Waiting for an
+  answer: <point>, <question>" per open one. It also prints that line for each open question
+  that a group of `feedback points` waits for and no `question` point has, such as one that a
+  writer raised, with the point of the group that the question is about, a ripple point's
+  included, and "Words of <point>: <words>" after it. For a ripple point, the words are those of
+  the criterion change of the source on that criterion; with no such change, as for an added
+  criterion, those of the first criterion change of the source with no item; else the text of
+  the source. A question with no item in its `about`, asked at or after the time of the source
+  (`asked.at`), is about the first point of a group of that output, and a question about a
+  criterion is also about a ripple point of that criterion. A question has no member for the
+  agent that asked it. The session then ends with an `answer` point on it, not with `passed`.
+  The notes are those of the kinds `request_changes`, `move`, `escalation` and `answer` with a
+  text. A note with no id has the key of its time and text. An answer to a question has the id
+  `an_` of its note, and after its words comes the line "Question of <id>: <question>", with the
+  question in the newest questions whose answer, or an earlier answer in its history, has the
+  text of the note and its time to the second; each answer pairs with one note, the sources of
+  the newest `feedback` first, then the open notes in their order, as the check of `feedback`
+  pairs them. When that answer has an option and a note that is not blank, "Note of <id>:
+  <note>" follows, with the note as a JSON string on one line. It exits with 1 for a source or a
+  question not asked, with 0 for neither, and with 3 when the notes cannot be read. A line of a
+  source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
   changes that have not ended: the groups of `acceptance-criteria` first, then those of
