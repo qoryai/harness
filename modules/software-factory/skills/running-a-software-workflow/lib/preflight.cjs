@@ -422,8 +422,7 @@ module.exports = (lib) => {
   function keyOfQory(typed, names, fix, line) {
     const name = typed.find((one) => runKey(one, names));
     if (!name) return;
-    throw new Missing(fix, [line(name),
-      cause(`a demo script types ${name}, which the run keeps from scripts`)]);
+    throw new Missing(fix, [line(name)]);
   }
 
   // signInFound returns what the results of the sign-ins of setups found: the browser failed,

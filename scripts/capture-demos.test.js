@@ -478,16 +478,16 @@ test('film and demo run: a step that types a credential exits 3 before the app',
   const cause = '  A demo script types GITHUB_TOKEN, which is a secret of this run.';
   const film = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
   assert.equal(film.status, 3, film.out + film.err);
-  assert.deepEqual(film.out.split('\n').slice(0, 2), ['Remove the key from the demo scripts, ' +
-    'then run film scenario-1 again.', cause]);
+  assert.equal(film.out, 'Remove the key from the demo scripts, then run film scenario-1 ' +
+    `again.\n${cause}\nChecked nothing: the film could not read its input.\n`);
   assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
   // demo run of the draft of the same script.
   fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
   fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
   const draft = call(['demo', 'run', 'scenario-1', '--artifacts', here.plan], deps);
   assert.equal(draft.status, 3, draft.out + draft.err);
-  assert.deepEqual(draft.out.split('\n').slice(0, 2), ['Remove the key from ' +
-    '.demo/scenario-1.actions.json, then run demo write scenario-1.', cause]);
+  assert.equal(draft.out, 'Remove the key from .demo/scenario-1.actions.json, then run demo ' +
+    `write scenario-1.\n${cause}\nChecked nothing: the demo could not read its input.\n`);
   assert.equal(fs.existsSync(started), false);
   for (const text of [film.out, film.err, draft.out, draft.err]) {
     assert.equal(text.includes('ghp_fake'), false, text);
@@ -504,9 +504,9 @@ test('film pages: a setup that types a credential exits 3 before the app', () =>
     preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
   const done = call(['film', 'pages', '/orders', '--artifacts', here.plan], deps);
   assert.equal(done.status, 3, done.out + done.err);
-  assert.deepEqual(done.out.split('\n').slice(0, 2), ['Remove the key from the demo scripts, ' +
-    'then run film pages again.', '  A demo script types GITHUB_TOKEN, which is a secret of ' +
-    'this run.']);
+  assert.equal(done.out, 'Remove the key from the demo scripts, then run film pages again.\n' +
+    '  A demo script types GITHUB_TOKEN, which is a secret of this run.\n' +
+    'Checked nothing: the film could not read its input.\n');
   assert.equal(fs.existsSync(started), false);
   assert.equal(fs.existsSync(path.join(here.root, '.film', 'pages')), false);
   assert.equal((done.out + done.err).includes('ghp_fake'), false);

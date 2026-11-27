@@ -1351,7 +1351,8 @@ test('preflight: a demo script that types a credential name exits 3, and a bad e
   assert.throws(() => run(here, parts, { browsers: [process.execPath],
     env: { QORY_HARNESS_HOME: home(['ACME_*']) } }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
-    assert.match(error.more[0], /^A setup types ACME_HOST, /);
+    assert.deepEqual(error.more, ['A setup types ACME_HOST, a variable of the run\'s credential ' +
+      'list.']);
     return true;
   });
   assert.throws(() => run(here, parts, { browsers: [process.execPath],
@@ -1378,8 +1379,7 @@ test('preflight: a demo script that types a key of qory, of an agent or of a cod
   { browsers: [process.execPath] }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
     assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of the run\'s ' +
-      'credential list.',
-    'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
+      'credential list.']);
     return true;
   });
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1544,10 +1544,9 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   const key = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
     deps);
   assert.equal(key.status, 3, key.out + key.err);
-  assert.equal(key.out.split('\n')[0], 'Remove the key from the demo scripts, then run ' +
-    'preflight again.');
-  assert.equal(causeOf(key.out), 'Cause: a demo script types QORY_RUN_KEY, which the run keeps ' +
-    'from scripts.');
+  assert.equal(key.out, 'Remove the key from the demo scripts, then run preflight again.\n' +
+    '  A setup types QORY_RUN_KEY, a variable of the run\'s credential list.\n' +
+    'Checked nothing: the preflight could not read its input.\n');
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
   demoScript(here.root);
   // A runner of the app that prints no result, here a node that cannot start, exits 3, with
