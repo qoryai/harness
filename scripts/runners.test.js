@@ -1371,6 +1371,9 @@ test('credential names: a name matches an entry in any case, as Forager matches 
   for (const [name, denied] of Object.entries(forager)) {
     assert.equal(secrets.runKey(name, ['EXACT', 'PRE*']), denied, name);
   }
+  // An entry in lower case matches too, as a list of the deployment may write it.
+  assert.equal(secrets.runKey('ACME_KEY', ['acme_*']), true);
+  assert.equal(secrets.runKey('DEPLOY_NAME', ['deploy_name']), true);
   assert.deepEqual(['gh_token', 'Qory_Run_Key', 'openai_api_key'].map((name) =>
     secrets.runKey(name)), [true, true, true]);
 });
