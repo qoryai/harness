@@ -1528,7 +1528,7 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
     assert.equal(found.length, 1, why);
     assert.equal(found[0].line, `${fix}\nqory.key_shapes in inputs.json is set to ${why}.`);
     assert.equal(found[0].point, 'The run could not check its changes for keys, because its ' +
-      'list of key patterns is missing or broken. Another round starts with a new list.');
+      'list of key patterns is missing or broken.');
   }
   // Files that pass, and no field, are no finding, also in a run: the longest name and prefix,
   // a max over 256 with blank or with a prefix byte outside the alphabet, and 64 shapes.
@@ -1548,6 +1548,18 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
   // A line that only shows a path uses the default shapes, and throws for no file.
   assert.equal(secrets.shown(TOKEN, secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] })),
     'a path with a key in its name');
+});
+
+test('key shapes: the point of the end check passes the check of points', () => {
+  const [found] = workflow.end({ cwd: tmp, root: harnessHome({}), failed: 0,
+    env: { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'missing.json' }) } });
+  const dir = path.join(tmp, `points-${++homes}`);
+  fs.mkdirSync(dir);
+  const file = path.join(dir, 'points.json');
+  fs.writeFileSync(file, JSON.stringify([{ action: 'run_again', text: found.point }]));
+  const checked = call(dir, ['check', 'points', file], { artifacts: [dir] });
+  assert.equal(checked.status, 0, checked.out + checked.err);
+  assert.match(checked.err + checked.out, /0 findings\./);
 });
 
 test('run lists: an inputs.json that is a link, too large or no JSON stops each read', () => {

@@ -69,7 +69,7 @@ const BUILD_AND_VERIFY = [
 // The point of the end check for an inputs.json or a qory.key_shapes that cannot be used, when
 // the run ends with it.
 const KEY_SHAPES_POINT = 'The run could not check its changes for keys, because its list of ' +
-  'key patterns is missing or broken. Another round starts with a new list.';
+  'key patterns is missing or broken.';
 
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.
