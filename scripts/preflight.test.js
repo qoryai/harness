@@ -794,7 +794,7 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: the serve command gets every variable but the credentials and typed ones', async () => {
+test('preflight: serve gets every variable but the credentials and typed ones', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   const here = checkout();
   const port = await freePort();
@@ -868,7 +868,7 @@ async function servedNames(qory) {
   return JSON.parse(fs.readFileSync(names, 'utf8'));
 }
 
-test('preflight: the serve command gets a name of a secret with no list in inputs.json', async () => {
+test('preflight: serve gets a name of a secret with no list in inputs.json', async () => {
   assert.ok((await servedNames({})).includes('APP_SECRET'));
 });
 
@@ -877,7 +877,7 @@ test('preflight: a name of qory.credential_variables does not reach the app', as
     .includes('APP_SECRET'), false);
 });
 
-test('preflight: qory.run_secret_names of inputs.json is not read, even with the entry *', async () => {
+test('preflight: qory.run_secret_names is not read, even with the entry *', async () => {
   // servedNames requires no finding, so a reader of the member would stop the preflight.
   assert.ok((await servedNames({ run_secret_names: ['*'] })).includes('APP_SECRET'));
 });
