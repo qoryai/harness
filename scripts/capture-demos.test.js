@@ -417,16 +417,23 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
     'Check the sign-in against the app, then run film scenario-1 again.',
     '  action 2 (type into #password) failed: the sign-in did not finish.',
     '  Kind: setup', 'Stored no film: it failed in the sign-in.']);
-  for (const step of [0, 1]) {
+  // A name of 40 characters stays whole, and the first line, the fix, stays within 100. The
+  // schema allows 64 characters, and a name of 64 is cut to 60 and ..., 100 characters.
+  const long = `SHOP_${'X'.repeat(26)}_PASSWORD`;
+  const longest = `SHOP_${'X'.repeat(50)}_PASSWORD`;
+  assert.deepEqual([long.length, longest.length], [40, 64]);
+  for (const [step, name] of [[0, 'SHOP_PASSWORD'], [1, 'SHOP_PASSWORD'], [0, long],
+    [0, longest]]) {
     const missing = failing(script('scenario-1'), { ok: false, step, why: 'action 2 (type into ' +
-      '#password) failed: the variable SHOP_PASSWORD has no value', outside: null,
-    variable: 'SHOP_PASSWORD' }, { film: { frames: 2, starts: [0], end: 1040 } });
+      `#password) failed: the variable ${name} has no value`, outside: null,
+    variable: name }, { film: { frames: 2, starts: [0], end: 1040 } });
     const out = call(['film', 'scenario-1', '--artifacts', missing.plan], missing.deps);
     assert.equal(out.status, 1, out.out + out.err);
     const lines = out.out.trim().split('\n');
-    assert.equal(lines[0], 'Add "SHOP_PASSWORD" in Workspace settings > Secrets and variables.');
+    const shown = name === longest ? `${name.slice(0, 60)}...` : name;
+    assert.equal(lines[0], `Add AGENT_${shown} in the Variables settings.`);
     assert.equal(lines[1], '  Then run film scenario-1 again.');
-    assert.ok(lines[0].length <= 100);
+    assert.ok(lines[0].length <= 100, lines[0]);
     assert.equal(lines.at(-2), '  Kind: outside');
     assert.equal(fs.existsSync(missing.film), false);
   }
@@ -574,7 +581,7 @@ test('preflight: a sign-in that fails with every variable set is setup, and one 
   assert.deepEqual(pointFixes, ['Make the sign-in of the app work with the variables set, ' +
     'then run another round.']);
   assert.deepEqual(kinds([lacking, lacking]), ['Kind: outside']);
-  assert.match(pointFixes[0], /^Ask an owner or admin .* correct the app's sign-in variables/);
+  assert.match(pointFixes[0], /^Ask an owner or admin .* sign-in variable with the prefix AGENT_/);
   // One call with both kinds has one finding and one point for each kind, and the session
   // keeps the outside one.
   assert.deepEqual(kinds([lacking, wrong]).sort(), ['Kind: outside', 'Kind: setup']);

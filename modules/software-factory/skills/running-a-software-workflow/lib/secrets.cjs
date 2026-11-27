@@ -184,5 +184,5 @@ function runKey(name, names) {
 
 const { fitKind } = keyShapes;
 
-module.exports = { SECRET_NAME, fitKind, keyKind, runKey, scanLine, scanPatch, scanValues,
-  secretValues, shown };
+module.exports = { fitKind, keyKind, runKey, scanLine, scanPatch, scanValues, secretValues,
+  shown };

@@ -1374,19 +1374,11 @@ test('credential names: a composed home adds the file of each module that it lin
 test('credential names: an entry that is no name or prefix, such as *, is a problem', () => {
   for (const [entry, shown] of [['*', '"*"'], ['ACME-*', '"ACME-*"'], ['1_KEY', '"1_KEY"'],
     ['A*B', '"A*B"'], [42, '42']]) {
-    for (const field of ['credential_variables', 'run_secret_names']) {
-      const env = { QORY_HARNESS_HOME: harnessHome({ [field]: ['ACME_*', entry] }) };
-      const got = field === 'run_secret_names' ? runLists.runSecretNames(env)
-        : runLists.credentialNames(env);
-      assert.deepEqual(got, { problem: [`Fix qory.${field} in inputs.json.`,
+    const env = { QORY_HARNESS_HOME: harnessHome({ credential_variables: ['ACME_*', entry] }) };
+    assert.deepEqual(runLists.credentialNames(env), { problem:
+      ['Fix qory.credential_variables in inputs.json.',
         `${shown} is no variable name or prefix.`] });
-    }
   }
-  // Without the field, no run secret is listed.
-  assert.deepEqual(runLists.runSecretNames({ QORY_HARNESS_HOME: harnessHome({}) }),
-    { names: null });
-  assert.deepEqual(runLists.runSecretNames({ QORY_HARNESS_HOME:
-    harnessHome({ run_secret_names: ['APP_SECRET'] }) }), { names: ['APP_SECRET'] });
 });
 
 test('key shapes: each default shape finds a token of min characters and none of min - 1', () => {

@@ -22,7 +22,7 @@ const { CALL_MS, RUN_BUDGET_MS, START_MS, STOP_MS } = require('./budget.cjs');
 const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
-const { credentialNames, runSecretNames } = require('./run-lists.cjs');
+const { credentialNames } = require('./run-lists.cjs');
 const { runKey } = require('./secrets.cjs');
 const startOf = require('./start.cjs');
 
@@ -61,10 +61,11 @@ const TEXTS = {
     fix: `Make ${command} start the app in the dev container, then run another round.`,
   }),
   signIn: (names) => ({
-    text: `The run could not sign in to the app with the values of ${names} in the ` +
-      'workspace\'s variables.',
-    fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
-      'in Workspace settings > Secrets and variables, then run another round.',
+    text: 'The run could not sign in to the app: the workspace has no AGENT_ variable for ' +
+      `${names}.`,
+    fix: 'Ask an owner or admin of your organisation to add each sign-in variable with the ' +
+      'prefix AGENT_ in the Variables settings of the workspace or the organisation, then run ' +
+      'another round.',
   }),
   // A sign-in that fails with every variable set: a change to the app or its data repairs it.
   signInSetup: (names) => ({
@@ -310,13 +311,12 @@ module.exports = (lib) => {
     const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
     fs.rmSync(file, { force: true });
     const names = credentials(io);
-    const runSecrets = listOf(runSecretNames(io.env));
     let ran;
     let result;
     try {
       ran = childProcess.spawnSync(process.execPath,
         [(io.preflight || {}).runner || RUNNER], {
-          input: JSON.stringify({ ...spec, credentials: names, runSecrets, resultFile: file }),
+          input: JSON.stringify({ ...spec, credentials: names, resultFile: file }),
           env: io.env, encoding: 'utf8',
           timeout: limitMs, killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
         });

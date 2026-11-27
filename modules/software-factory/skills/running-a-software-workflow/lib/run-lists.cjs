@@ -1,9 +1,8 @@
 // The lists of a run that qory writes as members of qory in $QORY_HARNESS_HOME/inputs.json:
-// qory.credential_variables, qory.run_secret_names and qory.key_shapes. The read follows the
-// rules of qoryInputs of hooks/end-gate.cjs of core: the home is an absolute path, lstat shows
-// a regular file, and the file has at most MAX_INPUTS bytes. This file requires no file of
-// lib/ but shown.cjs, because secrets.cjs requires it, and repository-settings.cjs requires
-// secrets.cjs.
+// qory.credential_variables and qory.key_shapes. The read follows the rules of qoryInputs of
+// hooks/end-gate.cjs of core: the home is an absolute path, lstat shows a regular file, and
+// the file has at most MAX_INPUTS bytes. This file requires no file of lib/ but shown.cjs,
+// because secrets.cjs requires it, and repository-settings.cjs requires secrets.cjs.
 //
 // The names of the variables of a run's credentials are the union of three lists: the floor,
 // credential-variables.json of this skill; the file credential-variables.json in the folder
@@ -14,9 +13,6 @@
 // folders of the modules are those of the source tree that the caller passes, and in a
 // composed run each folder in $QORY_HARNESS_HOME/modules, where qory links or copies each
 // module of the harness.
-//
-// qory.run_secret_names of inputs.json lists the names of the run secrets that qory puts in
-// the environment of the run, with entries of the same form.
 'use strict';
 
 const fs = require('node:fs');
@@ -68,7 +64,6 @@ function member(env, name) {
 // The form of an entry of a list of variable names: a name, or a prefix with * at its end.
 const ENTRY = /^[A-Za-z_][A-Za-z0-9_]*\*?$/;
 const LIST = 'credential_variables';
-const SECRETS = 'run_secret_names';
 const MODULE_FILE = 'credential-variables.json';
 const FLOOR = JSON.parse(fs.readFileSync(path.join(__dirname, '..', MODULE_FILE), 'utf8'))[LIST];
 
@@ -134,12 +129,4 @@ function credentialNames(env, folders = []) {
   return { names: [...new Set(names)] };
 }
 
-// runSecretNames returns { names } of qory.run_secret_names in the inputs.json of env, null
-// without it, or { problem }, as credentialNames returns it.
-function runSecretNames(env) {
-  const got = inputsList(env, SECRETS);
-  if (got.problem) return got;
-  return { names: got.none ? null : got.list };
-}
-
-module.exports = { FLOOR, MAX_INPUTS, credentialNames, member, runSecretNames };
+module.exports = { FLOOR, MAX_INPUTS, credentialNames, member };

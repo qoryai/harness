@@ -43,9 +43,10 @@ const harnessHome = (qory) => {
   fs.writeFileSync(path.join(dir, 'inputs.json'), JSON.stringify({ qory }));
   return dir;
 };
-// The harness home of the sign-in tests, which lists APP_SECRET, the password of the app, as a
-// run secret, so that the serve command gets it.
-const APP_HOME = harnessHome({ run_secret_names: ['APP_SECRET'] });
+// The harness home of the sign-in tests, with no lists in inputs.json, so that no harness home
+// of the environment of the tests adds a list. The serve command gets APP_SECRET, the
+// password of the app, since no list has its name.
+const APP_HOME = harnessHome({});
 
 // A browser of this machine for the sign-in tests: one that the preflight looks for, else the
 // Chrome of macOS.
@@ -67,25 +68,24 @@ const P01 = {
   fix: 'Add a browser to .devcontainer/devcontainer.json, then run another round.',
 };
 const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
-const P03_FIX = 'Ask an owner or admin of your organisation to correct the app\'s sign-in ' +
-  'variables in Workspace settings > Secrets and variables, then run another round.';
+const P03_FIX = 'Ask an owner or admin of your organisation to add each sign-in variable with ' +
+  'the prefix AGENT_ in the Variables settings of the workspace or the organisation, then run ' +
+  'another round.';
 const P03_SETUP_FIX = 'Make the sign-in of the app work with the variables set, then run ' +
   'another round.';
 const p03SetupText = (names) => `The sign-in of the app failed with the values of ${names} ` +
   'set in the workspace\'s variables.';
-const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
-  'in the workspace\'s variables.';
+const p03Text = (names) => 'The run could not sign in to the app: the workspace has no ' +
+  `AGENT_ variable for ${names}.`;
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
-// when the password is APP_SECRET, and shows the form again when it is not. The serve command
-// gets a variable whose name is that of a secret only when qory.run_secret_names lists it, as
-// in APP_HOME. /away
-// redirects to the form of another origin, the port OTHER_PORT, /link and /framed show a
-// link to it and a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done",
-// /popup posts the form to it in a new window, /popup-same opens /orders in a new window at
-// the submit, /leak sends the password as a host name of that port at the submit, and /alert
-// shows the form with an alert at its load and at each key. The other origin adds a line to
-// the file OTHER_LOG for each request.
+// when the password is APP_SECRET, and shows the form again when it is not. /away redirects
+// to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
+// a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done", /popup posts the
+// form to it in a new window, /popup-same opens /orders in a new window at the submit, /leak
+// sends the password as a host name of that port at the submit, and /alert shows the form
+// with an alert at its load and at each key. The other origin adds a line to the file
+// OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -353,8 +353,8 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   checks(kept);
   const names = preflight.pointOf('signIn', 'DEMO__PASSWORD', { agents: new Set(),
     rules: LIBRARY.pointRules() });
-  assert.equal(names.text, 'The run could not sign in to the app with the values of the ' +
-    'sign-in variables of the demo scripts in the workspace\'s variables.');
+  assert.equal(names.text, 'The run could not sign in to the app: the workspace has no AGENT_ ' +
+    'variable for the sign-in variables of the demo scripts.');
   assert.equal(names.fix, P03_FIX);
   checks(names);
   const setup = preflight.pointOf('signInSetup', 'DEMO__PASSWORD', { agents: new Set(),
@@ -794,7 +794,7 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: the serve command gets no key of the run and no typed value in its environment', async () => {
+test('preflight: the serve command gets every variable but the credentials and typed ones', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   const here = checkout();
   const port = await freePort();
@@ -805,21 +805,24 @@ test('preflight: the serve command gets no key of the run and no typed value in 
     { setups: [{ actions: SIGN_IN, names: ['DEMO_PASSWORD'] }] });
   spec.serve.command = `node -e 'require("fs").writeFileSync(${JSON.stringify(names)}, ` +
     `JSON.stringify(Object.keys(process.env)))'; ${spec.serve.command}`;
-  // The names of a secret, such as those of a cloud vendor, and a name of the credential list
-  // of the run, ACME_*, do not reach the app either.
+  // A name of the credential list of the run, such as ACME_HOST of ACME_*, does not reach the
+  // app. A name of a secret that no list has, such as one of a cloud vendor, reaches it.
   spec.credentials = [...runLists.FLOOR, 'ACME_*'];
   const keys = { GITHUB_TOKEN: 'ghp_fake-value-0001', GH_TOKEN: 'fake-value-0002',
     QORY_RUN_KEY: 'fake-value-0003', ANTHROPIC_API_KEY: 'fake-value-0004',
-    GITLAB_TOKEN: 'fake-value-0005', AWS_SECRET_ACCESS_KEY: 'fake-value-0006',
-    AWS_SESSION_TOKEN: 'fake-value-0007', GOOGLE_APPLICATION_CREDENTIALS: '/tmp/fake-0008.json',
-    APP_SECRET: 'fake-value-0009', ACME_HOST: 'fake-value-0010' };
-  const ran = await runner(spec, { env: { ...keys, DEMO_PASSWORD: 'parcel-blue-41',
+    GITLAB_TOKEN: 'fake-value-0005', ACME_HOST: 'fake-value-0010' };
+  const passed = { AWS_SECRET_ACCESS_KEY: 'fake-value-0006', AWS_SESSION_TOKEN: 'fake-value-0007',
+    GOOGLE_APPLICATION_CREDENTIALS: '/tmp/fake-0008.json', APP_SECRET: 'fake-value-0009',
+    DATABASE_PASSWORD: 'fake-value-0012' };
+  const ran = await runner(spec, { env: { ...keys, ...passed, DEMO_PASSWORD: 'parcel-blue-41',
     APP_NOTE: 'plain' } });
   assert.equal(ran.status, 0);
   assert.equal(JSON.parse(ran.out).app.started, true, ran.out);
   const given = JSON.parse(fs.readFileSync(names, 'utf8'));
   // A variable of the workspace that no setup types reaches the app.
-  for (const name of ['APP_NOTE', 'PATH', 'QORY_CHECK_MARK']) assert.ok(given.includes(name), name);
+  for (const name of ['APP_NOTE', 'PATH', 'QORY_CHECK_MARK', ...Object.keys(passed)]) {
+    assert.ok(given.includes(name), name);
+  }
   for (const name of ['DEMO_PASSWORD', ...Object.keys(keys)]) {
     assert.equal(given.includes(name), false, name);
   }
@@ -865,18 +868,18 @@ async function servedNames(qory) {
   return JSON.parse(fs.readFileSync(names, 'utf8'));
 }
 
-test('preflight: the serve command gets a run secret of qory.run_secret_names', async () => {
-  assert.ok((await servedNames({ run_secret_names: ['APP_SECRET'] })).includes('APP_SECRET'));
+test('preflight: the serve command gets a name of a secret with no list in inputs.json', async () => {
+  assert.ok((await servedNames({})).includes('APP_SECRET'));
 });
 
-test('preflight: a run secret on the credential list too does not reach the app', async () => {
-  const given = await servedNames({ run_secret_names: ['APP_SECRET'],
-    credential_variables: ['APP_SECRET'] });
-  assert.equal(given.includes('APP_SECRET'), false);
+test('preflight: a name of qory.credential_variables does not reach the app', async () => {
+  assert.equal((await servedNames({ credential_variables: ['APP_SECRET'] }))
+    .includes('APP_SECRET'), false);
 });
 
-test('preflight: without qory.run_secret_names no secret name reaches the app', async () => {
-  assert.equal((await servedNames({})).includes('APP_SECRET'), false);
+test('preflight: qory.run_secret_names of inputs.json is not read, even with the entry *', async () => {
+  // servedNames requires no finding, so a reader of the member would stop the preflight.
+  assert.ok((await servedNames({ run_secret_names: ['*'] })).includes('APP_SECRET'));
 });
 
 test('preflight: a FIFO or a symbolic link at the log of the serve command is replaced by a new file', async () => {
