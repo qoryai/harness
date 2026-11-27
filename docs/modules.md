@@ -297,10 +297,9 @@ role `verify-reviewers`, with the members `tamper-reviewer` and `verification-re
 The parts of Verify are the skills `checking-tampering` and `judging-criteria`, the two
 agents, the verb `matrix` of the check runners, the skill `workflow-verify-a-ticket` and the
 stack entry `verify-a-ticket: {tier: thinking, access: write-no-push, review_group:
-verify-reviewers}`. `qory.review_session` in the `inputs.json` of the session is not built:
-qory does not write it yet, and its shape is not in a contract of qory. The agents read it
-as described here. Verify's stage in `process.yaml` has no `sequence` yet, so no run starts
-the workflow.
+verify-reviewers}`. qory writes `qory.review_session` in the `inputs.json` of the session,
+and its shape is not in a contract of qory. The agents read it as described here. Verify's
+stage in `process.yaml` has no `sequence` yet, so no run starts the workflow.
 
 ### The workflow of Verify
 
