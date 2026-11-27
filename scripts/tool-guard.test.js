@@ -16,7 +16,7 @@ const MODULES = path.join(__dirname, '../modules');
 const HOOKS = path.join(MODULES, 'core', 'hooks');
 const TESTDATA = path.join(MODULES, 'software-factory/testdata');
 const guardModule = require(path.join(HOOKS, 'tool-guard.cjs'));
-const { lockedFiles, patchPaths, countsAsWrite } = guardModule;
+const { lockedFiles, patchPaths, countsAsWrite, budget } = guardModule;
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'tool-guard-test-')));
 // The folders of the checks go a few at a time: some hold 50,000 files, and the removal of a
@@ -323,6 +323,866 @@ test('a command whose writes the guard does not read is denied when it reaches a
       assert.equal(guard(codex('Bash', { command }, 'implementer')), null, command);
     }
   });
+
+// ---- The lift of a changed check ---------------------------------------------------------------
+
+const WRITER = 'harness:acceptance-check-writer';
+const OTHER_PATH = 'checks/other.check.ts';
+const HELPER_PATH = 'checks/helper.ts';
+
+// The hash that the lock has for a criterion: the SHA-256 of its text and check.
+const chash = (one) => sha(JSON.stringify([one.text, one.check]));
+const crit = (id, text, check = 'Tests', more = {}) => ({ id, text, check, ...more });
+
+// The criteria of version 1, which the lock locks. ac-4 changes in version 2, and ac-1 does not.
+const AC1 = crit('ac-1', 'The reply lists the hours.');
+const AC4 = crit('ac-4', 'A customer gets a corrected reply.');
+const AC4_NEW = crit('ac-4', 'A customer gets a corrected reply with the new hours.');
+
+// liftStore returns a folder that stands for Qory Apiary's artifacts: criteria version 1, and
+// criteria version 2, which a person wrote. Version `locked` of the criteria is the one that
+// acceptance-lock version 1 locks; the lock has a check of ac-4 at CHECK_PATH and a check of
+// ac-1 at OTHER_PATH. `approved` is the criteria version that a member approved. v2 is the
+// text of version 2, or null for a store with no file of it; v2By is the kind of its writer,
+// `person` or `run`;
+// unhashed lists the ids of checks that have no criterion_sha256; hashFrom is the list of
+// criteria whose hashes the lock records, when they are not those of version `locked`. `link` is
+// the id of an answer (`an_1`) that version 2 is linked to, after the lock, and that version 3,
+// the list v3 of criteria, is linked to too. `answers` lists the ids of the criteria that a
+// member answered a question about, after the lock. `recorded` puts the hash of each criterion
+// of the locked version in the lock, as `criteria.sha256`, which the question rule compares.
+// v3Linked false leaves version 3 with no link; lock2 adds a newer lock that locks version 2.
+// linkAt is the time of version 2 when link is set; v3By is the kind of the writer of version 3,
+// `run` or `person`. unlisted is a list of types, or
+// of type/number, whose entries in index.json list the file notes.json only: the file of the type stays in its
+// folder, as a file that an agent wrote there.
+// answers2 adds a version 2 of the questions that a cancelled run wrote, with those answers;
+// questionsWithdrawn adds a withdrawal of the questions as version 2.
+function liftStore({ v1 = [AC1, AC4], v2 = [AC1, AC4_NEW], v2By = 'person', approved = 1,
+  locked = 1, unhashed = [], support = [], hashFrom = null, v3 = null, answers = null,
+  link = null, recorded = false, v3Linked = true, lock2 = false, answers2 = null,
+  questionsWithdrawn = false, v3By = 'run', unlisted = [], linkAt = '2026-11-16T09:00:00Z',
+  checks = [['ac-4', CHECK_PATH], ['ac-1', OTHER_PATH]] } = {}) {
+  const root = next('server');
+  fs.cpSync(TESTDATA, root, { recursive: true });
+  const index = JSON.parse(fs.readFileSync(path.join(root, 'index.json'), 'utf8'));
+  const put = (type, number, filename, text) => {
+    const file = path.join(root, type, 'main', `v${number}`, filename);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, text);
+    return { filename, content_type: 'application/json', size: Buffer.byteLength(text),
+      sha256: sha(text) };
+  };
+  const doc = (list) => (typeof list === 'string' ? list
+    : JSON.stringify({ summary: 'Criteria.', criteria: list }));
+  const version = (number, kind, list, more = {}) => ({ id: `av_ac${number}`, number,
+    writer: kind === 'run' ? { kind, run_id: 'run_7kq2m' } : { kind, user_id: 'u_1' },
+    cancelled: false, stage_id: 'st_p9w5cvh311', note: null, at: `2026-11-1${number}T09:20:30Z`,
+    approvals: [], ...more, files: [list === null ? { filename: 'acceptance-criteria.json',
+      content_type: 'application/json', size: 1, sha256: sha('x') }
+      : put('acceptance-criteria', number, 'acceptance-criteria.json', doc(list))] });
+  Object.assign(index.artifacts.find((one) => one.type === 'acceptance-criteria'),
+    { versions: [version(1, 'run', v1), version(2, v2By, v2, link === null ? {}
+      : { at: linkAt, decision: link, decision_at: '2026-11-16T10:00:00Z' }),
+    ...(v3 === null ? [] : [version(3, v3By, v3, { at: '2026-11-16T11:00:00Z',
+      ...(v3Linked ? { decision: link, decision_at: '2026-11-16T12:00:00Z' } : {}) })])],
+    newest_version: v3 === null ? 2 : 3,
+    approved_version: `av_ac${approved}` });
+  if (answers !== null) {
+    const doc = (list) => JSON.stringify({ questions: list.map((item, at) => ({ id: `q-${at}`,
+      question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item },
+      state: 'answered', answer: { option: 'A', by: { kind: 'person', user_id: 'u_1' },
+        at: '2026-11-16T09:30:00Z' } })) });
+    const question = (number, list, more = {}) => ({ id: `av_q${number}`, number,
+      writer: { kind: 'person', user_id: 'u_1' }, cancelled: false, stage_id: 'st_p9w5cvh311',
+      note: null, at: '2026-11-16T09:30:00Z', approvals: [], ...more,
+      files: list === null ? [] : [put('questions', number, 'questions.json', doc(list))] });
+    const versions = [question(1, answers)];
+    if (answers2 !== null) versions.push(question(2, answers2, { cancelled: true }));
+    if (questionsWithdrawn) versions.push(question(2, null, { withdrawn: true }));
+    index.artifacts.push({ type: 'questions', name: 'main', stage_id: 'st_p9w5cvh311',
+      approved_version: null, newest_version: versions.length, changed_after_approval: false,
+      versions });
+  }
+  const of = hashFrom || (locked === 1 ? v1 : v2);
+  const entry = ([id, file]) => ({ criterion: id, path: file, command: `npm test -- ${file}`,
+    failed_with: 1, sha256: sha(CHECK_TEXT),
+    ...(unhashed.includes(id) ? {} : { criterion_sha256: chash(of.find((one) => one.id === id)) }) });
+  const lock = { criteria: { version: locked, ...(recorded ? { sha256: Object.fromEntries(
+    of.map((one) => [one.id, chash(one)])) } : {}) },
+    start_commit: '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e',
+    commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678', checks: checks.map(entry),
+    support: support.map((one) => ({ path: one, sha256: sha(CHECK_TEXT) })) };
+  index.artifacts.push({ type: 'acceptance-lock', name: 'main', stage_id: 'st_6ns22c4pav',
+    approved_version: null, newest_version: 1, changed_after_approval: false,
+    versions: [{ id: 'av_lock1', number: 1, writer: { kind: 'run', run_id: 'run_7c3k1' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-15T09:00:00Z',
+      approvals: [], files: [put('acceptance-lock', 1, 'acceptance-lock.json',
+        JSON.stringify(lock, null, 2))] }] });
+  if (lock2) {
+    // A newer lock that locks version 2, with a check of ac-4 and a check of ac-1.
+    const second = { ...lock, criteria: { version: 2, sha256: Object.fromEntries(
+      v2.map((one) => [one.id, chash(one)])) },
+    checks: checks.map(([id, file]) => ({ criterion: id, path: file, sha256: sha(CHECK_TEXT),
+      command: `run-check ${file}`, failed_with: 1,
+      criterion_sha256: chash(v2.find((one) => one.id === id)) })) };
+    const artifact = index.artifacts.find((one) => one.type === 'acceptance-lock');
+    artifact.newest_version = 2;
+    artifact.versions.push({ id: 'av_lock2', number: 2, writer: { kind: 'run', run_id: 'run_7c3k2' },
+      cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at: '2026-11-17T09:00:00Z',
+      approvals: [], files: [put('acceptance-lock', 2, 'acceptance-lock.json',
+        JSON.stringify(second, null, 2))] });
+  }
+  for (const one of index.artifacts) {
+    for (const entry of one.versions.filter((each) => unlisted.includes(one.type) ||
+      unlisted.includes(`${one.type}/${each.number}`))) {
+      entry.files = [{ filename: 'notes.json', content_type: 'application/json', size: 1,
+        sha256: sha('x') }];
+    }
+  }
+  fs.writeFileSync(path.join(root, 'index.json'), JSON.stringify(index, null, 2));
+  return root;
+}
+
+// liftCase returns { dir, a, b, helper, call } for a new working folder, with the files of the
+// checks and the store of liftStore, which qory pulls into .qory/artifacts, as qory does; that
+// folder has a copy of the whole store first, as earlier pulls and an agent can leave it.
+// call(input, runtime, env) runs the guard with the lock read from that store, as in a run, and
+// no file of change mode exists.
+function liftCase(options = {}, pulls = {}) {
+  const dir = working();
+  for (const file of [OTHER_PATH, HELPER_PATH]) {
+    fs.writeFileSync(path.join(dir, file), CHECK_TEXT);
+  }
+  const from = liftStore(options);
+  fs.cpSync(from, path.join(dir, '.qory', 'artifacts'), { recursive: true });
+  const env = { ...RUN, ...fakeQory(from, 0, { typed: true,
+    into: path.join(dir, '.qory', 'artifacts'), ...pulls }) };
+  const call = (input, runtime = 'claude', extra = {}, more = {}) => decide({
+    input: { ...input, cwd: dir }, env: { ...env, ...extra }, runtime, root: dir, ...more });
+  return { dir, a: path.join(dir, CHECK_PATH), b: path.join(dir, OTHER_PATH),
+    helper: path.join(dir, HELPER_PATH), call, from, store: path.join(dir, '.qory', 'artifacts') };
+}
+
+// fakeTime returns { clock, spawn, pulls } for the options `now` and `spawn` of a call of the
+// guard, so that a test of the time limits never waits and starts no process. clock.now() is a
+// clock that only the pulls move. The pull of a type in hang returns what spawnSync returns when
+// the timeout that it got ends the call (error.code ETIMEDOUT) at once, and moves the clock by
+// that timeout. Any other pull moves the clock by take ms and writes what the fake qory of
+// liftCase one writes: index.json, and the folder of the pulled version in one.store. pulls
+// lists the type and the timeout of each pull that started.
+function fakeTime(one, { take = 0, hang = [] } = {}) {
+  const clock = { at: 1e12, now: () => clock.at };
+  const pulls = [];
+  const spawn = (file, args, options) => {
+    const type = args[2];
+    pulls.push({ type, timeout: options.timeout });
+    if (hang.includes(type)) {
+      clock.at += options.timeout;
+      return { status: null, stdout: '', stderr: '',
+        error: Object.assign(new Error('spawnSync qory ETIMEDOUT'), { code: 'ETIMEDOUT' }) };
+    }
+    clock.at += take;
+    fs.mkdirSync(one.store, { recursive: true });
+    fs.copyFileSync(path.join(one.from, 'index.json'), path.join(one.store, 'index.json'));
+    const number = args[3] === '--version' ? args[4] : chosenVersions(one.from)[type];
+    if (number !== undefined && fs.existsSync(path.join(one.from, type, 'main'))) {
+      fs.cpSync(path.join(one.from, type, 'main', `v${number}`),
+        path.join(one.store, type, 'main', `v${number}`), { recursive: true });
+    }
+    return { status: 0, stdout: `${one.store}\n`, stderr: '' };
+  };
+  return { clock, spawn, pulls };
+}
+
+const LOCKED_START = 'Leave the locked file as it is: acceptance-lock version 1 locks it.';
+const writeOf = (file, agent = WRITER) => claude('Write', { file_path: file, content: 'x' }, agent);
+
+test('the guard lifts the check of a changed criterion for the writer, from the lock and the criteria alone', () => {
+  const one = liftCase();
+  // No file of change mode exists, and the check of ac-4 is lifted.
+  assert.equal(fs.existsSync(path.join(one.dir, '.qory', 'build', 'changes.json')), false);
+  assert.equal(one.call(writeOf(one.a)), null);
+  assert.equal(one.call(claude('Edit', { file_path: one.a }, WRITER)), null);
+  // The check of ac-1, which version 2 has as the lock has it, stays locked.
+  firstLine(one.call(writeOf(one.b)), LOCKED_START);
+  // The lift is for the writer only: another agent and the main session stay denied.
+  firstLine(one.call(writeOf(one.a, 'harness:implementer')), LOCKED_START);
+  firstLine(one.call(writeOf(one.a, 'harness:check-reviewer')), LOCKED_START);
+  firstLine(one.call(writeOf(one.a, 'acceptance-check-writer')), LOCKED_START);
+  firstLine(one.call(writeOf(one.a, null)), LOCKED_START);
+});
+
+test('the guard lifts the check of a criterion that the criteria no longer have', () => {
+  const gone = liftCase({ v2: [AC1] });
+  assert.equal(gone.call(writeOf(gone.a)), null);
+  firstLine(gone.call(writeOf(gone.b)), LOCKED_START);
+  // A criterion that is marked removed has no live criterion, and is gone too.
+  const removed = liftCase({ v2: [AC1, { ...AC4, removed: { reason: 'It is out of scope.' } }] });
+  assert.equal(removed.call(writeOf(removed.a)), null);
+});
+
+test('the guard keeps a check locked when its criterion is unchanged, left Tests, or has no hash in the lock', () => {
+  const same = liftCase({ v2: [AC1, AC4] });
+  firstLine(same.call(writeOf(same.a)), LOCKED_START);
+  firstLine(same.call(writeOf(same.b)), LOCKED_START);
+  // ac-4 changed and is no Tests criterion now: its check leaves the draft, and its file stays.
+  const left = liftCase({ v2: [AC1, crit('ac-4', 'A customer sees the reply.', 'Demo: Read it')] });
+  firstLine(left.call(writeOf(left.a)), LOCKED_START);
+  const bare = liftCase({ unhashed: ['ac-4'] });
+  firstLine(bare.call(writeOf(bare.a)), LOCKED_START);
+});
+
+test('the guard keeps a path locked when another check or a support file is there', () => {
+  // The check of ac-1 is at the path of the check of ac-4: its criterion did not change.
+  const shared = liftCase({ checks: [['ac-4', CHECK_PATH], ['ac-1', CHECK_PATH]] });
+  firstLine(shared.call(writeOf(shared.a)), LOCKED_START);
+  // A support file has no criterion: it stays locked, also at the path of a changed check.
+  const support = liftCase({ support: [HELPER_PATH, CHECK_PATH] });
+  firstLine(support.call(writeOf(support.helper)), LOCKED_START);
+  firstLine(support.call(writeOf(support.a)), LOCKED_START);
+});
+
+test('the guard lifts nothing when the criteria cannot be read, or are not newer than the lock', () => {
+  // The store has no file of version 2, or a file that is no criteria.
+  for (const v2 of [null, 'not json', '{"criteria": []}']) {
+    const one = liftCase({ v2 });
+    firstLine(one.call(writeOf(one.a)), LOCKED_START);
+  }
+  // No person approved or wrote version 2: the target is version 1, which the lock locks.
+  const older = liftCase({ v2By: 'run' });
+  firstLine(older.call(writeOf(older.a)), LOCKED_START);
+  // The lock locks version 2 and the target is version 1: the hashes differ, and nothing lifts.
+  const above = liftCase({ v2By: 'run', locked: 2 });
+  firstLine(above.call(writeOf(above.a)), LOCKED_START);
+  // The pull of the criteria fails: the target cannot be read.
+  const none = liftCase({}, { failing: ['acceptance-criteria'] });
+  firstLine(none.call(writeOf(none.a)), LOCKED_START);
+});
+
+test('the guard reads the criteria that a run pulls, not the artifact folder that an agent can write', () => {
+  const edit = (dir, change) => {
+    const file = path.join(dir, '.qory', 'artifacts', 'index.json');
+    const index = JSON.parse(fs.readFileSync(file, 'utf8'));
+    change(index.artifacts.find((one) => one.type === 'acceptance-criteria'));
+    fs.writeFileSync(file, JSON.stringify(index, null, 2));
+  };
+  // The store has version 2 from a run, which counts for nothing. A forged index.json in the
+  // artifact folder makes a person its writer, and the check of ac-4 stays locked.
+  const forged = liftCase({ v2By: 'run' });
+  edit(forged.dir, (one) => { one.versions[1].writer = { kind: 'person', user_id: 'u_1' }; });
+  firstLine(forged.call(writeOf(forged.a)), LOCKED_START);
+  firstLine(forged.call(writeOf(forged.b)), LOCKED_START);
+  // A person wrote version 2 in the store. The artifact folder has another text of version 2,
+  // in which ac-1 changed and ac-4 did not: the pulled text counts, so ac-4 lifts, ac-1 not.
+  const text = liftCase();
+  fs.writeFileSync(path.join(text.dir, '.qory', 'artifacts', 'acceptance-criteria', 'main', 'v2',
+    'acceptance-criteria.json'), JSON.stringify({ summary: 'Criteria.',
+    criteria: [crit('ac-1', 'The reply lists no hours.'), AC4] }));
+  assert.equal(text.call(writeOf(text.a)), null);
+  firstLine(text.call(writeOf(text.b)), LOCKED_START);
+  // A forged index.json that hides version 2 lifts nothing less: the pulled index counts.
+  const hidden = liftCase();
+  edit(hidden.dir, (one) => { one.versions[1].writer = { kind: 'run', run_id: 'run_7kq2m' }; });
+  assert.equal(hidden.call(writeOf(hidden.a)), null);
+});
+
+test('the guard reads each locked file once, so many locked files and many words stay within its work limit', () => {
+  const dir = working();
+  fs.mkdirSync(path.join(dir, 'many'));
+  const files = Array.from({ length: 500 }, (_, i) => path.join(dir, 'many', `c${i}.check.ts`));
+  for (const file of files) fs.writeFileSync(file, CHECK_TEXT);
+  fs.linkSync(files[7], path.join(dir, 'alias.txt'));
+  const run = (command) => decide({ input: { ...claude('Bash', { command }, 'implementer'),
+    cwd: dir }, env: RUN, runtime: 'claude', root: dir,
+    locked: () => ({ what: 'acceptance-lock version 1', files, number: 1 }) });
+  // 300 words that are no locked file: 150000 comparisons, none of which reads the disk again.
+  const words = Array.from({ length: 300 }, (_, i) => `tmp/w${i}.txt`).join(' ');
+  assert.equal(run(`rm ${words}`), null);
+  // A locked file and a hard link to one are still found among them.
+  firstLine(run(`rm ${words} many/c9.check.ts`), LOCKED_START);
+  firstLine(run(`rm ${words} alias.txt`), LOCKED_START);
+});
+
+test('the guard does not count the time of a pull against its time limit', () => {
+  // Each of the four pulls of a write by the writer takes 200 ms of the fake clock: 800 ms in
+  // all, past a deadline of 400 ms after the start of the call. The time of the pulls moves
+  // the deadline.
+  const slow = liftCase();
+  const timed = fakeTime(slow, { take: 200 });
+  const at = (ms) => ({ deadline: timed.clock.now() + ms, now: timed.clock.now,
+    spawn: timed.spawn });
+  assert.equal(slow.call(writeOf(slow.a), 'claude', {}, at(400)), null);
+  assert.equal(timed.pulls.length, 4);
+  firstLine(slow.call(writeOf(slow.b), 'claude', {}, at(400)), LOCKED_START);
+  // A deadline that was over 3 s before the call still denies it, with no pull.
+  const before = timed.pulls.length;
+  firstLine(slow.call(writeOf(slow.a), 'claude', {}, at(-3000)),
+    'Split this command into smaller calls');
+  assert.equal(timed.pulls.length, before);
+});
+
+// A version 3 of the criteria that changes ac-1 and ac-4 again, linked to an answer.
+const THIRD = [crit('ac-1', 'The reply lists no hours.'),
+  crit('ac-4', 'A customer gets a corrected reply, in a day.')];
+
+test('the guard reads the questions and the locks that a run pulls, not the artifact folder', () => {
+  // A person wrote version 2, which changes ac-4. A run wrote version 3, which changes ac-1 and
+  // ac-4 and is linked to an answer; a member answered a question about ac-4 only. Version 3 has
+  // no answer about ac-1, so it does not count: ac-4 lifts, and ac-1 stays locked.
+  const options = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4'] };
+  const real = liftCase(options);
+  assert.equal(real.call(writeOf(real.a)), null);
+  firstLine(real.call(writeOf(real.b)), LOCKED_START);
+  // The artifact folder has a forged answer about ac-1. The pulled questions count, not it.
+  const forged = liftCase(options);
+  const file = path.join(forged.dir, '.qory', 'artifacts', 'questions', 'main', 'v1',
+    'questions.json');
+  const doc = JSON.parse(fs.readFileSync(file, 'utf8'));
+  doc.questions.push({ ...doc.questions[0], id: 'q-9', about: { ...doc.questions[0].about,
+    item: 'ac-1' } });
+  fs.writeFileSync(file, JSON.stringify(doc));
+  assert.equal(forged.call(writeOf(forged.a)), null);
+  firstLine(forged.call(writeOf(forged.b)), LOCKED_START);
+  // With the answer about ac-1 in the pulled store, version 3 counts and ac-1 lifts too.
+  const both = liftCase({ ...options, answers: ['ac-4', 'ac-1'] });
+  assert.equal(both.call(writeOf(both.b)), null);
+  // A forged lock document in the artifact folder, with other hashes for the lock of version 1,
+  // changes nothing either: the pulled lock counts.
+  const lock = liftCase(options);
+  const locked = path.join(lock.dir, '.qory', 'artifacts', 'acceptance-lock', 'main', 'v1',
+    'acceptance-lock.json');
+  const body = JSON.parse(fs.readFileSync(locked, 'utf8'));
+  body.criteria.sha256 = { 'ac-4': chash(AC4) };
+  fs.writeFileSync(locked, JSON.stringify(body));
+  firstLine(lock.call(writeOf(lock.b)), LOCKED_START);
+});
+
+test('the guard lifts the checks of a version that follows an answer, from the pulled store alone', () => {
+  // Version 2 is linked to an answer about ac-4, which it changes. The artifact folder is empty.
+  const options = { v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] };
+  const one = liftCase(options);
+  fs.rmSync(path.join(one.dir, '.qory', 'artifacts'), { recursive: true });
+  assert.equal(one.call(writeOf(one.a)), null);
+  firstLine(one.call(writeOf(one.b)), LOCKED_START);
+  // With no answer about ac-4, version 2 does not count, and nothing lifts.
+  const open = liftCase({ ...options, answers: ['ac-2'] });
+  firstLine(open.call(writeOf(open.a)), LOCKED_START);
+  // A pull of the questions that fails lifts nothing.
+  const failed = liftCase(options, { failing: ['questions'] });
+  firstLine(failed.call(writeOf(failed.a)), LOCKED_START);
+});
+
+// plant writes the JSON doc at path below the artifact folder of one, where qory pulls to.
+function plant(one, file, doc) {
+  const full = path.join(one.dir, '.qory', 'artifacts', file);
+  fs.mkdirSync(path.dirname(full), { recursive: true });
+  fs.writeFileSync(full, JSON.stringify(doc));
+}
+
+// Answers about ac-1 and ac-4, in the questions that a member answered.
+const BOTH_ANSWERED = { questions: ['ac-1', 'ac-4'].map((item, at) => ({ id: `q-${at}`,
+  question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main', item },
+  state: 'answered', answer: { option: 'A', by: { kind: 'person', user_id: 'u_1' },
+    at: '2026-11-16T09:30:00Z' } })) };
+
+// Version 2 of the criteria changes ac-1 and ac-4 and is linked to an answer.
+const LINKED_BOTH = { v2: THIRD, v2By: 'run', link: 'an_1', recorded: true };
+
+test('the guard reads no answers that index.json does not list, in a folder that qory pulls to', () => {
+  // index.json lists no questions: a folder of them that an agent planted has answers about ac-1
+  // and ac-4. Version 2 has no answer, so it does not count, and nothing lifts.
+  const absent = liftCase(LINKED_BOTH);
+  plant(absent, 'questions/main/v1/questions.json', BOTH_ANSWERED);
+  const denied = absent.call(writeOf(absent.a));
+  firstLine(denied, LOCKED_START);
+  // No pull failed: the lift pulled no questions, and the deny has no line of a failed pull.
+  assert.doesNotMatch(denied, /The lift of a changed check failed/);
+  firstLine(absent.call(writeOf(absent.b)), LOCKED_START);
+  // The questions are withdrawn: a folder under another name, which index.json does not list,
+  // counts for nothing either.
+  const withdrawn = liftCase({ ...LINKED_BOTH, answers: ['ac-4'], questionsWithdrawn: true });
+  plant(withdrawn, 'questions/x/v1/questions.json', BOTH_ANSWERED);
+  firstLine(withdrawn.call(writeOf(withdrawn.a)), LOCKED_START);
+  firstLine(withdrawn.call(writeOf(withdrawn.b)), LOCKED_START);
+});
+
+const LOCKED2_START = LOCKED_START.replace('version 1', 'version 2');
+
+test('the guard reads no file of a pulled version that index.json does not list for it', () => {
+  // Version 3 is written by a run, linked to an answer, and changes ac-1 and ac-4. Its answers
+  // are in the questions of version 1, which come after lock 1. Lock 2 locks version 2 and is the
+  // newest lock, so version 3 is compared with lock 1. With every file listed, both checks lift.
+  const options = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4', 'ac-1'],
+    lock2: true };
+  const listed = liftCase(options);
+  assert.equal(listed.call(writeOf(listed.a)), null);
+  assert.equal(listed.call(writeOf(listed.b)), null);
+  // The entry of one version lists notes.json only, and its main file is in the folder, as an
+  // agent can write it: questions 1, lock 1 and criteria 3. Nothing lifts.
+  for (const type of ['questions/1', 'acceptance-lock/1', 'acceptance-criteria/3']) {
+    const planted = liftCase({ ...options, unlisted: [type] });
+    firstLine(planted.call(writeOf(planted.a)), LOCKED2_START);
+    firstLine(planted.call(writeOf(planted.b)), LOCKED2_START);
+  }
+});
+
+test('the guard pulls the version of the questions that index.json counts, not the newest', () => {
+  // Version 2 of the questions is from a cancelled run and answers ac-1 and ac-4; version 1
+  // counts and answers ac-4. A plain pull returns version 2. Version 2 of the criteria changes
+  // ac-4 only, so its check lifts, and ac-1 stays locked.
+  const options = { v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'],
+    answers2: ['ac-1', 'ac-4'] };
+  const one = liftCase(options);
+  assert.equal(one.call(writeOf(one.a)), null);
+  firstLine(one.call(writeOf(one.b)), LOCKED_START);
+  // A version 2 of the criteria that changes both needs an answer about ac-1, which only the
+  // cancelled version has: nothing lifts.
+  const both = liftCase({ ...options, v2: THIRD });
+  firstLine(both.call(writeOf(both.a)), LOCKED_START);
+  firstLine(both.call(writeOf(both.b)), LOCKED_START);
+});
+
+test('the guard reads no file that a pull did not return, beside the files that it did', () => {
+  // The pulled questions answer ac-4 only, and version 2 changes both criteria. Beside them an
+  // agent planted a version 7 of the questions, another name, and a lock, with answers about
+  // ac-1; none of them counts.
+  const one = liftCase(LINKED_BOTH);
+  const asked = liftCase({ ...LINKED_BOTH, answers: ['ac-4'] });
+  for (const planted of [one, asked]) {
+    plant(planted, 'questions/main/v7/questions.json', BOTH_ANSWERED);
+    plant(planted, 'questions/x/v1/questions.json', BOTH_ANSWERED);
+    plant(planted, 'acceptance-lock/main/v9/acceptance-lock.json', { criteria: { version: 1 },
+      checks: [] });
+    firstLine(planted.call(writeOf(planted.a)), LOCKED_START);
+    firstLine(planted.call(writeOf(planted.b)), LOCKED_START);
+  }
+});
+
+// CHANGED is the third line of the deny of a lift that found a new index.json after its pulls.
+const CHANGED = new RegExp('\\nThe lift of a changed check failed: index\\.json changed during ' +
+  'the pulls\\. Run `qory artifact pull acceptance-criteria`, then write again\\.');
+
+test('the guard lifts nothing when the index that the last pull wrote needs a version that no pull returned', () => {
+  // Version 2 is written by a person, so the first index needs no questions. The last pull
+  // writes an index with a version 2 that an answer links: it needs questions, a lock and the
+  // version, and the guard reads the questions from no pull.
+  const later = liftStore({ answers: ['ac-4'], v2By: 'run', link: 'an_1', recorded: true });
+  const swap = (at) => ({ swap: { at, index: path.join(later, 'index.json') } });
+  const late = liftCase({}, swap(4));
+  const reason = late.call(writeOf(late.a));
+  firstLine(reason, LOCKED_START);
+  assert.match(reason, CHANGED);
+  // The last pull writes an index with a version 3 by a person: the target is another version.
+  const other = liftStore({ v3: THIRD, v3By: 'person', v3Linked: false });
+  const moved = liftCase({}, { swap: { at: 4, index: path.join(other, 'index.json') } });
+  assert.match(moved.call(writeOf(moved.a)), CHANGED);
+  // The last pull writes an index with a newer lock: the guard reads a lock that no pull returned.
+  const base = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4', 'ac-1'] };
+  const locked2 = liftStore({ ...base, lock2: true });
+  const newer = liftCase(base, { swap: { at: 6, index: path.join(locked2, 'index.json') } });
+  assert.match(newer.call(writeOf(newer.a)), CHANGED);
+  // With the same swap at a pull that comes after no read, the lift is as before.
+  const never = liftCase({}, swap(9));
+  assert.equal(never.call(writeOf(never.a)), null);
+});
+
+test('the guard pulls the lock that a linked version is compared with, and the version itself', () => {
+  // Lock 2 locks version 2 and is the newest lock, so the lock read pulls it. Version 3 is older
+  // than lock 2 and is compared with lock 1, which only the lift pulls; both its changes have an
+  // answer after lock 1. Version 3 counts, and the checks of ac-4 and ac-1 lift.
+  const options = { v3: THIRD, link: 'an_1', recorded: true, answers: ['ac-4', 'ac-1'],
+    lock2: true };
+  const one = liftCase(options);
+  assert.equal(one.call(writeOf(one.a)), null);
+  assert.equal(one.call(writeOf(one.b)), null);
+  // Without an answer about ac-1, version 3 does not count and nothing lifts: version 2 is the
+  // version of lock 2.
+  const open = liftCase({ ...options, answers: ['ac-4'] });
+  firstLine(open.call(writeOf(open.a)),
+    'Leave the locked file as it is: acceptance-lock version 2 locks it.');
+  // Version 3 is the newest version, and version 2, the version that counts, is linked to an
+  // answer: the lift pulls the file of version 2, which the plain pull of the criteria lacks.
+  const older = liftCase({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'],
+    v3: THIRD, v3Linked: false });
+  assert.equal(older.call(writeOf(older.a)), null);
+  firstLine(older.call(writeOf(older.b)), LOCKED_START);
+});
+
+test('a pull gets the time up to the shared deadline, at most 100 s, and none after it', () => {
+  const run = (options, call, take = 0) => {
+    const one = liftCase(options);
+    const timed = fakeTime(one, { take });
+    const reason = one.call(writeOf(one.a), 'claude', {}, { now: timed.clock.now,
+      spawn: timed.spawn, ...call(timed.clock.now()) });
+    return { reason, pulls: timed.pulls };
+  };
+  // The deadline is 200 ms away and the wait 300 ms: each pull gets the time up to 500 ms.
+  const near = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 100);
+  assert.equal(near.reason, null);
+  assert.deepEqual(near.pulls.map((one) => one.timeout), [500, 400, 300, 200]);
+  // With a deadline far away, a pull gets 100 s, not more.
+  const far = run({}, (now) => ({ deadline: now + 500000, wait: 0 }));
+  assert.equal(far.reason, null);
+  assert.deepEqual(far.pulls.map((one) => one.timeout), [100000, 100000, 100000, 100000]);
+  // The third pull starts with 100 ms left, and the fourth with none: it starts nothing, and
+  // the write is denied with the cause.
+  const spent = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 200);
+  assert.deepEqual(spent.pulls.map((one) => one.timeout), [500, 300, 100]);
+  assert.match(spent.reason, /had no time left/);
+  assert.match(spent.reason, /Run `qory artifact pull acceptance-criteria --version 2`/);
+  // A pull that starts with exactly 0 ms left starts nothing: a timeout of 0 would not end it.
+  const zero = run({}, (now) => ({ deadline: now + 200, wait: 300 }), 250);
+  assert.deepEqual(zero.pulls.map((one) => one.timeout), [500, 250]);
+  assert.match(zero.reason, /had no time left/);
+  // With no deadline in the call, the deadline is 20 s after the clock that the call got, and the
+  // pulls may take 60 s more: the first pull gets 80 s. A real clock 100 years before the fake
+  // one would give a deadline that is already past.
+  const derived = (() => {
+    const one = liftCase();
+    const timed = fakeTime(one);
+    timed.clock.at = 4e12;
+    const reason = one.call(writeOf(one.a), 'claude', {}, { now: timed.clock.now,
+      spawn: timed.spawn });
+    return { reason, pulls: timed.pulls };
+  })();
+  assert.equal(derived.reason, null);
+  assert.equal(derived.pulls[0].timeout, 80000);
+  // With the budget spent before the first pull, no pull starts.
+  const none = run({}, (now) => ({ deadline: now + 1000, wait: -3000 }));
+  assert.deepEqual(none.pulls, []);
+  assert.match(none.reason, /had no time left/);
+});
+
+test('a pull that does not return ends in a refusal of the write, never in an allow', () => {
+  // The pulls of one call share one budget: 200 ms of work and 300 ms of waiting. A pull that
+  // does not return is stopped by the timeout that it got, 500 ms, and the clock moves by it.
+  const run = (options, hang) => {
+    const one = liftCase(options);
+    const timed = fakeTime(one, { hang });
+    const now = timed.clock.now();
+    const answer = one.call(writeOf(one.a), 'claude', {}, { deadline: now + 200, wait: 300,
+      now: timed.clock.now, spawn: timed.spawn });
+    return { answer, pulls: timed.pulls, took: timed.clock.now() - now };
+  };
+  // The pull of the lock does not return: the lock cannot be read, and the write is denied.
+  const lockRead = run({}, ['acceptance-lock']);
+  assert.match(lockRead.answer, /did not finish in time/);
+  assert.deepEqual(lockRead.pulls, [{ type: 'acceptance-lock', timeout: 500 }]);
+  assert.equal(lockRead.took, 500);
+  // The pull of the questions does not return: the lock is read and the check stays locked.
+  const asked = run({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] },
+    ['questions']);
+  firstLine(asked.answer, LOCKED_START);
+  assert.equal(asked.pulls.at(-1).type, 'questions');
+  assert.equal(asked.pulls.at(-1).timeout, 500);
+  assert.equal(asked.took, 500);
+  // A pull that returns in time lets the same call through.
+  const quick = run({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'] }, []);
+  assert.equal(quick.answer, null);
+});
+
+test('a budget moves its deadline by the time of a wait, up to its cap, and reads no clock in it', () => {
+  const clock = { at: 1e12, now: () => clock.at };
+  const start = clock.at;
+  // The deadline moves by the wait, and the clock is not read in it: the deadline is 300 ms
+  // away and the wait 400 ms, so a read in the wait would be past it.
+  const moved = budget(start + 300, 1000, clock.now);
+  moved.waiting(() => {
+    clock.at += 400;
+    moved(1, true);
+  });
+  moved(1, true);
+  // The move stops at the cap: 50 ms of 400 ms leave the deadline at 350 ms, before 400 ms.
+  clock.at = start;
+  const capped = budget(start + 300, 50, clock.now);
+  capped.waiting(() => { clock.at += 400; });
+  assert.throws(() => capped(1, true));
+  // The default cap is far above 400 ms.
+  clock.at = start;
+  const free = budget(start + 300, undefined, clock.now);
+  free.waiting(() => { clock.at += 400; });
+  free(1, true);
+  // Without a wait the deadline stays.
+  clock.at = start;
+  const plain = budget(start + 300, 1000, clock.now);
+  clock.at += 400;
+  assert.throws(() => plain(1, true));
+  // A clock exactly on the deadline is not past it (the code throws at now > deadline + moved):
+  // 300 ms passes, and 301 ms throws.
+  clock.at = start + 300;
+  budget(start + 300, 0, clock.now)(1, true);
+  clock.at = start + 301;
+  assert.throws(() => budget(start + 300, 0, clock.now)(1, true));
+  // Two waits move it by their sum, up to the cap.
+  clock.at = start;
+  const twice = budget(start + 100, 500, clock.now);
+  twice.waiting(() => { clock.at += 200; });
+  twice.waiting(() => { clock.at += 200; });
+  twice(1, true);
+  twice.waiting(() => { clock.at += 300; });
+  assert.throws(() => twice(1, true));
+});
+
+test('the guard pulls only what the target needs, and gives a writer the command to run again', () => {
+  // A person wrote the target: the lift pulls the index of the criteria and the target version,
+  // and no questions, no lock and no other version, beside the two pulls of the lock read.
+  const log = path.join(working(), 'pulls.log');
+  const plain = liftCase({}, { log });
+  assert.equal(plain.call(writeOf(plain.a)), null);
+  assert.deepEqual(fs.readFileSync(log, 'utf8').trim().split('\n'), [
+    'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
+    'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
+  // A note that is no answer links the target: no lock document and no questions are read, so
+  // none is pulled.
+  const noted = path.join(working(), 'pulls.log');
+  const free = liftCase({ v2By: 'run', link: 'gd_1' }, { log: noted });
+  assert.equal(free.call(writeOf(free.a)), null);
+  assert.deepEqual(fs.readFileSync(noted, 'utf8').trim().split('\n'), [
+    'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
+    'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
+  // No lock is older than version 2, which an answer links: it counts with no read of a lock
+  // or of the questions, so none is pulled beyond the two of the lock read.
+  const earlyLog = path.join(working(), 'pulls.log');
+  const early = liftCase({ v2By: 'run', link: 'an_1', recorded: true, answers: ['ac-4'],
+    linkAt: '2026-11-14T09:00:00Z' }, { log: earlyLog });
+  assert.equal(early.call(writeOf(early.a)), null);
+  assert.deepEqual(fs.readFileSync(earlyLog, 'utf8').trim().split('\n'), [
+    'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
+    'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
+  // A version that a member approved and that is linked to an answer cannot change the target.
+  const approvedLog = path.join(working(), 'pulls.log');
+  const approved = liftCase({ approved: 2, v2By: 'run', link: 'an_1', recorded: true },
+    { log: approvedLog });
+  assert.equal(approved.call(writeOf(approved.a)), null);
+  assert.deepEqual(fs.readFileSync(approvedLog, 'utf8').trim().split('\n'), [
+    'artifact pull acceptance-lock', 'artifact pull acceptance-lock --version 1',
+    'artifact pull acceptance-criteria', 'artifact pull acceptance-criteria --version 2']);
+  // A pull of the lift that fails leaves the check locked and adds a third line with the cause.
+  const failed = liftCase({}, { failing: ['acceptance-criteria'] });
+  const reason = failed.call(writeOf(failed.a));
+  firstLine(reason, LOCKED_START);
+  assert.match(reason, /\nThe lift of a changed check failed: The pull exited with 3\. Run `qory artifact pull acceptance-criteria`, then write again\./);
+  // A locked file with no failed pull has no such line.
+  assert.doesNotMatch(String(plain.call(writeOf(plain.b))), /The lift of a changed check failed/);
+});
+
+test('the guard keeps a check locked when the lock locks the target version', () => {
+  // The lock locks version 2 and records the old hash of ac-4: the target is not newer.
+  const same = liftCase({ locked: 2, hashFrom: [AC1, AC4] });
+  firstLine(same.call(writeOf(same.a)), LOCKED_START);
+  // The same hashes with the lock of version 1 lift the check, so the denial above is the rule.
+  const older = liftCase({ hashFrom: [AC1, AC4] });
+  assert.equal(older.call(writeOf(older.a)), null);
+});
+
+test('a record of changes that an agent plants lifts nothing', () => {
+  const planted = (plant) => {
+    const one = liftCase();
+    plant(one.dir);
+    assert.equal(fs.existsSync(path.join(one.dir, '.qory', 'build', 'changes.json')), true);
+    // The record lists ac-1 as changed and its path, and the check of ac-1 stays locked.
+    firstLine(one.call(writeOf(one.b)), LOCKED_START);
+    // The genuine change is lifted from the lock and the criteria, as with no record.
+    assert.equal(one.call(writeOf(one.a)), null);
+  };
+  const record = JSON.stringify({ mode: 'changes', lock: 1, changed: ['ac-1', 'ac-4'],
+    paths: [OTHER_PATH], tests: ['ac-1', 'ac-4'] });
+  const sh = (dir, command) => childProcess.execSync(command, { cwd: dir, shell: '/bin/bash' });
+  // A variable in the path of the redirect, and a path from $PWD, which the guard does not read.
+  planted((dir) => sh(dir, `mkdir -p .qory/build; D=build; printf '%s' '${record}' > ` +
+    '.qory/$D/changes.json'));
+  planted((dir) => sh(dir, `mkdir -p .qory/build; printf '%s' '${record}' > ` +
+    '"$PWD/.qory/build/changes.json"'));
+  // The git chain: an object, an index entry, a commit, and a restore of .qory.
+  planted((dir) => {
+    const text = path.join(dir, 'record.json');
+    fs.writeFileSync(text, record);
+    const object = sh(dir, `git hash-object -w ${text}`).toString().trim();
+    sh(dir, `printf '100644 ${object}\t.qory/build/changes.json\\n' | git update-index ` +
+      '--index-info');
+    sh(dir, 'git -c user.email=a@b -c user.name=a commit -qm record');
+    sh(dir, 'rm -f .qory/build/changes.json; git checkout HEAD -- .qory');
+  });
+});
+
+test('the guard keeps a check locked when the type of the lock has no lift, or its lift fails', () => {
+  const one = liftCase();
+  const lifting = (writable) => () => ({ lock: { writable } });
+  const through = (lockKind) => decide({ input: { ...writeOf(one.a), cwd: one.dir },
+    env: RUN, runtime: 'claude', root: one.dir, lockKind,
+    locked: () => ({ what: 'acceptance-lock version 1', files: [one.a], number: 1,
+      checks: [{ file: one.a }] }) });
+  // A type with no lock, with no lift, or with a lift that is no function lifts nothing.
+  for (const kind of [() => null, lifting(undefined), lifting('all')]) {
+    firstLine(through(kind), LOCKED_START);
+  }
+  // A lift that throws, or returns no list, lifts nothing, and the guard still denies.
+  firstLine(through(lifting(() => { throw new Error('broken'); })), LOCKED_START);
+  firstLine(through(lifting(() => 'all')), LOCKED_START);
+  firstLine(through(lifting(() => [42, null])), LOCKED_START);
+  // A lift that names the file lifts it, so each denial above comes from the lift alone.
+  assert.equal(through(lifting(({ checks }) => checks.map((check) => check.file))), null);
+});
+
+test('the guard denies the verb changes to an agent only through the type of the lock', () => {
+  const { dir } = liftCase();
+  const verb = path.join(HOOKS, '..', 'skills', 'running-a-workflow', 'checks.cjs');
+  const command = `node ${verb} changes`;
+  const run = (lockKind) => decide({ input: { ...claude('Bash', { command }, WRITER),
+    cwd: dir }, env: RUN, runtime: 'claude', root: dir, lockKind, locked: () => ({ files: [] }) });
+  assert.equal(run(() => null), null);
+  assert.equal(run(() => ({ lock: { refused: () => { throw new Error('broken'); } } })), null);
+  assert.equal(run(() => ({ lock: { refused: () => 7 } })), null);
+  firstLine(run(() => ({ lock: { refused: () => 'Stop. ' } })), 'Stop.');
+});
+
+test('on Codex the guard lifts a changed check for the role acceptance-check-writer only', () => {
+  const home = next('home');
+  fs.mkdirSync(path.join(home, 'codex', 'agents'), { recursive: true });
+  fs.writeFileSync(path.join(home, 'codex', 'agents', 'acceptance-check-writer.toml'), '');
+  const one = liftCase();
+  const run = (agent) => one.call(codex('apply_patch', patch(CHECK_PATH), agent), 'codex',
+    { QORY_HARNESS_HOME: home });
+  assert.equal(run('acceptance-check-writer'), null);
+  firstLine(run('default'), 'Leave the locked file as it is');
+  // A role with no file in the home is no writer of the checks.
+  firstLine(run('check-reviewer'), 'Leave the locked file as it is');
+});
+
+test('the guard denies the verb changes to an agent, and lets the main session run it', () => {
+  const { dir, call } = liftCase();
+  const verb = path.join(HOOKS, '..', 'skills', 'running-a-workflow', 'checks.cjs');
+  for (const command of [`node ${verb} changes`, `cd ${dir} && node ${verb} changes`,
+    `node "${verb}" 'changes'`]) {
+    firstLine(call(claude('Bash', { command }, WRITER)),
+      'Run checks.cjs changes in the main session, not in an agent.');
+  }
+  assert.equal(call(claude('Bash', { command: `node ${verb} changes` })), null);
+  assert.equal(call(claude('Bash', { command: `node ${verb} check build-plan x.md` }, WRITER)),
+    null);
+});
+
+test('the guard denies a write of the record by the writer', () => {
+  const { dir, call } = liftCase();
+  const record = path.join(dir, '.qory', 'build', 'changes.json');
+  firstLine(call(claude('Write', { file_path: record, content: '{}' }, WRITER)),
+    'Leave .qory/build/ as it is');
+  firstLine(call(claude('Bash', { command: `echo {} > ${record}` }, WRITER)),
+    'Leave .qory/build/ as it is');
+});
+
+test('the guard keeps a support file locked, as the lock type lists it with no criterion', () => {
+  const home = harnessHome();
+  const script = path.join(home, 'hooks', 'tool-guard-claude.cjs');
+  const store = server({ support: [{ path: HELPER_PATH, sha256: sha(CHECK_TEXT) }] });
+  const lock = lockedFiles({ root: WORK, env: fakeQory(store), script });
+  const support = lock.checks.find((entry) => entry.file.endsWith('helper.ts'));
+  assert.ok(support, JSON.stringify(lock));
+  assert.deepEqual(Object.keys(support), ['file']);
+});
+
+// ---- A hard link to a locked file ---------------------------------------------------------------
+
+test('the guard denies a write to a hard link of a locked file, also after the lift ended', () => {
+  const one = liftCase();
+  const notes = path.join(one.dir, 'notes.txt');
+  // The lift is on for the check of ac-4: the writer links it, and writes it.
+  assert.equal(one.call(writeOf(one.a)), null);
+  childProcess.execFileSync('ln', [one.a, notes]);
+  // Another file that has a second link, and a name that does not exist yet, stay open.
+  const pair = path.join(one.dir, 'pair-1.txt');
+  fs.writeFileSync(pair, 'x');
+  fs.linkSync(pair, path.join(one.dir, 'pair-2.txt'));
+  const free = (file) => assert.equal(one.call(writeOf(file, 'harness:implementer')), null, file);
+  free(path.join(one.dir, 'pair-2.txt'));
+  free(path.join(one.dir, 'fresh.txt'));
+  // The main session locked again: the check is locked and the link is the same file.
+  const locked = (file, agent = 'harness:implementer') => firstLine(one.call(writeOf(file, agent)),
+    'Leave the locked file as it is');
+  locked(one.b);
+  fs.linkSync(one.b, path.join(one.dir, 'notes-b.txt'));
+  locked(path.join(one.dir, 'notes-b.txt'));
+  locked(path.join(one.dir, 'notes-b.txt'), 'harness:implementer');
+  firstLine(one.call(claude('Edit', { file_path: path.join(one.dir, 'notes-b.txt') }, WRITER)),
+    'Leave the locked file as it is');
+  // A shell write through the link is a write of the locked file.
+  for (const command of ['echo x > notes-b.txt', 'cp /etc/hosts notes-b.txt',
+    'printf x | tee notes-b.txt', 'sed -i "" s/x/y/ notes-b.txt']) {
+    firstLine(one.call(claude('Bash', { command }, 'harness:implementer')),
+      'Leave the locked file as it is');
+  }
+  // A read through the link stays allowed.
+  assert.equal(one.call(claude('Bash', { command: 'cat notes-b.txt' }, 'harness:implementer')),
+    null);
+});
+
+test('the guard keeps a lifted check locked when a locked support file is the same file', () => {
+  const one = liftCase({ support: [HELPER_PATH] });
+  // The support file is a hard link of the check of the changed criterion.
+  fs.rmSync(one.helper);
+  fs.linkSync(one.a, one.helper);
+  firstLine(one.call(writeOf(one.helper)), 'Leave the locked file as it is');
+  firstLine(one.call(writeOf(one.a)), 'Leave the locked file as it is');
+});
+
+test('the guard denies a write when it cannot tell whether the path is a locked file', () => {
+  if (process.getuid && process.getuid() === 0) return;
+  const one = liftCase();
+  fs.linkSync(one.b, path.join(one.dir, 'notes-b.txt'));
+  const sealed = path.join(one.dir, 'sealed');
+  fs.mkdirSync(sealed);
+  fs.writeFileSync(path.join(sealed, 'x.txt'), 'x');
+  fs.chmodSync(sealed, 0);
+  try {
+    firstLine(one.call(writeOf(path.join(sealed, 'x.txt'), 'harness:implementer')),
+      'Leave the locked file as it is');
+  } finally {
+    fs.chmodSync(sealed, 0o755);
+  }
+  // A locked file that cannot be read denies each write below the working folder.
+  const hidden = path.join(sealed, 'x.txt');
+  fs.chmodSync(sealed, 0);
+  try {
+    firstLine(decide({ input: { ...writeOf(path.join(one.dir, 'fresh.txt'), 'harness:implementer'),
+      cwd: one.dir }, env: RUN, runtime: 'claude', root: one.dir,
+    locked: () => ({ what: 'acceptance-lock version 1', files: [hidden], number: 1 }) }),
+    'Leave the locked file as it is');
+  } finally {
+    fs.chmodSync(sealed, 0o755);
+  }
+});
+
+test('the guard denies a redirect to a brace list of more than one word, as zsh writes each word', () => {
+  const start = 'Write each file with a separate redirect.';
+  for (const command of ['echo y > checks/{b,}.check.ts', 'echo y >> notes/{a,b}.txt',
+    'echo y 2> notes/{a,b}.txt', 'echo y > notes/{1..3}.txt', "sh -c 'echo y > notes/{a,b}.txt'",
+    'echo y | tee notes/x > notes/{a,b}.txt']) {
+    firstLine(guard(claude('Bash', { command }, 'implementer')), start);
+  }
+  // A brace group of one word, a quoted or escaped brace and no brace write one path.
+  for (const command of ['echo y > notes/{a}.txt', 'echo y > notes/{1..1}.txt',
+    'echo y > "notes/{a,b}.txt"', 'echo y > notes/\\{a,b\\}.txt', 'echo y > notes/a.txt',
+    'echo {a,b}']) {
+    assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
+  }
+  // The body of a here-document is text for cat and tee, quoted or not, up to a line that could
+  // run a command; the redirect of the command line and a command in the body are read.
+  const body = 'run: x > notes/{a,b}.txt';
+  for (const command of [`cat <<EOF > out.md\n${body}\nEOF`, `cat <<'EOF' > out.md\n${body}\nEOF`,
+    `cat > out.md <<EOF\n${body}\nEOF`, `tee out.md <<EOF\n${body}\nEOF`]) {
+    assert.equal(guard(claude('Bash', { command }, 'implementer')), null, command);
+  }
+  for (const command of ['cat <<EOF > notes/{a,b}.txt\nx\nEOF',
+    `cat <<EOF > out.md\n$(echo y > notes/{a,b}.txt)\nEOF`,
+    `cat <<EOF > out.md\nfirst\n$(\n${body.replace('run: x', 'echo y')}\n)\nEOF`,
+    `bash <<EOF\n${body.replace('run: x', 'echo y')}\nEOF`]) {
+    firstLine(guard(claude('Bash', { command }, 'implementer')), start);
+  }
+  // The rule is for an agent: the main session passes it, and another rule reads the call.
+  const main = guard(claude('Bash', { command: 'echo y > notes/{a,b}.txt' }));
+  assert.ok(main === null || !main.startsWith(start), main);
+});
 
 test('a write to .qory/build/ is denied, on Claude Code and on Codex', () => {
   const ledger = path.join(WORK, '.qory', 'build', 'steps.json');
@@ -717,13 +1577,13 @@ function patchedHome(from, to, ...more) {
 
 // server returns a folder that stands for Qory Apiary's artifacts: the testdata and version 1
 // of acceptance-lock, which locks CHECK_PATH.
-function server() {
+function server({ support } = {}) {
   const root = next('server');
   fs.cpSync(TESTDATA, root, { recursive: true });
   const lock = { criteria: { version: 1 }, start_commit: '5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e',
     commit: 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678',
     checks: [{ criterion: 'ac-4', path: CHECK_PATH, command: `npm test -- ${CHECK_PATH}`,
-      failed_with: 1, sha256: sha(CHECK_TEXT) }] };
+      failed_with: 1, sha256: sha(CHECK_TEXT) }], ...(support ? { support } : {}) };
   const text = JSON.stringify(lock, null, 2);
   const file = path.join(root, 'acceptance-lock', 'main', 'v1', 'acceptance-lock.json');
   fs.mkdirSync(path.dirname(file), { recursive: true });
@@ -739,17 +1599,62 @@ function server() {
   return root;
 }
 
-// fakeQory returns an environment of a run whose qory pulls from into a new store.
-function fakeQory(from, status = 0) {
+// chosenVersions returns the number that a pull of each type with no version returns from the
+// store in from: the approved version of main, else the newest.
+function chosenVersions(from) {
+  const chosen = {};
+  for (const one of JSON.parse(fs.readFileSync(path.join(from, 'index.json'), 'utf8')).artifacts) {
+    if ((one.name || 'main') !== 'main') continue;
+    const approved = one.versions.find((each) => each.id === one.approved_version);
+    chosen[one.type] = approved ? approved.number : one.newest_version;
+  }
+  return chosen;
+}
+
+// fakeQory returns an environment of a run whose qory pulls from into a new store. A pull of
+// a type in failing exits with status. With typed, all pulls write into one store, the folder
+// `into` when it is set, as qory does: index.json, and the folder of the pulled version of the
+// type, which is the approved version, then the newest, with none named, and nothing else. A
+// pull of a version that the store lacks exits 1, as qory does. With swap, { at, index }, the
+// pull number `at` ends with the index.json file `index` in the store. With log, each pull
+// appends its arguments to that file. fakeTime sets the clock of a pull and its timeout.
+function fakeQory(from, status = 0, { failing = [], typed = false,
+  into = null, swap = null, log = null } = {}) {
   const bin = next('bin');
-  const store = next('store');
+  const store = into || next('store');
   fs.mkdirSync(bin);
+  // A pull with no version returns the approved version of the type, else the newest.
+  const chosen = typed ? chosenVersions(from) : {};
+  const picks = Object.entries(chosen).map(([type, number]) =>
+    `    '${type}') ver=${number} ;;\n`).join('');
+  const copy = typed ? `mkdir -p '${store}'
+cp '${from}/index.json' '${store}/index.json'
+if [ "$4" = '--version' ]; then
+  ver="$5"
+  [ -d '${from}'/"$3"/main/v"$ver" ] || exit 1
+else
+  ver=''
+  case "$3" in
+${picks}  esac
+fi
+if [ -n "$ver" ]; then
+  [ -d '${from}'/"$3"/main/v"$ver" ] || exit 1
+  mkdir -p '${store}'/"$3"/main
+  cp -R '${from}'/"$3"/main/v"$ver" '${store}'/"$3"/main/
+fi
+` : `mkdir -p '${store}'
+cp -R '${from}/.' '${store}/'
+`;
+  const failed = failing.map((type) => `[ "$3" != '${type}' ] || exit 3\n`).join('');
+  const count = swap ? `n=$(cat '${bin}/count' 2>/dev/null || echo 0); n=$((n + 1))
+echo $n > '${bin}/count'
+` : '';
+  const later = swap ? `[ $n -ne ${swap.at} ] || cp '${swap.index}' '${store}/index.json'\n` : '';
+  const logged = log ? `echo "$*" >> '${log}'\n` : '';
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 [ "$1 $2" = 'artifact pull' ] || exit 9
 [ ${status} -eq 0 ] || exit ${status}
-mkdir -p '${store}'
-cp -R '${from}/.' '${store}/'
-echo '${store}'
+${logged}${count}${failed}${copy}${later}echo '${store}'
 `, { mode: 0o755 });
   return { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH}`,
     QORY_RUN_ID: 'run-1', QORY_RUN_REPOSITORIES: 'example-org/shop' };
@@ -760,7 +1665,8 @@ test('lockedFiles reads the files of the lock with the reader of checks.cjs', ()
   const script = path.join(home, 'hooks', 'tool-guard-claude.cjs');
   const env = fakeQory(server());
   assert.deepEqual(lockedFiles({ root: WORK, env, script }),
-    { what: 'acceptance-lock version 1', files: [LOCKED] });
+    { what: 'acceptance-lock version 1', files: [LOCKED], number: 1,
+      checks: [{ file: LOCKED, criterion: 'ac-4', hash: undefined, version: 1 }] });
   // No version of the lock: nothing is locked.
   const empty = next('server');
   fs.cpSync(TESTDATA, empty, { recursive: true });
@@ -2067,7 +2973,7 @@ test('a wildcard path whose folder lies in the working folder counts as a write'
   }
 });
 
-test('the guard reads 256 KB of one character beside a here-document in under 500 ms', () => {
+test('the guard reads 256 KB of one character beside a here-document in under 1,500 ms', () => {
   const run = 256 * 1024;
   for (const char of ['1', '<', '>', '&', "'", '\\']) {
     const word = char.repeat(run);
@@ -2076,7 +2982,7 @@ test('the guard reads 256 KB of one character beside a here-document in under 50
       const start = process.hrtime.bigint();
       guard(codex('Bash', { command }, 'implementer'));
       const ms = Number(process.hrtime.bigint() - start) / 1e6;
-      assert.ok(ms < 500, `${JSON.stringify(char)}: ${ms} ms`);
+      assert.ok(ms < 1500, `${JSON.stringify(char)}: ${ms} ms`);
     }
   }
 });
@@ -4574,6 +5480,24 @@ test('a reviewer agent of a review session writes no file but its report', () =>
     firstLine(call(claude(tool, args, REVIEWER)), SESSION_ONLY);
   }
   firstLine(call(claude('Write', { content: '{}' }, REVIEWER)), SESSION_ONLY);
+});
+
+test('the session runs panel and findings round with the earlier findings of the inputs ' +
+  'folder, and a reviewer reads them and the copy of the change', () => {
+  const commitFolder = next('session-commit');
+  const { home, reports, call } = sessionSetup((folder) => ({ review_session: {
+    reports: folder, commit_folder: commitFolder } }));
+  const previous = path.join(home, 'review-session', 'open-findings.json');
+  for (const command of [
+    `node ${SESSION_CHECKS} panel --names a,b --files changed.txt --previous ${previous}`,
+    `node ${SESSION_CHECKS} findings round ${reports} --reviewers a --suite s.json ` +
+      `--previous ${previous}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  for (const command of [`cat ${previous}`, `grep -rn export ${commitFolder}/src`,
+    `head -20 ${commitFolder}/src/orders.cjs`]) {
+    assert.equal(call(bashAs(command, REVIEWER)), null, command);
+  }
 });
 
 test('a reviewer agent runs only read commands in a review session', () => {

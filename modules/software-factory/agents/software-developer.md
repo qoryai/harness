@@ -98,7 +98,8 @@ Files:
 Checks:
 - <the check, such as run targeted tests/export.test.ts>: <green or red>; record <id>; "<its last line>"
 
-Change: <one sentence: what you changed, or why the finding needs no change>
+Change: <one sentence: what you changed, or why the finding is not true>
+Reply: <fixed or disputed>: <what changed, or why the finding is not true>
 
 Blocked: needs a change to the build plan: <the change>
 Blocked: <what you tried, why it failed, and the state it left>
@@ -111,3 +112,11 @@ List under "Files:" every file you changed, added or removed, or `- none`. List 
 `Left out: none`, or the list of what you left out in the form that `changing-code` lists,
 which ends with the line `# End`. Only `blocked` has one "Blocked:" line, in one of these
 two forms, and a blocked report needs no other line. The last line is one word.
+
+Only a fix of a finding has "Reply:", one line that qory posts to the finding as your reply:
+`Reply: fixed: <what changed>` when you changed the code for it, or
+`Reply: disputed: <why the finding is not true>` when you changed no file for it. The
+reviewer of the next round checks the reply against the code. A finding that you get may
+have earlier replies and `disputed`: when a reviewer repeated a finding that a reply
+disputed, the reviewer did not accept the reason, so fix the finding or dispute it with a
+new reason.

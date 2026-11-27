@@ -1,6 +1,6 @@
 ---
 name: reviewing-drafts
-description: Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, how to check the sentence rules of simple-communication, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you.
+description: "Load before you review a draft that a run wrote. Contains the order of a review, how to weigh the person's words, what a finding contains, what is no finding, what a report contains, how to check the sentence rules of simple-communication, and the check list of a Markdown document: its summary, background, parts, pictures, points, tables and word limit, and the checks the run passes you."
 ---
 
 # Reviewing drafts
@@ -199,8 +199,8 @@ Write it as your last step before the text report, also when you have no finding
 file exists, read it, then write it. With the last word `blocked`, write no report file.
 
 The file is one JSON object: `reviewer` is your agent's name, and `findings` has one item
-for each finding of your text report, and is empty with none. An item has these members and
-no other:
+for each finding of your text report, and is empty with none. Report at most 100 findings,
+the blocking ones first. An item has these members and no other:
 
 - `severity`: `blocking` for a finding marked `break` and for one that quotes a line of
   "Checks:", because each keeps the draft from passing. Every other finding is

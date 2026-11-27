@@ -68,11 +68,11 @@ the criterion that is not met: the review of the code writes the cause in the co
 
 ## Earlier findings
 
-When `previous_findings` exists, re-read the lines of each finding in it, as
-`reviewing-changes` and `judging-findings` list. This skill narrows their rule to the
-findings of the area of this review: repeat, with its id, each such finding that is still
-true. Leave out the findings of each other area, because the reviewer of that area repeats
-them. The shape of `previous_findings` is not in a contract of qory yet.
+When `previous_findings` exists, do "Earlier findings" of `reviewing-changes` and
+`judging-findings`. This skill narrows their rule to the findings of your role, the area of
+this review: repeat or close each of them by its id. Leave the findings of each other role
+alone, because the reviewer of that area repeats or closes them, and a report that repeats
+or closes them counts as no report.
 
 ## Review of the acceptance
 
@@ -123,4 +123,5 @@ These lists sort the kinds of finding of this area under the definition of `bloc
 - Each changed path that no Files cell of the build plan lists has a finding.
 - No finding is about the cause of a bug in the code, a test or the test setup.
 - No finding is made up: a change that meets every criterion has an empty `findings` list.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

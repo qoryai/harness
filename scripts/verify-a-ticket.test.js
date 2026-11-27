@@ -7,6 +7,7 @@
 
 const assert = require('node:assert/strict');
 const childProcess = require('node:child_process');
+const crypto = require('node:crypto');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -163,8 +164,9 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(!/`previous_findings`[^.]*\bmissing\b/.test(stops),
       `${name} stops for previous_findings`);
     assert.ok(!/build_report[^.]*\bmissing\b/.test(stops), `${name} stops for build_report`);
-    assert.ok(flat.includes('With no `previous_findings` in `qory.review_session`, this is the ' +
-      'first round: go on.'), `${name} goes on in the first round`);
+    assert.ok(flat.includes('With no `previous_findings` in `qory.review_session`, the stage ' +
+      'has no earlier finding of a reviewer: go on. The same holds when its file has no ' +
+      'finding of your role.'), `${name} goes on in the first round`);
     assert.ok(flat.includes('`previous_findings` is set and its file cannot be read'),
       `${name} stops for a file that cannot be read`);
     assert.ok(flat.includes('Where a skill lists a value of `qory.review`, read the member of ' +
@@ -176,14 +178,26 @@ test('each agent of Verify is an agent of the session: it writes <reports>/<agen
     assert.ok(flat.includes('The prompt contains the path of the input file.'), name);
     assert.ok(flat.includes('Write it once, as your last step, at `<reports>/' + name + '.json`'),
       name);
+    assert.ok(flat.includes("The working folder is the run's checkout, at the same commit; read " +
+      'the change in the read-only folder at `commit_folder`.'), `${name} reads commit_folder`);
   }
   for (const skill of ['checking-tampering', 'judging-criteria']) {
     const text = read('skills', skill, 'SKILL.md');
     assert.ok(!/qory\.review\b(?!_)/.test(text), skill);
     assert.ok(!/your prompt/.test(text), `${skill} reads the prompt`);
-    for (const member of ['diff', 'commit', 'previous_findings']) {
+    // The change is read at commit_folder; the working folder is the run's checkout.
+    for (const member of ['diff', 'commit_folder', 'previous_findings']) {
       assert.ok(text.includes(`qory.review_session.${member}\``), `${skill} reads ${member}`);
     }
+    assert.ok(text.replace(/\s+/g, ' ').includes("The working folder is the run's checkout, at " +
+      'the same commit; read the change in the read-only folder'), skill);
+    assert.ok(!text.includes('working folder is empty'), skill);
+    assert.ok(text.replace(/\s+/g, ' ').includes('The member is missing when the stage has no ' +
+      'finding of a reviewer, open or closed by a run.'), skill);
+    assert.ok(!text.includes('first round'), skill);
+    // The check list repeats or closes each open earlier finding.
+    assert.match(text,
+      /is repeated with its `id` while it\s+is still true, and closed in `closes` otherwise\./);
   }
 });
 
@@ -296,7 +310,7 @@ const check = (criterion, state, extra = {}) => ({ criterion, path: `tests/${cri
 // folder. forge changes the local store after the copy, as an agent can, and down lists the
 // types that the fake qory cannot pull.
 function work({ records = [], ledger = null, evidence = {}, plugin = layout(), forge = null,
-  down = [] } = {}) {
+  down = [], served = null, lean = false } = {}) {
   const dir = next('work');
   fs.mkdirSync(dir, { recursive: true });
   const git = (...args) => childProcess.execFileSync('git', ['-C', dir, ...args]);
@@ -322,15 +336,26 @@ function work({ records = [], ledger = null, evidence = {}, plugin = layout(), f
     write(path.join(store, 'demo-evidence', scenario, 'v1', `${scenario}.json`), {
       scenario, commit, planned: 'film', evidence: 'film', verdict: 'passed', steps: [], ...doc });
   }
+  if (served) served(store);
   const server = next('server');
   fs.cpSync(store, server, { recursive: true });
+  // With lean, qory serves one folder, and a pull of acceptance-lock with no --version leaves
+  // out version 1, as the real pull fetches one version; --version <N> adds that version.
+  const lone = `${server}-lean`;
+  if (lean) {
+    fs.cpSync(server, lone, { recursive: true });
+    fs.rmSync(path.join(lone, 'acceptance-lock', 'main', 'v1'), { recursive: true });
+  }
   const bin = next('bin');
   fs.mkdirSync(bin);
   fs.writeFileSync(path.join(bin, 'qory'), `#!/bin/sh
 case "$1 $2" in
 'artifact pull')
+  echo "$3 $4 $5" >> '${bin}.pulls'
   case "$3" in ${down.map((type) => `${type}) exit 1;;`).join(' ')} esac
-  echo '${server}'
+  ${lean ? `[ "$3 $4" = 'acceptance-lock --version' ] && cp -R '${server}/acceptance-lock/main/v'"$5" \
+    '${lone}/acceptance-lock/main/'
+  echo '${lone}'` : `echo '${server}'`}
   exit 0;;
 esac
 exit 1
@@ -584,6 +609,91 @@ test('matrix: a type that cannot be pulled gives no state to what rests on it, a
   assert.match(result.lines[0], /^Run `qory artifact pull acceptance-criteria`, then matrix again\./);
 });
 
+// answerServed adds to store, the folder of a work(), the store of the run API in which lock 1
+// locks version 1, a member answered a question about ac-4, the run's version 2 changes ac-4,
+// adds ac-5 and is linked to that answer, and lock 2, the approved one, locks version 2.
+function answerServed(store) {
+  const dir = (...names) => path.join(store, ...names);
+  const first = JSON.parse(fs.readFileSync(dir('acceptance-criteria', 'main', 'v1',
+    'acceptance-criteria.json'), 'utf8'));
+  const second = JSON.parse(JSON.stringify(first));
+  second.criteria.find((one) => one.id === 'ac-4').text += ' Within a day.';
+  second.criteria.push({ id: 'ac-5', text: 'The reply has a footer.', check: 'Tests' });
+  const hashes = (doc) => Object.fromEntries(doc.criteria.filter((one) => !one.removed)
+    .map((one) => [one.id, crypto.createHash('sha256')
+      .update(JSON.stringify([one.text, one.check])).digest('hex')]));
+  write(dir('acceptance-criteria', 'main', 'v2', 'acceptance-criteria.json'), second);
+  write(dir('acceptance-lock', 'main', 'v1', 'acceptance-lock.json'),
+    { criteria: { version: 1, sha256: hashes(first) }, checks: [] });
+  write(dir('acceptance-lock', 'main', 'v2', 'acceptance-lock.json'),
+    { criteria: { version: 2, sha256: hashes(second) }, checks: [] });
+  write(dir('questions', 'main', 'v1', 'questions.json'), { questions: [{ id: 'q-1',
+    question: 'Which change?', about: { type: 'acceptance-criteria', name: 'main',
+      item: 'ac-4' }, state: 'answered',
+    answer: { option: 'A', by: { name: 'Sam Example' }, at: '2026-11-21T11:30:00Z' } }] });
+  const index = JSON.parse(fs.readFileSync(dir('index.json'), 'utf8'));
+  const entry = (id, number, at, more = {}) => ({ id, number, writer: { kind: 'run',
+    run_id: 'run_7c3k1' }, cancelled: false, stage_id: 'st_6ns22c4pav', note: null, at,
+  files: [], approvals: [], ...more });
+  const of = (type) => index.artifacts.find((one) => one.type === type);
+  of('acceptance-criteria').versions.unshift(entry('av_ac2', 2, '2026-11-21T11:00:00Z',
+    { decision: 'an_1', decision_at: '2026-11-21T11:00:00Z' }));
+  of('acceptance-criteria').newest_version = 2;
+  const lock = of('acceptance-lock');
+  lock.versions.unshift(entry('av_lock2', 2, '2026-11-21T12:00:00Z'));
+  lock.newest_version = 2;
+  lock.approved_version = 'av_lock2';
+  index.artifacts.push({ type: 'questions', name: 'main', stage_id: 'st_6ns22c4pav',
+    approved_version: null, newest_version: 1, changed_after_approval: false,
+    versions: [entry('av_q1', 1, '2026-11-21T11:30:00Z')] });
+  write(dir('index.json'), index);
+}
+
+test('matrix: it pulls the lock, so a version that lock 2 locks is the criteria of the matrix', () => {
+  const wk = work({ served: answerServed, records: [{ lock: 2,
+    checks: [check('ac-4', 'green')] }] });
+  const result = call(wk, ['matrix', '--version', '2']);
+  assert.equal(result.status, 0, result.out + result.err);
+  // ac-5 is a criterion of version 2 only.
+  assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-5'));
+  const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock')) &&
+    pulls.some((line) => line.startsWith('questions')), pulls.join(','));
+  // A lock that cannot be pulled exits 3, as a criteria pull does.
+  const down = work({ served: answerServed, down: ['acceptance-lock'] });
+  const failed = call(down, ['matrix', '--version', '2']);
+  assert.equal(failed.status, 3, failed.out + failed.err);
+  assert.match(failed.lines[0], /^Run `qory artifact pull acceptance-lock`, then matrix again\./);
+});
+
+// laterServed adds to answerServed a criteria version 3, written before lock 2 and linked to the
+// same answer, which adds ac-6. Only lock 1 can bind it to the answer.
+function laterServed(store) {
+  answerServed(store);
+  const dir = (...names) => path.join(store, ...names);
+  const third = JSON.parse(fs.readFileSync(dir('acceptance-criteria', 'main', 'v2',
+    'acceptance-criteria.json'), 'utf8'));
+  third.criteria.push({ id: 'ac-6', text: 'The reply has a header.', check: 'Tests' });
+  write(dir('acceptance-criteria', 'main', 'v3', 'acceptance-criteria.json'), third);
+  const index = JSON.parse(fs.readFileSync(dir('index.json'), 'utf8'));
+  const criteria = index.artifacts.find((one) => one.type === 'acceptance-criteria');
+  criteria.versions.unshift({ ...criteria.versions[0], id: 'av_ac3', number: 3,
+    at: '2026-11-21T11:30:00Z', decision_at: '2026-11-21T11:30:00Z' });
+  criteria.newest_version = 3;
+  write(dir('index.json'), index);
+}
+
+test('matrix: it pulls the lock before a version that an answer links, by its number', () => {
+  const wk = work({ served: laterServed, lean: true,
+    records: [{ lock: 2, checks: [check('ac-4', 'green')] }] });
+  const result = call(wk, ['matrix', '--version', '2']);
+  assert.equal(result.status, 0, result.out + result.err);
+  // Version 3 is the target, because lock 1 binds its answer, so ac-6 is a criterion.
+  assert.ok(verification(wk).not_verified.some((one) => one.criterion === 'ac-6'));
+  const pulls = fs.readFileSync(`${wk.bin}.pulls`, 'utf8').split('\n').filter(Boolean);
+  assert.ok(pulls.some((line) => line.startsWith('acceptance-lock --version 1')), pulls.join(','));
+});
+
 test('matrix: it refuses a lock version that is not the approved one', () => {
   const wk = work({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
   const other = call(wk, ['matrix', '--version', '2']);
@@ -640,7 +750,7 @@ function inOrder(text, ...phrases) {
 
 test('the skill has its name, a description, its sections and short lines', () => {
   assert.match(frontOf(WORKFLOW),
-    /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
+    /^name: workflow-verify-a-ticket\ndescription: "Verify the change /);
   let at = -1;
   for (const heading of ['## What the session writes', '## The order of the run',
     '## The reviewers', '## The round', '## The walkthrough', '## The end',
@@ -708,9 +818,11 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(oneLine(reviewers).includes('Read no report of a reviewer, start no reviewer ' +
     'again, and fix no report'));
   const round = oneLine(section(WORKFLOW, 'The round'));
-  assert.ok(round.includes('--reviewers tamper-reviewer,verification-reviewer` once, and add ' +
+  assert.ok(round.includes('--reviewers tamper-reviewer,verification-reviewer` once. Add ' +
     '`--suite <suite>` only when the member `qory.review_session.suite_result` exists'));
   assert.ok(round.includes('With no `--suite`, the round has no suite finding.'));
+  assert.ok(round.includes('Add `--previous <file>` only when the member ' +
+    '`qory.review_session.previous_findings` exists, with its path as `<file>`'));
   const end = oneLine(section(WORKFLOW, 'The end'));
   assert.ok(end.includes('`passed`, when all of these hold'));
   assert.ok(end.includes('Never record `passed` while step 7 has a failed scenario.'));
@@ -719,6 +831,11 @@ test('the skill starts the two reviewers, pushes the matrix and records the verd
   assert.ok(end.includes('"The change passed Verify: 1 criterion is met and no finding is ' +
     'blocking."'));
   assert.ok(end.includes('"Failed scenarios: <names>." with the names joined by ", "'));
+  assert.ok(end.includes('qory posts the reports to the findings of the work item before it ' +
+    'records the verdict, and the next session of `implement-changes` gets each open finding.'));
+  assert.ok(end.includes('Checked 2 reports: 1 blocking, 0 non-blocking open findings; 0 ' +
+    'closed.'));
+  assert.doesNotMatch(oneLine(WORKFLOW), /qory writes the findings/);
   // The limit of the verdict is in docs/modules.md: a skill that an agent loads has none.
   assert.doesNotMatch(WORKFLOW, /shortcut:/);
   assert.doesNotMatch(read('skills', 'workflow-review-changes', 'SKILL.md'), /shortcut:/);
@@ -870,9 +987,33 @@ test('a session with no suite result: a clean round passes and the matrix passes
   const got = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH]);
   assert.equal(got.status, 0, got.out + got.err);
   assert.equal(got.lines.at(-1),
-    'Checked 2 reports: 0 blocking and 0 non-blocking findings; no blocking finding is open.');
+    'Checked 2 reports: 0 blocking, 0 non-blocking open findings; 0 closed.');
   assert.ok(!got.out.includes('full-suite'));
   assert.equal(verification(wk).matrix.every((row) => row.state === 'met'), true);
+});
+
+test('a session of a later take: an earlier finding of a Verify reviewer stays open until its ' +
+  'report closes it', () => {
+  const wk = sessionOf({ records: [{ checks: [check('ac-4', 'green')] }], evidence: DEMO_1 });
+  const previous = path.join(fs.mkdtempSync(path.join(tmp, 'previous-')), 'open-findings.json');
+  fs.writeFileSync(previous, JSON.stringify({ round: 1, findings: [{ id: 'f7', stage: 'verify',
+    source: { kind: 'reviewer', name: 'tamper-reviewer' }, severity: 'blocking', state: 'open',
+    quote: 'skip: true', file: 'tests/ac4.test.js', line: 3, point: 'The test of AC-4 is skipped.',
+    problem: 'The check of AC-4 runs no assertion.', fix: 'Remove the skip.',
+    proof: 'tests/ac4.test.js:3 has skip: true.', disputed: false, replies: [] }] }));
+  reviewed(wk, 'tamper-reviewer', []);
+  reviewed(wk, 'verification-reviewer', []);
+  const open = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH, '--previous', previous]);
+  assert.equal(open.status, 1, open.out + open.err);
+  assert.equal(open.lines[0], 'Blocking finding f7 of tamper-reviewer, tests/ac4.test.js:3, ' +
+    'open and not in its report: The test of AC-4 is skipped.');
+  fs.writeFileSync(path.join(wk.reports, 'tamper-reviewer.json'), JSON.stringify({
+    reviewer: 'tamper-reviewer', findings: [], closes: [{ id: 'f7', state: 'fixed',
+      reason: 'The test of AC-4 runs its assertion.' }] }));
+  const closed = call(wk, [...ROUND, wk.reports, '--reviewers', BOTH, '--previous', previous]);
+  assert.equal(closed.status, 0, closed.out + closed.err);
+  assert.equal(closed.lines.at(-1),
+    'Checked 2 reports: 0 blocking, 0 non-blocking open findings; 1 closed.');
 });
 
 test('a session: a lowered state is one blocking finding with its proof, and exits 1', () => {

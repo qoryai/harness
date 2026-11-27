@@ -128,7 +128,7 @@ test('the example of a report file passes the reader of findings round', () => {
   const report = JSON.parse(fenced(section(text, 'The report file')));
   const { reportProblem } = require(
     path.join(CORE, 'skills/running-a-workflow/lib/findings.cjs'));
-  assert.equal(reportProblem(report, 'plan-reviewer'), null);
+  assert.equal(reportProblem(report, 'plan-reviewer', new Set()), null);
   // On Claude Code, Write fails on a file that the agent has not read, as in a second review.
   assert.ok(section(text, 'The report file').replace(/\s+/g, ' ')
     .includes('When the file exists, read it, then write it.'));
@@ -576,6 +576,176 @@ test('a session on a test work item stores build-plan and ends passed', () => {
   assert.deepEqual(ledger.steps[0].pushed, [{ type: 'build-plan', name: 'main', version: 1 }]);
   assert.deepEqual(ledger.steps[0].attempts.map((one) => one.agent),
     ['code-explorer', 'build-planner', 'plan-reviewer']);
+});
+
+test('with no criterion changed since the lock, the skill starts no agent and keeps a newer plan', () => {
+  const flat = (text) => text.replace(/\s+/g, ' ').trim();
+  const text = skill('workflow-plan-the-build');
+  const first = flat(section(text, 'The order of the run'));
+  const head = first.slice(0, first.indexOf(' 2. Run `step begin`'));
+  assert.ok(head.includes('`<skill folder>/checks.cjs changes` once'), head);
+  assert.ok(head.includes('With the line "No criterion changed since", do "No criterion ' +
+    'changed" and go no further in this list.'), head);
+  const none = flat(section(text, 'No criterion changed'));
+  assert.ok(none.includes('run no `step begin`, start no agent, and push nothing. The build ' +
+    'plan stays as it is, also when it is newer than the lock.'), none);
+  assert.ok(none.includes('"No criterion changed since acceptance-lock version <N>, so the ' +
+    'run changed no plan and wrote no checks."'), none);
+});
+
+test('with no criterion changed since the lock, a newer build plan starts no agent and pushes nothing', () => {
+  const w = work();
+  withPlan(w);
+  // The lock locks criteria version 1, which is the approved version, and a build plan of
+  // version 2 is newer than the lock.
+  const index = path.join(w.artifacts, 'index.json');
+  withLock(w);
+  version(w.artifacts, 'build-plan', 2, 'build-plan.md', planOf(4));
+  listVersion(index, 'build-plan', 2, 'run-0');
+  const env = { ...w.env };
+  delete env.QORY_RUN_ID;
+  delete env.QORY_SESSION;
+  let out = '';
+  let err = '';
+  const first = watch();
+  const status = main(['changes'], { cwd: w.repo, artifacts: [w.artifacts], env,
+    plugin: PLUGIN, qory: w.qory, out: { write: (text) => { out += text; } },
+    err: { write: (text) => { err += text; } }, firstLine: first.firstLine });
+  first.check(status, err);
+  assert.equal(status, 0, out + err);
+  assert.equal(out, 'No criterion changed since acceptance-lock version 1.\n');
+  const record = JSON.parse(fs.readFileSync(path.join(w.repo, '.qory', 'build', 'changes.json'),
+    'utf8'));
+  assert.equal(record.mode, 'none');
+  // The run called qory for nothing: no pull, no push.
+  assert.equal(fs.existsSync(w.log), false);
+  // The newer build plan is the newest version, as the skill leaves it.
+  assert.equal(read(w.artifacts, 'build-plan', 'main', 'v2', 'build-plan.md'), planOf(4));
+});
+
+// ---- The check of a plan in change mode -----------------------------------------------------
+
+// changed writes the record of `checks.cjs changes` in the checkout of w, as that verb does.
+function changed(w, record) {
+  const file = path.join(w.repo, '.qory', 'build', 'changes.json');
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.writeFileSync(file, JSON.stringify(record));
+}
+
+// withPlan stores planOf(3) as version 1 of build-plan in the artifact folder of w.
+function withPlan(w) {
+  version(w.artifacts, 'build-plan', 1, 'build-plan.md', planOf(3));
+  listVersion(path.join(w.artifacts, 'index.json'), 'build-plan', 1, 'run-0');
+}
+
+// withLock stores acceptance-lock version 1, which locks criteria version 1, in the artifact
+// folder of w.
+function withLock(w) {
+  const lock = { criteria: { version: 1 }, start_commit: 'a'.repeat(40), commit: 'b'.repeat(40),
+    checks: [{ criterion: 'ac-1', path: 'tests/part-1.test.ts', command: 'npm test',
+      failed_with: 1, sha256: H, criterion_sha256: H }] };
+  version(w.artifacts, 'acceptance-lock', 1, 'acceptance-lock.json', JSON.stringify(lock));
+  listVersion(path.join(w.artifacts, 'index.json'), 'acceptance-lock', 1, 'run-0');
+}
+
+test('in change mode, the check of a plan finds a changed deliverable that lists no changed criterion', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  const record = { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] };
+  changed(w, record);
+  // The row of AC-2 changes: no finding. The row of AC-1 changes too: one finding.
+  fs.writeFileSync(file, planOf(3).replace('Write one row per order.', 'Write one row per item.'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  const refused = call('check', 'build-plan', file);
+  assert.equal(refused.status, 1, refused.err);
+  assert.match(refused.out, /Restore d-1 of build-plan.md as the newest version has it\.\n/);
+  // A row that the newest version lacks and that lists no changed criterion is removed.
+  fs.writeFileSync(file, planOf(3).replace('| d-3 |', '| d-9 |'));
+  assert.match(call('check', 'build-plan', file).out, /Remove d-9 of build-plan.md\./);
+  // A record from another lock or another criteria version is out of date.
+  for (const stale of [{ lock: 2 }, { target: 2 }]) {
+    changed(w, { ...record, ...stale });
+    const old = call('check', 'build-plan', file);
+    assert.equal(old.status, 1, old.out);
+    assert.match(old.out, /^Run checks\.cjs changes again: its record is out of date\.\n/);
+  }
+  // With no record of change mode, or the mode full, the check finds nothing of this kind.
+  fs.rmSync(path.join(w.repo, '.qory'), { recursive: true });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  changed(w, { mode: 'full', reason: 'no acceptance lock counts' });
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
+test('in change mode, the check of a plan reads no record that has a second link', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 1);
+  // A second link to the record could rewrite it, so the check reads no record.
+  fs.linkSync(path.join(w.repo, '.qory', 'build', 'changes.json'), path.join(w.repo, 'alias.json'));
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
+test('in change mode, the check of a plan reads no record that is a link or lies below a link', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  const call = session(w);
+  const file = path.join(w.artifacts, 'build-plan.md');
+  const record = path.join(w.repo, '.qory', 'build', 'changes.json');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  assert.equal(call('check', 'build-plan', file).status, 1);
+  // The record moves to a file outside the folder, and changes.json links to it.
+  const elsewhere = path.join(w.repo, 'elsewhere');
+  fs.mkdirSync(elsewhere);
+  fs.renameSync(record, path.join(elsewhere, 'changes.json'));
+  fs.symlinkSync(path.join(elsewhere, 'changes.json'), record);
+  assert.equal(call('check', 'build-plan', file).status, 0);
+  // The folder .qory/build is a link to a folder that has the record.
+  fs.rmSync(record);
+  const build = path.dirname(record);
+  const moved = path.join(w.repo, 'build-moved');
+  fs.renameSync(build, moved);
+  fs.copyFileSync(path.join(elsewhere, 'changes.json'), path.join(moved, 'changes.json'));
+  fs.symlinkSync(moved, build);
+  assert.equal(call('check', 'build-plan', file).status, 0);
+});
+
+test('in change mode, a withdrawn acceptance-lock leaves the lock of the record in place', () => {
+  const w = work();
+  withPlan(w);
+  withLock(w);
+  // Version 2 of acceptance-lock is a withdrawal: the locks before it still count.
+  const index = path.join(w.artifacts, 'index.json');
+  listVersion(index, 'acceptance-lock', 2, 'run-0');
+  const data = JSON.parse(fs.readFileSync(index, 'utf8'));
+  data.artifacts.find((one) => one.type === 'acceptance-lock').versions
+    .find((one) => one.number === 2).withdrawn = true;
+  fs.writeFileSync(index, JSON.stringify(data));
+  const file = path.join(w.artifacts, 'build-plan.md');
+  changed(w, { mode: 'changes', lock: 1, criteria: 1, target: 1, changed: ['ac-2'],
+    added: [], removed: [], unchanged: ['ac-1', 'ac-3', 'ac-4'], tests: ['ac-2'], leaves: [],
+    paths: [] });
+  fs.writeFileSync(file, planOf(3).replace('Add the export service.', 'Add the CSV service.'));
+  const result = session(w)('check', 'build-plan', file);
+  assert.doesNotMatch(result.out, /record is out of date/);
+  assert.match(result.out, /Restore d-1 of build-plan.md as the newest version has it\./);
 });
 
 // allFenced returns the text of each code block of text, without the indent of its lines.

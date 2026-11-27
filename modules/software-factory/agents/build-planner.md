@@ -63,6 +63,10 @@ code explorer's report, the line "Further repositories: yes" or "no", and any fi
 Read what the pull wrote, never the memory of an earlier session. A refused tool call stays
 refused. Read through no link, and fetch no web page.
 
+When you get the lines "Changed:", "Added:" or "Removed:", the draft is a copy of the newest
+build plan, and a member changed those criteria. Change only the deliverables that list one of
+them, and keep each other deliverable as it is, cell for cell.
+
 When you start again, change the draft for the findings, and repeat the list of your newest
 report, changed for this start.
 

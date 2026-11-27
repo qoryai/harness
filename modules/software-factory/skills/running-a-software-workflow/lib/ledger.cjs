@@ -50,6 +50,31 @@ module.exports = (lib) => {
   const REPORT_LINE = (file) => `The report of this file is ${file}.`;
 
   const brief = (commit) => commit.slice(0, 12);
+
+  // A step that fixes a finding of the work item, whose reply qory posts after the session, and
+  // the line of the reply in its report. The reason has 1 to 2,000 characters, as qory reads it.
+  const FINDING_STEP = /^fix:f[1-9][0-9]{0,8}$/;
+  const REPLY = /^(?:\*\*)?Reply:(?:\*\*)?[ \t]+(fixed|disputed):[ \t]*(.*)$/;
+  const REASON = 2000;
+
+  // reply returns the reply of the report of the step id, { kind, reason }, or the finding of a
+  // report that has no line Reply: with a reason, or more than one.
+  // A report of null is a call with no --report, or, when reported, a report that is too long
+  // for the ledger, as the other finding of the call shows: the limit is 8,192 bytes, REPORT_BYTES
+  // of the ledger verb of running-a-workflow.
+  function reply(id, report, reported) {
+    const found = (report || '').replace(/\r\n?/g, '\n').split('\n')
+      .map((line) => REPLY.exec(line.trimEnd())).filter(Boolean);
+    const reason = found.length === 1 ? lib.cut(lib.plainText(found[0][2]), REASON) : '';
+    if (reason) return { reply: { kind: found[0][1], reason } };
+    const none = reported ? 'Shorten the report to at most 8 KB: it is too long for the ledger, ' +
+      'so its line Reply: is not read.' : 'Give the call --report.';
+    const cause = report === null ? none : (found.length > 1
+      ? `The report has ${found.length} lines Reply:.`
+      : (found.length ? 'The line Reply: has no reason.' : 'The report has no line Reply:.'));
+    return { finding: 'Add one line Reply: fixed: <what changed> or Reply: disputed: <why> to ' +
+      `the report of ${id}.\n${cause}` };
+  }
   const starts = require('./start.cjs')(lib);
 
   // git runs git in the working folder of the session.
@@ -179,8 +204,10 @@ module.exports = (lib) => {
   }
 
   // lockSha returns { sha, problems } of the lock of text: the SHA-256 of its content with no
-  // commit and with the sha256 of each listed file from the working folder, so that it is the
-  // same before and after freeze and lock, and the findings of a text or a file with no hash.
+  // commit, no `/criteria/sha256` and no `criterion_sha256` of a check (the members that `lock`
+  // fills from the criteria), and with the sha256 of each listed file from the working folder,
+  // so that it is the same before and after freeze and lock, and the findings of a text or a
+  // file with no hash.
   function lockSha(io, text) {
     const { lockType, fill } = lib.lockReader;
     let data;
@@ -191,7 +218,13 @@ module.exports = (lib) => {
       return { sha: null, problems: [error.message] };
     }
     const { problems } = fill(io, lockType(io), data, 'step end', 'end the step again');
-    if (isObject(data)) delete data.commit;
+    if (isObject(data)) {
+      delete data.commit;
+      if (isObject(data.criteria)) delete data.criteria[lib.CRITERIA_HASHES];
+      if (Array.isArray(data.checks)) {
+        for (const check of data.checks.filter(isObject)) delete check.criterion_sha256;
+      }
+    }
     return { sha: sha256(JSON.stringify(sorted(data))), problems };
   }
 
@@ -222,7 +255,7 @@ module.exports = (lib) => {
     const linked = lib.lockReader.place(root, { path: report }).problem;
     const blocking = linked ? [{ proof: null, point: `Reviewer ${reviewer} wrote no valid ` +
       'report: its path has a link, or is not a regular file.' }]
-      : reviewerFindings(path.join(root, report), reviewer)
+      : reviewerFindings(path.join(root, report), reviewer).found
         .filter((one) => one.severity === 'blocking');
     if (!blocking.length) return { findings: [], report, sha };
     // A finding with no proof is the reader's: the report is missing or invalid.
@@ -235,9 +268,9 @@ module.exports = (lib) => {
     return { report, sha, findings: [`${line}\n${REPORT_LINE(report)}`] };
   }
 
-  // finish returns the commit of a done row, or the findings of edits made outside the step, of
-  // a list `Left out:` in the report that leftOut cannot read, of a file that its reviewer did
-  // not pass, and of a flag that is missing. A failed row gets no commit and no finding.
+  // finish returns the commit and the reply of a done row, or the findings of edits outside the
+  // step, of a list `Left out:` that leftOut cannot read, of a file its reviewer did not pass, of
+  // a missing flag, and of a fix of a finding with no reply. A failed row gets none of them.
   function finish(io, { ledger, place, state, report, reported, root, values }) {
     if (state === 'failed') return { findings: [], members: {} };
     const row = ledger.steps[place];
@@ -246,6 +279,8 @@ module.exports = (lib) => {
     const { problems } = typeof report === 'string' ? lib.leftOut(report) : { problems: [] };
     if (problems.length) findings.push(['Fix the list Left out: of your report.', ...problems]
       .join('\n'));
+    const answer = FINDING_STEP.test(row.id) ? reply(row.id, report ?? null, reported) : {};
+    if (answer.finding) findings.push(answer.finding);
     const files = changed(io);
     if (files.length) {
       const differ = files.length === 1 ? 'file of the checkout differs'
@@ -279,7 +314,8 @@ module.exports = (lib) => {
         : `${missing}\n${REPORT_LINE(review.report)}`);
     }
     findings.push(...review.findings);
-    return { findings, members: findings.length ? {} : { commit: top } };
+    return { findings, members: findings.length ? {}
+      : { commit: top, ...(answer.reply ? { reply: answer.reply } : {}) } };
   }
 
   // firstSentence returns the first sentence of a criterion, with no full stop at its end, no

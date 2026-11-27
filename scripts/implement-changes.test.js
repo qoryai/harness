@@ -168,8 +168,8 @@ test('the session starts the developer twice and the debugger once per step, the
   // The order of the steps: the deliverables not built, then the findings, blocking first.
   contains(section(WORKFLOW, 'The order of the run'), 'each deliverable that is not built, in ' +
     'the order of the build plan, as the step `deliverable:<id>`');
-  inOrder(section(WORKFLOW, 'The order of the run'), 'the `blocking` findings of the review',
-    'then the findings of Verify', 'then the `non-blocking` findings of the review');
+  inOrder(section(WORKFLOW, 'The order of the run'), 'the `blocking` open findings',
+    'then the findings of Verify', 'then the `non-blocking` open findings');
   contains(section(WORKFLOW, 'The order of the run'), 'Run the `find` of "Further ' +
     'repositories" of `running-a-software-workflow`.');
 });
@@ -178,8 +178,9 @@ test('the session reads open-findings.json of the inputs folder, Verify\'s input
   'lock', () => {
   contains(WORKFLOW, '`<in>` is the folder of that file.');
   const facts = section(WORKFLOW, 'The facts of the steps');
-  contains(facts, 'qory writes `<in>/open-findings.json`, read-only, from the report of the last ' +
-    'round of review. Run `findings open <in>/open-findings.json`');
+  contains(facts, 'qory writes `<in>/open-findings.json`, read-only, with each open finding of ' +
+    'the work item, of every stage, Verify\'s included, and the replies to each. Run ' +
+    '`findings open <in>/open-findings.json`');
   assert.doesNotMatch(oneLine(WORKFLOW),
     /when the prompt contains the path of `open-findings\.json`/);
   contains(section(WORKFLOW, 'The order of the run'), 'take each entry of `inputs` whose `from` ' +
@@ -188,7 +189,7 @@ test('the session reads open-findings.json of the inputs folder, Verify\'s input
   contains(facts, 'Each row of `matrix` in the verification whose `state` is `not_met` is one ' +
     'finding');
   contains(facts, 'Give these findings the ids `f<N>`, from one more than the highest number of ' +
-    'the review\'s ids, or from `f1` with none, first the points, then the rows.');
+    'the ids in `open-findings.json`, or from `f1` with none, first the points, then the rows.');
   // The lock that counts is the newest that no cancelled run wrote, as run locked reads it.
   contains(facts, 'take `<L>`, the largest `number` of the versions of `acceptance-lock` in ' +
     '`<folder>/index.json` with no `cancelled` set to `true`');
@@ -1326,35 +1327,54 @@ test('the session pushes no --withdraw for a demo script that a member uploaded'
     'scenario-2', '--withdraw').status, 4);
 });
 
+test('the session passes the replies of a finding and counts the fixed and disputed ones', () => {
+  contains(section(WORKFLOW, 'A step'), 'for an open finding, its `Fix first:` line, its ' +
+    '`replies` and `disputed` from the file, and the path of `open-findings.json`');
+  contains(section(WORKFLOW, 'The end'), 'end with "The change is ready for review: <k> planned ' +
+    'changes built, <m> findings fixed, <d> disputed." `<k>` counts the steps `deliverable:` ' +
+    'that this session ended done, and `<m>` and `<d>` the steps `fix:` that it ended done ' +
+    'whose report has the line `Reply: fixed:` or `Reply: disputed:`.');
+  for (const agent of AGENT_FILES) {
+    const text = oneLine(fs.readFileSync(agent, 'utf8'));
+    contains(text, 'Reply: <fixed or disputed>: <what changed, or why the finding is not true>');
+    contains(text, 'Only a fix of a finding has "Reply:"');
+  }
+});
+
 test('the session fixes a finding of open-findings.json in the inputs folder', () => {
   const w = work();
   const call = session(w);
   lockFirst(w, call);
   assert.equal(call('resume').status, 0);
   const file = path.join(path.dirname(w.inputs), 'open-findings.json');
-  fs.writeFileSync(file, JSON.stringify({ round: 1, reviewers: [{ reviewer: 'code-reviewer',
-    findings: [{ id: 'f3', severity: 'blocking', quote: "exportOrders: () => ''",
-      problem: 'The export is empty.', fix: 'Write one line per order.',
-      proof: 'AC-1, "The export has one line per order"',
-      point: 'The export has no line per order.', file: 'src/orders.cjs', line: 2 }] }] }));
+  fs.writeFileSync(file, JSON.stringify({ round: 2, findings: [{ id: 'f3', stage: 'review',
+    source: { kind: 'reviewer', name: 'code-reviewer' }, severity: 'blocking', state: 'open',
+    quote: "exportOrders: () => ''", problem: 'The export is empty.',
+    fix: 'Write one line per order.', proof: 'AC-1, "The export has one line per order"',
+    point: 'The export has no line per order.', file: 'src/orders.cjs', line: 2,
+    disputed: true, replies: [{ kind: 'disputed', reason: 'The export is empty by design.',
+      round: 1 }] }] }));
   const open = call('findings', 'open', file);
   assert.equal(open.status, 1, open.out);
-  assert.equal(open.lines[0], 'Fix first: f3 (blocking, src/orders.cjs:2): The export has no ' +
-    'line per order.');
+  assert.equal(open.lines[0], 'Fix first: f3 (blocking, from code-reviewer, disputed, ' +
+    'src/orders.cjs:2): The export has no line per order.');
   const id = 'fix:f3';
   assert.equal(call('step', 'begin', id, 'implement-changes', '--inputs', w.inputs,
     ...stepFiles(w), file).status, 0);
   writeFile(w, 'src/orders.cjs', HEADER);
   writeFile(w, 'tests/header.test.cjs', HEADER_TEST);
   const written = report(w, 'software-developer', writerReport(['src/orders.cjs',
-    'tests/header.test.cjs'], 'The export writes a header and one line per order.'));
+    'tests/header.test.cjs'], 'The export writes a header and one line per order.\n' +
+    'Reply: fixed: The export writes one line per order.'));
   assert.equal(call('report', 'software-developer', written).status, 0);
   // A fix runs the check paths that are not locked, and the locked checks.
   assert.ok(checksOf(w, call, id, [...TARGETED_2, ['run', 'locked']]));
   assert.equal(call('freeze', id, '--inputs', w.inputs).status, 0);
   assert.equal(call('step', 'end', id, 'done', '--report', written, '--attempt', DEVELOPER)
     .status, 0);
-  assert.deepEqual(newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1).id, id);
+  const row = newest(w, 'build-ledger', 'build-ledger.json').steps.at(-1);
+  assert.deepEqual([row.id, row.reply], [id, { kind: 'fixed',
+    reason: 'The export writes one line per order.' }]);
 });
 
 test('the session ends a writer\'s stop on the build plan with one answer point, escalate ' +

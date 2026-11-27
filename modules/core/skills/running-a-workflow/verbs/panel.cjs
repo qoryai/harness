@@ -1,4 +1,6 @@
-// panel: the members of a group role that start for the files of a change, in batches.
+// panel: the members of a group role that start for the files of a change, in batches. With
+// --previous, the file of qory.review_session.previous_findings, a member with an open finding
+// in that file starts whatever its paths.
 'use strict';
 
 const fs = require('node:fs');
@@ -8,8 +10,9 @@ const {
   DISK_FACTOR, Missing, NAME, PLACES, STARTED, given, isObject, parseJson, plural, quote,
 } = require('../lib/base.cjs');
 const { compileGlobs, matchesAny } = require('../lib/globs.cjs');
+const { mineOf, previousFindings } = require('./findings.cjs');
 
-const FLAGS = ['--names', '--files', '--group', '--after'];
+const FLAGS = ['--names', '--files', '--group', '--after', '--previous'];
 
 const AFTER = /^(?:0|[1-9][0-9]?)$/;
 
@@ -34,6 +37,7 @@ function flags(tokens) {
     files: got['--files'],
     group: got['--group'] ?? 'reviewers',
     after: got['--after'] ?? '0',
+    previous: got['--previous'] ?? null,
   };
 }
 
@@ -210,21 +214,26 @@ function panel(io, options) {
     }
   });
   const paths = changed(path.resolve(io.cwd, options.files));
+  const earlier = options.previous === null ? [] : previousFindings(io, options.previous);
   const listed = rows.map((row, place) => ({
     name: names[place],
     files: row.patterns ? paths.filter((one) => matchesAny(row.patterns, one)) : paths,
+    open: mineOf(earlier, row.agent).filter((one) => one.state === 'open').length,
   }));
-  const withInput = listed.filter((member) => member.files.length > 0);
+  const withInput = listed.filter((member) => member.files.length > 0 || member.open > 0);
+  const onlyOpen = withInput.some((member) => member.files.length === 0);
   if (after > withInput.length) {
-    throw new Missing(`Pass --after a count of at most ${withInput.length}, the members with a ` +
-      `file of the change: it is ${after}.`);
+    throw new Missing(`Pass --after a count of at most ${withInput.length}: it is ${after}.`,
+      [`${plural(withInput.length, 'member')} of the group ${group} ` +
+        `${withInput.length === 1 ? 'has' : 'have'} a file of the change or an open finding.`]);
   }
   const remaining = withInput.slice(after);
-  const count = `${plural(rows.length, 'member')}, ${withInput.length} with a file of the change`;
+  const count = `${plural(rows.length, 'member')}, ${withInput.length} with a file of the change` +
+    `${onlyOpen ? ' or an open finding' : ''}`;
   const lines = [];
   if (after === 0) {
     for (const member of listed) {
-      if (member.files.length === 0) {
+      if (member.files.length === 0 && member.open === 0) {
         lines.push(`Skip: ${member.name}: no file of the change matches its paths.`);
       }
     }
@@ -241,7 +250,8 @@ function panel(io, options) {
   const { free, need } = disk(io);
   const fit = need === 0 ? Infinity : Math.floor(free / need);
   const places = Math.min(PLACES, remaining.length, fit);
-  const files = (member) => `${member.name}, ${plural(member.files.length, 'file')} of the change`;
+  const files = (member) => `${member.name}, ${plural(member.files.length, 'file')} of the change` +
+    `${member.open ? `, ${plural(member.open, 'open finding')}` : ''}`;
   const wait = (member) => `Wait: ${files(member)}.\nThe member has no free place.`;
   const room = `the disk has ${size(free)} free, and each member needs ${size(need)}`;
   const last = `Checked the group ${group}: ${count}, ${plural(places, 'place')}; ${room}.`;
@@ -270,12 +280,13 @@ module.exports = {
   folderBytes,
   verbs: {
     panel: {
-      usage: ['panel --names <names> --files <file> [--group <group>] [--after <count>]'],
+      usage: ['panel --names <names> --files <file> [--group <group>] [--after <count>] ' +
+        '[--previous <file>]'],
       args(io, what, rest) {
         const options = flags(what === undefined ? [] : [what, ...rest]);
         if (!options) {
-          return 'Give panel --names <names> and --files <file> once each, and --group and ' +
-            '--after at most once.';
+          return 'Give panel --names and --files once each, and --group, --after and ' +
+            '--previous at most once.';
         }
         const wrong = options.names.find((name) => !STARTED.test(name));
         if (wrong !== undefined) {

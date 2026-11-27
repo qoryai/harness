@@ -313,5 +313,6 @@ module.exports = (lib) => {
 
   return {
     filesCell, covers, plainCell, isPath, appAddress, readPlan, writeScope, changesOf, STEP,
+    sectionRows,
   };
 };

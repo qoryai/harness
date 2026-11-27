@@ -205,7 +205,7 @@ module.exports = (lib) => {
     const context = new Context(root, 'check', io.home, root);
     context.workingFolder = top;
     const data = lib.gatherReport({ context, cwd: top, env: io.env,
-      inputs: inputs && path.resolve(io.cwd, inputs) });
+      inputs: inputs && path.resolve(io.cwd, inputs), kinds: io.registry().finding_kinds });
     if (!data) {
       throw new Missing('Run checks.cjs resume first.\n.reports/build-ledger.json does not exist.');
     }

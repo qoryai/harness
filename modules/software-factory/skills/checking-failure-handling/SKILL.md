@@ -41,11 +41,11 @@ the change does not touch and does not newly call.
 
 ## Earlier findings
 
-When `previous_findings` exists, re-read the lines of each finding in it, as
-`reviewing-changes` and `judging-findings` list. This skill narrows their rule to the
-findings of the area of this review: repeat, with its id, each such finding that is still
-true. Leave out the findings of each other area, because the reviewer of that area repeats
-them.
+When `previous_findings` exists, do "Earlier findings" of `reviewing-changes` and
+`judging-findings`. This skill narrows their rule to the findings of your role, the area of
+this review: repeat or close each of them by its id. Leave the findings of each other role
+alone, because the reviewer of that area repeats or closes them, and a report that repeats
+or closes them counts as no report.
 
 ## Review of failure handling
 
@@ -114,4 +114,5 @@ lines that it then passes, and the wrong result that follows.
 - No finding is for a bug on the path with no failure, for a security hole, for a failing
   test, for a criterion, or for code that the change does not touch.
 - No finding is for a red suite.
-- Each earlier finding of this area that is still true is in the report with its `id`.
+- Each open finding of this area in `previous_findings` is repeated with its `id` while it
+  is still true, and closed in `closes` otherwise.

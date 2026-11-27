@@ -229,8 +229,8 @@ form of `## Track`, the kinds and the Sources of `## Commands`, and these counts
 tables: the sentences and words of the summary, the words of the background, the sentence
 and words of the recommendation, the rows and columns of the table of alternatives, the
 words of each part, the rows and cells of each table, and the 450 words with the reasons of
-the decided questions. It checks the phrases of the section "Refused phrases" of
-`writing-proposals`, at most 3 points per part, that each image is a wireframe of the
+the decided questions. It checks the reply phrases of rule 21 of `simple-communication`
+in each file, at most 3 points per part, that each image is a wireframe of the
 version, and each link. It checks that `## Sources` has only list items or only the line
 "No public page and no file.", that `## Sources` and `sources.json` list the same pages and
 files, and that no `file` ref has a `..` part. It checks the characters of each file,

@@ -60,7 +60,8 @@ const REVIEWERS = ['code-reviewer', 'test-reviewer', 'acceptance-reviewer'];
 // The members of qory.review_session that each reviewer of a review session reads, in the
 // words of judging-findings. Change the names here, and the test shows each text to change.
 const SESSION_VALUES = 'Read each value from `qory.review_session`, which qory writes: ' +
-  '`commit`, `diff`, `suite_result` and, when qory writes them, `previous_findings`, ' +
+  '`commit`, `commit_folder`, `diff`, `suite_result` and, when qory writes them, ' +
+  '`previous_findings`, ' +
   '`build_report` and `outputs`.';
 // The members of the group role reviewers with paths; REVIEWERS have none, so they start for
 // every change.
@@ -92,15 +93,24 @@ test('the skill starts no submission-writer and writes no build report or submis
   says(WORKFLOW, 'The session pushes no artifact');
 });
 
-test('the skill decides the round once and records changes-requested or passed', () => {
+test('the skill prints the round once with the earlier findings, and qory sends its verdict',
+  () => {
   const round = section(WORKFLOW, 'The round');
   says(round, '`<skill folder>/checks.cjs findings round <reports> --reviewers <names> ' +
-    '--suite <suite>` once');
-  says(round, 'Run `<qory> run verdict changes-requested` with no point');
-  assert.doesNotMatch(WORKFLOW, /changes-requested --points/);
+    '--suite <suite>` once, with `<previous>` at the end.');
+  says(WORKFLOW, '`<previous>` is `--previous <qory.review_session.previous_findings>`, the ' +
+    'file of the earlier findings of the stage, when the input file has that member, and ' +
+    'nothing when it has none.');
+  says(section(WORKFLOW, 'The reviewers'), '`<skill folder>/checks.cjs panel --names ' +
+    '"${qory:agents/reviewers}" --files <paths>`, with `<previous>` at the end.');
+  says(round, 'With 0 or 1, run no verdict, and end with the last line of `findings round`.');
+  says(round, 'qory posts the reports to the findings of the work item, and sends the ' +
+    'verdict: `changes-requested` while a blocking finding of the stage is open, else ' +
+    '`passed`.');
+  // Only an earlier exit records a verdict, and never passed.
+  assert.doesNotMatch(WORKFLOW, /changes-requested --points|run verdict passed|## The end/);
+  assert.equal(WORKFLOW.match(/run verdict/g).length, 1);
   says(round, 'A reviewer that wrote no valid report is one blocking finding');
-  says(section(WORKFLOW, 'The end'), 'When no finding is blocking, run `<qory> run verdict ' +
-    'passed`.');
   // The suite result and the plan come from the input file; the plan from the start only.
   says(WORKFLOW, '`<suite>` is the result of the full suite, `qory.review_session.suite_result`');
   says(section(WORKFLOW, 'The ledger check'), 'Read `<start>/index.json`');
@@ -142,7 +152,8 @@ test('each reviewer reads qory.review, or qory.review_session in a review sessio
     says(text, 'has neither `qory.review` nor `qory.review_session`');
     says(text, 'In a review session, also `reports` is missing from `qory.review_session`.');
     says(text, '`previous_findings` is given, and the file at its path cannot be read.');
-    says(text, 'With no `previous_findings`, this is the first round: go on.');
+    says(text, 'With no `previous_findings`, the stage has no earlier finding of a reviewer: ' +
+      'go on.');
     assert.doesNotMatch(text, /`qory\.review\.report`/, name);
   }
 });
@@ -245,10 +256,15 @@ function work(text, suite = SUITES.passed, done = 'done', round = 1) {
   w.inputs = path.join(fresh('in'), 'inputs.json');
   const session = { commit: w.head, diff: w.diff, reports: w.reports, suite_result: w.suite };
   if (round > 1) {
-    session.previous_findings = path.join(path.dirname(w.inputs), 'open-findings.json');
+    session.previous_findings = path.join(path.dirname(w.inputs), 'review-session',
+      'open-findings.json');
+    fs.mkdirSync(path.dirname(session.previous_findings));
+    const earlier = (id, name) => ({ id, stage: 'review', source: { kind: 'reviewer', name },
+      severity: 'blocking', state: 'open', quote: DEFECT_FINDING.quote,
+      point: DEFECT_FINDING.point, problem: DEFECT_FINDING.problem, fix: DEFECT_FINDING.fix,
+      proof: DEFECT_FINDING.proof, disputed: false, replies: [] });
     fs.writeFileSync(session.previous_findings, JSON.stringify({ round: round - 1,
-      findings: [{ id: 'f1', reviewer: 'code-reviewer', severity: 'blocking',
-        point: DEFECT_FINDING.point }] }));
+      findings: [earlier('f1', 'code-reviewer'), earlier('f2', 'data-reviewer')] }));
   }
   fs.writeFileSync(w.inputs, JSON.stringify({ qory: {
     start_commits: [{ path: w.repo, commit: w.start }], start_artifacts: w.artifacts,
@@ -375,11 +391,12 @@ function diffPaths(text) {
 
 // reviewers does "The reviewers" of the skill up to the starts: the paths of the change, then
 // panel with the names of the six members. It returns the names that panel starts, in order.
-function reviewers(w, call) {
+function reviewers(w, call, previous) {
   const files = path.join(w.artifacts, '.notes/changed-files.txt');
   fs.mkdirSync(path.dirname(files), { recursive: true });
   fs.writeFileSync(files, `${diffPaths(read(w.diff)).join('\n')}\n`);
-  const panel = call('panel', '--names', [...REVIEWERS, ...GROUP].join(', '), '--files', files);
+  const panel = call('panel', '--names', [...REVIEWERS, ...GROUP].join(', '), '--files', files,
+    ...(previous ? ['--previous', previous] : []));
   assert.equal(panel.status, 0, panel.out);
   return panel.lines.map((line) => /^Start: ([a-z-]+),/.exec(line))
     .filter(Boolean).map((match) => match[1]);
@@ -404,8 +421,8 @@ function countReads(file, body) {
   }
 }
 
-const roundOf = (w, call, names) => call('findings', 'round', w.reports, '--reviewers',
-  names.join(','), '--suite', w.suite);
+const roundOf = (w, call, names, previous) => call('findings', 'round', w.reports, '--reviewers',
+  names.join(','), '--suite', w.suite, ...(previous ? ['--previous', previous] : []));
 
 test('a planted defect gives changes-requested with the finding and its proof', () => {
   const w = work(DEFECT);
@@ -421,14 +438,10 @@ test('a planted defect gives changes-requested with the finding and its proof', 
   assert.deepEqual(round.lines.slice(0, 2), [
     `Blocking finding of code-reviewer, src/jobs/export.cjs:2: ${DEFECT_FINDING.point}`,
     `  Proof: ${DEFECT_FINDING.proof}`]);
-  // findings round writes no file; qory refuses --points with changes-requested, and writes
-  // the findings from the reports.
+  // findings round writes no file and records no verdict: qory posts the reports and sends
+  // the verdict after the session.
   assert.deepEqual(written(w, names), { checkout: '', reports: [] });
-  const points = path.join(fresh('points'), 'points.json');
-  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested', '--points', points).status,
-    2);
-  assert.equal(qory(w, call, 'run', 'verdict', 'changes-requested').status, 0);
-  assert.equal(logOf(w).at(-1), 'run verdict changes-requested');
+  assert.deepEqual(logOf(w), []);
   // The session wrote nothing into the checkout.
   assert.equal(git(w.repo, w.env, 'status', '--porcelain'), '');
 });
@@ -441,7 +454,8 @@ function written(w, names) {
     reports: fs.readdirSync(w.reports).filter((name) => !reports.has(name)) };
 }
 
-test('a clean change gives passed, reads the suite result once and writes no build report', () => {
+test('a clean change gives no blocking finding, reads the suite result once and writes no ' +
+  'build report', () => {
   const w = work(CLEAN);
   const call = session(w);
   const names = reviewers(w, call);
@@ -449,10 +463,9 @@ test('a clean change gives passed, reads the suite result once and writes no bui
   const { result: round, count } = countReads(w.suite, () => roundOf(w, call, names));
   assert.equal(round.status, 0, round.out);
   assert.equal(count, 1);
-  assert.match(round.lines.at(-1),
-    /: 0 blocking and 0 non-blocking findings; no blocking finding is open\.$/);
-  assert.equal(qory(w, call, 'run', 'verdict', 'passed').status, 0);
-  assert.deepEqual(logOf(w), ['run verdict passed']);
+  assert.equal(round.lines.at(-1), `Checked ${names.length} reports and the suite result: 0 ` +
+    'blocking, 0 non-blocking open findings; 0 closed.');
+  assert.deepEqual(logOf(w), []);
   // The session wrote no build report, no submission text and nothing into the checkout.
   assert.deepEqual(written(w, names), { checkout: '', reports: [] });
   const files = [w.repo, w.artifacts, w.reports].flatMap((dir) =>
@@ -503,8 +516,8 @@ test('a reviewer that writes no report gives one blocking finding', () => {
   const round = roundOf(w, call, names);
   assert.equal(round.status, 1, round.out);
   assert.deepEqual(round.lines, ['Blocking finding of test-reviewer: Reviewer test-reviewer ' +
-    'wrote no report.', `Checked ${names.length} reports and the suite result: 1 blocking and ` +
-    '0 non-blocking findings.']);
+    'wrote no report.', `Checked ${names.length} reports and the suite result: 1 blocking, ` +
+    '0 non-blocking open findings; 0 closed.']);
   assert.deepEqual(written(w, names), { checkout: '', reports: [] });
 });
 
@@ -519,17 +532,48 @@ test('a suite that failed is one blocking finding of full-suite', () => {
 });
 
 test('round 1 has no previous_findings, and a later round passes its path the same way', () => {
-  for (const round of [1, 2]) {
-    const w = work(CLEAN, SUITES.passed, 'done', round);
-    const { review_session: given } = JSON.parse(read(w.inputs)).qory;
-    assert.equal(Object.hasOwn(given, 'previous_findings'), round > 1, `round ${round}`);
-    if (round > 1) assert.ok(fs.existsSync(given.previous_findings));
-    const call = session(w);
-    const names = reviewers(w, call);
-    for (const name of names) report(w, name, []);
-    const result = roundOf(w, call, names);
-    assert.equal(result.status, 0, result.out);
-  }
+  const w = work(CLEAN);
+  assert.equal(Object.hasOwn(JSON.parse(read(w.inputs)).qory.review_session,
+    'previous_findings'), false);
+  const call = session(w);
+  const names = reviewers(w, call);
+  for (const name of names) report(w, name, []);
+  assert.equal(roundOf(w, call, names).status, 0);
+});
+
+test('a later round starts each reviewer with an open finding, which stays open until its ' +
+  'report closes it', () => {
+  const w = work(CLEAN, SUITES.passed, 'done', 2);
+  const previous = JSON.parse(read(w.inputs)).qory.review_session.previous_findings;
+  const call = session(w);
+  // data-reviewer has no path of the change, and starts for its open finding f2.
+  const names = reviewers(w, call, previous);
+  assert.ok(names.includes('data-reviewer'), names.join(','));
+  assert.ok(!reviewers(w, call).includes('data-reviewer'));
+  for (const name of names) report(w, name, []);
+  const left = roundOf(w, call, names, previous);
+  assert.equal(left.status, 1, left.out);
+  assert.equal(left.lines[0], 'Blocking finding f1 of code-reviewer, open and not in its ' +
+    `report: ${DEFECT_FINDING.point}`);
+  // A report closes its finding by id; the finding of another reviewer stays with it.
+  const close = (name, id) => fs.writeFileSync(path.join(w.reports, `${name}.json`),
+    JSON.stringify({ reviewer: name, findings: [], closes: [{ id, state: 'fixed',
+      reason: 'The export returns the first limit rows.' }] }));
+  close('code-reviewer', 'f1');
+  close('data-reviewer', 'f2');
+  const closed = roundOf(w, call, names, previous);
+  assert.equal(closed.status, 0, closed.out);
+  assert.equal(closed.lines.at(-1), `Checked ${names.length} reports and the suite result: 0 ` +
+    'blocking, 0 non-blocking open findings; 2 closed.');
+  close('code-reviewer', 'f2');
+  const other = roundOf(w, call, names, previous);
+  assert.equal(other.status, 1, other.out);
+  // A report that closes the finding of another reviewer counts as no report, and the
+  // reviewer's open finding stays open.
+  assert.deepEqual(other.lines.slice(0, 2), ['Blocking finding of code-reviewer: Remove f2 ' +
+    "from the closed findings in code-reviewer's report: f2 is not a finding of that reviewer.",
+  `Blocking finding f1 of code-reviewer, open and not in its report: ${DEFECT_FINDING.point}`]);
+  assert.deepEqual(logOf(w), []);
 });
 
 test('the rule of step 1 reads each path of a git diff whole', () => {

@@ -360,14 +360,15 @@ agents and the settings for a run of those workflows:
   `scripting-demos`, it reviews each demo script before the script runs.
 - `workflow-implement-changes`: orchestrate the code change of one ticket in a Build run.
   The session builds each planned change that is not built, in the order of the build plan,
-  then fixes each open finding of the review and each finding of Verify after a return: each
-  `not_met` row of the verification and each point of the verdict. Each is one step of the
-  build ledger. A step starts `software-developer` twice and `software-debugger` once at
-  most, and after each start runs `scope`, `run lint`, `run types`, `run build` and the
-  targeted checks. When every check is green, `freeze` commits the step and `step end done`
-  records it, with the role, tier and model of each agent start, the model from the agent
-  file or the session's `settings.json`, on Codex from the agent's `.toml` or `config.toml`,
-  else `unknown`; after a third red attempt,
+  then fixes each open finding of the work item, of every stage, and each finding of Verify
+  after a return: each `not_met` row of the verification and each point of the verdict. Each
+  is one step of the build ledger, and the report of the fix of an open finding replies to
+  it with `Reply: fixed:` or `Reply: disputed:`. A step starts `software-developer` twice
+  and `software-debugger` once at most, and after each start runs `scope`, `run lint`,
+  `run types`, `run build` and the targeted checks. When every check is green, `freeze`
+  commits the step and `step end done` records it, with the role, tier and model of each
+  agent start, the model from the agent file or the session's `settings.json`, on Codex
+  from the agent's `.toml` or `config.toml`, else `unknown`; after a third red attempt,
   `step end failed` records it and the session ends with no point, or, when it ran no
   `step end done`, with one `run_again` point and `escalate`. A writer's line
   `Blocked: needs a change to the build plan: <the change>` ends the session with one
@@ -395,18 +396,21 @@ agents and the settings for a run of those workflows:
   `debugger`.
 - `workflow-review-changes`: the review session of a Build run. Build runs a loop of at most
   3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed` leaves
-  the loop, `changes-requested` runs `implement-changes` again. qory is to run the full
-  suite before the session and to write `qory.review_session`; it does neither yet. With no
-  build plan, the session ends with a `run_again` point. While a planned change is not
+  the loop, `changes-requested` runs `implement-changes` again. qory runs the full suite
+  on the pushed commit after the session before it, and writes `qory.review_session`. With
+  no build plan, the session ends with a `run_again` point. While a planned change is not
   built, or a locked file differs from the acceptance lock, it ends with `qory run verdict
   changes-requested`. Otherwise it starts each member of the group role `reviewers` that
   `checks.cjs panel` starts for the paths of the change, in turn: `code-reviewer`,
   `test-reviewer` and `acceptance-reviewer` for every change, and the others for a change in
-  their paths. Each writes one report into the report folder. `checks.cjs findings round`
-  decides the round from the reports and the result of the full suite: a blocking finding, a
-  reviewer with no report and a red suite end with `qory run verdict changes-requested`.
-  With no blocking finding, the session runs `qory run verdict passed`. It writes nothing
-  into the checkout, and no build report or submission text.
+  their paths, or that have an open finding of the stage. Each writes one report into the
+  report folder, with new findings, and each earlier finding of its role repeated or closed
+  by its id. `checks.cjs findings round --previous` prints the open findings of the round
+  from the reports, the earlier findings and the result of the full suite: a blocking
+  finding, a reviewer with no valid report and a red suite. The session records no verdict
+  after the round: qory posts the reports to the findings of the work item and sends
+  `changes-requested` while a blocking finding of the stage is open, else `passed`. It
+  writes nothing into the checkout, and no build report or submission text.
 - `workflow-verify-a-ticket`: the review session of Verify. It verifies the acceptance lock
   at the version that a member approved, runs `run locked` and `matrix --version <N>`,
   starts `tamper-reviewer` and `verification-reviewer` in turn, and decides the round with
@@ -414,7 +418,7 @@ agents and the settings for a run of those workflows:
   It pushes the verification and the walkthrough, asks no question, and records
   `passed` only when every criterion is met, no scenario of the commit has a failed
   verdict and no finding is blocking. Verify's stage in `process.yaml` runs no workflow
-  yet, and qory does not write `qory.review_session` yet.
+  yet.
 - `checking-code`: load it before you review the code of a change, after
   `reviewing-changes` and `judging-findings`. The skill contains what the review reads, the
   area it covers, the steps, what is blocking in that area, and the check list.

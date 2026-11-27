@@ -1,6 +1,6 @@
 ---
 name: running-a-software-workflow
-description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, the files that each check takes, the plain words of each type, and the steps of the build ledger.
+description: Load in the main session of a small or high-level workflow of the software factory, after running-a-workflow, and never in an agent. Contains the further repositories, the stops on the spec and its criteria, a criterion that Build cannot meet, Change mode, the files that each check takes, the plain words of each type, and the steps of the build ledger.
 ---
 
 # Running a software workflow
@@ -119,15 +119,16 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    `model:` of the agent file, else the `model` of the session's `settings.json`; on Codex,
    the `model` of `agents/<agent>.toml`, else of `config.toml`; else `unknown`. When
    `step end done` exits with 1, the step made an edit that no commit of the step has, the
-   step's file has no passing review, or the report has a list `Left out:` that
-   `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
-   with the writer of the report, then run `step end done` again once. If it exits 1 on
-   the list again, run `step end <id> failed --report <file>` with the cause. With a
-   line that starts with "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking
-   findings", do the steps of your workflow from the start of that reviewer again, or from
-   the start of the writer for a blocking finding, then run `step end done` again once. If
-   no start of that reviewer is left, or it exits 1 on the review again, run `step end <id>
-   failed`, and end as "Failures" lists. Else end as "Failures" lists. `step end failed`
+   step's file has no passing review, the report has a list `Left out:` that `report-build`
+   cannot read, or the report of a fix of a finding `fix:f<n>` has no line `Reply:`. With
+   "Fix the list Left out: of your report." or "Add one line Reply:", fix the report with
+   its writer, then run `step end done` again once. If it exits 1 on the report again, run
+   `step end <id> failed --report <file>` with the cause. With a line that starts with
+   "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking findings", do the
+   steps of your workflow from the start of that reviewer again, or from the start of the
+   writer for a blocking finding, then run `step end done` again once. If no start of that
+   reviewer is left, or it exits 1 on the review again, run `step end <id> failed`, and end
+   as "Failures" lists. Else end as "Failures" lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
 
@@ -175,3 +176,28 @@ place of "Stops on the spec": the agent cannot meet that criterion as a member a
 question, and the end check stops a session that ends with such a line and no
 `points.json`. Only the newest report of each agent counts: a later start that meets the
 criterion ends the line.
+
+## Change mode
+
+`plan-the-build` and `write-acceptance-checks` redo only what a changed criterion touches.
+Right after `checks.cjs resume`, run `checks.cjs changes` once. It pulls the criteria version
+that the newest acceptance lock locks, compares it with the criteria version that the run
+reads, prints the ids, and writes `.qory/build/changes.json` in the working folder. The tool
+guard denies an agent's writes below `.qory/build/`. A file written past it can change what is
+planned, but not a check's result: `keptFiles` and `lock --verify` refuse a wrong result. The
+last line of its output is one of these three, and it reads nothing of the build plan
+except that a version exists:
+
+- "Full run: <reason>." There is no lock that counts, no build plan or no approved criteria.
+  Do the workflow whole, as you would without this section.
+- "No criterion changed since acceptance-lock version <N>." Run no `step begin`, start no
+  agent, push nothing, and read no stop of the build plan, such as a missing check path:
+  the workflow ends as its section "No criterion changed" lists. A build plan that is
+  newer than the lock stays as it is.
+- "Changes since acceptance-lock version <N>: <a> changed, <b> added, <c> removed." The
+  lines before it list the ids as "Changed: ac-2, ac-4.", "Added: ac-5.", "Removed: ac-3.",
+  "Checks to write: ac-2, ac-5." and "Checks to drop: ac-3.", each only when it has an id.
+  A check to drop is the check of a criterion that is removed or no longer planned as
+  `Tests`. Quote these lines when your workflow lists passing the ids to an agent.
+
+When `changes` exits with 1, 2 or 3, end as "Failures" lists for the checks script.

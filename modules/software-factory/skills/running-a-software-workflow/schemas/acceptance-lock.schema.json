@@ -27,6 +27,10 @@
           "minLength": 1,
           "maxLength": 64,
           "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "sha256": {
+          "description": "The SHA-256 of each live criterion, by criterion id.",
+          "type": "object"
         }
       }
     },
@@ -80,6 +84,9 @@
           "$ref": "#/$defs/path"
         },
         "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "criterion_sha256": {
           "$ref": "#/$defs/sha256"
         },
         "command": {

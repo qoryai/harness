@@ -31,7 +31,8 @@ module.exports = (lib) => {
 
   // The members that step end, or resume after a crash, sets on a row that is running. replays
   // changes on any row, when a later session replays it.
-  const ENDED = ['state', 'commit', 'script_sha256', 'ended_at', 'attempts', 'pushed', 'report'];
+  const ENDED = ['state', 'commit', 'script_sha256', 'ended_at', 'attempts', 'pushed', 'report',
+    'reply'];
 
   // COMPACT is the first line of a ledger that is not one line of compact JSON. The file is
   // then the text that JSON.stringify writes for its value, so its size is the size of that

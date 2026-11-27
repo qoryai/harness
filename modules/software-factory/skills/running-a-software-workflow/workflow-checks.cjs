@@ -36,10 +36,11 @@
 // which writes the draft verification.json of Verify from records, and the verb demo, which
 // checks that the harness has the skill scripting-demos and builds a demo script from the
 // actions of the demo author, the verb film, which stores the film or the pictures of a
-// demo script and the pictures of pages, the verb files, which writes
-// .reports/changed-files.json, the list of the changed files of the pull request that the
-// check of the walkthrough reads, and the verb feedback, which prints the notes that no run
-// sorted and the points that have not ended, and checks a draft that changes the criteria or
+// demo script and the pictures of pages, the verb changes, which lists the criteria that
+// changed since the newest acceptance lock and writes .qory/build/changes.json, the verb files,
+// which writes .reports/changed-files.json, the list of the changed files of the pull request
+// that the check of the walkthrough reads, and the verb feedback, which prints the notes that no
+// run sorted and the points that have not ended, and checks a draft that changes the criteria or
 // the scenarios for the points of one source.
 'use strict';
 
@@ -51,7 +52,7 @@ const secrets = require('./lib/secrets.cjs');
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
-// workflow-implement-changes (SKILL.md:247: "reports `Blocked: needs a change to the build plan").
+// workflow-implement-changes (SKILL.md:248: "reports `Blocked: needs a change to the build plan").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
@@ -73,6 +74,11 @@ const KEY_SHAPES_POINT = 'The scan for keys could not run, because the file of k
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.
 const IDS = ['ac', 'd', 'step', 'scenario', 'decision'];
+
+// The kinds of the source of a finding of a software factory that Qory Apiary keeps besides
+// those of core, each with its label, the word that a line shows before the name of the
+// source, such as criterion ac-3.
+const FINDING_KINDS = { criterion: 'criterion', scenario: 'scenario' };
 
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
@@ -115,7 +121,7 @@ function workflowChecks(core) {
       ...require('./verbs/prove.cjs')(lib), ...require('./verbs/preflight.cjs')(lib),
       ...require('./verbs/report-build.cjs')(lib), ...require('./verbs/matrix.cjs')(lib),
       ...require('./verbs/demo.cjs')(lib), ...require('./verbs/film.cjs')(lib),
-      ...require('./verbs/files.cjs')(lib),
+      ...require('./verbs/changes.cjs')(lib), ...require('./verbs/files.cjs')(lib),
       ...require('./verbs/feedback.cjs')(lib),
       ...require('./verbs/revert-attempt.cjs')(lib),
     },
@@ -128,6 +134,7 @@ function workflowChecks(core) {
       feedback.type,
     ],
     stops: STOPS,
+    finding_kinds: FINDING_KINDS,
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),

@@ -10,9 +10,11 @@ const base = require('./base.cjs');
 const context = require('./context.cjs');
 const markdown = require('./markdown.cjs');
 const plugin = require('./plugin.cjs');
+const replyPhrases = require('./reply-phrases.cjs');
 const { REPORT_FILE } = require('./end.cjs');
 const { results } = require('./reports.cjs');
 const points = require('../types/points.cjs');
+const { findingKinds } = require('./findings.cjs');
 const questions = require('../types/questions.cjs');
 const reviewComments = require('../types/review-comments.cjs');
 
@@ -22,7 +24,10 @@ const reviewComments = require('../types/review-comments.cjs');
 //   optionally allowed(name), draft(names), mainOptional and verdict(text, body), the fixes
 //   for the recorded verdict body against the text of the main file, as lib/drafts.cjs and
 //   lib/end.cjs read them, and history, true for a type whose check reads the version that
-//   Context.history reads, which end --offline needs in --store;
+//   Context.history reads, which end --offline needs in --store. replyCheck of
+//   lib/reply-phrases.cjs reads two more: replies, true for a type whose text replies by
+//   design, which it skips, and uncheckedSections, the titles of the ## sections of a
+//   Markdown file that it skips;
 // - stops: the patterns of the Blocked: lines that the skill lists, besides `needs <type>`;
 // - records: the records at the end of a report, each { heading, fields, what, check(text) }:
 //   an agent whose Expected output has the heading writes the record, and check returns why a
@@ -45,9 +50,14 @@ const reviewComments = require('../types/review-comments.cjs');
 //   most adds it;
 // - points: the rules of points.json, each (run, list, context), which the check of points runs
 //   after the check of each point, with the list of points.json and the context of the check;
+// - finding_kinds: the kinds of the source of a finding that the skill reads besides those of
+//   core, reviewer, check and hook, as an object from each kind to its label, the word that a
+//   line shows before the name of the source. Each kind is added once, by one skill;
 // - end(io): more results of the end check, each { line, point, item } as lib/end.cjs lists
 //   them, where io is the io of end with root, the artifact folder, and failed, the count of
 //   the failed checks before this one. One skill at most adds it.
+// The skill folder of a workflow-checks.cjs may also have reply-phrases.json, which adds
+// phrases to those of core, as lib/reply-phrases.cjs reads them. treeHash covers that file.
 const FILE = 'workflow-checks.cjs';
 
 // What a workflow-checks.cjs gets: the exports of base, context, markdown and plugin, and the
@@ -60,12 +70,16 @@ const LIBRARY = Object.freeze({
   lockReader: require('../verbs/lock.cjs').lockReader,
   readOpen: require('./findings.cjs').readOpen,
   reviewerFindings: require('../verbs/findings.cjs').reviewerFindings,
+  readLimited: require('../verbs/findings.cjs').readLimited,
   outboxFolder: require('./outbox.cjs').outboxFolder,
   OUTBOX_FIX: require('./outbox.cjs').OUTBOX_FIX,
   outboxLinked: require('./outbox.cjs').linked,
   schema: require('./schema.cjs'),
   POINT_TEXT: require('./findings.cjs').POINT_TEXT,
+  FINDINGS_BYTES: require('./findings.cjs').FINDINGS_BYTES,
+  FINDINGS_FIX: require('./findings.cjs').FINDINGS_FIX,
   pointCheck: points.pointCheck, pointRules: points.pointRules, MAX_POINTS: points.MAX_POINTS,
+  registryOf: points.registryOf,
 });
 
 // The types that this skill checks: they need the words of no kind of work.
@@ -224,16 +238,20 @@ function part(file) {
 
 // loadRegistry returns the registry of the skills of the folders that skillsFolders
 // returns: the types of each workflow-checks.cjs, in the order of the folders and of the
-// skill names, then CORE_TYPES. It loads a workflow-checks.cjs only when trustedFile accepts
-// its folder for trusted, by default the list of TRUSTED, and throws the refusal of the
-// first folder that trustedFile refuses before any file loads. A skill name that two
-// folders have counts once, from the first. A type that two files add, or that this skill
-// checks, stops the check: it is Missing.
+// skill names, then CORE_TYPES, and phraseFiles, the path of each reply-phrases.json beside a
+// loaded workflow-checks.cjs, in the same order, which it does not read. It loads a
+// workflow-checks.cjs only when trustedFile accepts its folder for trusted, by default the
+// list of TRUSTED, and throws the refusal of the first folder that trustedFile refuses
+// before any file loads. A skill name that two folders have counts once, from the first. A
+// type that two files add, or that this skill checks, stops the check: it is Missing.
+// finding_kinds is the map that findingKinds of lib/findings.cjs returns for the
+// finding_kinds of the files.
 function loadRegistry(pluginFolder, trusted = readTrusted()) {
   const registry = {
     types: [], stops: [], verbs: {}, records: [], ids: [], items: [], questionRules: [],
-    points: [], ledger: null, suite: null, end: null,
+    points: [], ledger: null, suite: null, end: null, finding_kinds: null, phraseFiles: [],
   };
+  const kinds = [];
   const seen = new Set();
   const files = [];
   for (const folder of skillsFolders(pluginFolder)) {
@@ -251,6 +269,10 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
       files.push(trustedFile(path.join(folder, skill), trusted));
     }
   }
+  // Each folder of files passed trustedFile, so the hash covers each reply-phrases.json. The
+  // check of a type reads them, so a bad list stops only that check.
+  registry.phraseFiles = files.map((file) => path.join(path.dirname(file), replyPhrases.FILE))
+    .filter((file) => fs.existsSync(file));
   for (const file of files) {
     const added = part(file);
     registry.types.push(...(added.types || []));
@@ -261,6 +283,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     if (Array.isArray(added.items)) registry.items.push(...added.items);
     if (Array.isArray(added.questionRules)) registry.questionRules.push(...added.questionRules);
     if (Array.isArray(added.points)) registry.points.push(...added.points);
+    if (added.finding_kinds !== undefined) kinds.push(added.finding_kinds);
     Object.assign(registry.verbs, added.verbs || {});
     if (added.ledger && registry.ledger) {
       throw new base.Missing('Remove one of the two rules of the ledger: two skills add them ' +
@@ -278,6 +301,7 @@ function loadRegistry(pluginFolder, trusted = readTrusted()) {
     }
     if (added.end) registry.end = added.end;
   }
+  registry.finding_kinds = findingKinds(kinds);
   registry.types.push(...CORE_TYPES);
   const types = new Set();
   for (const { type } of registry.types) {
