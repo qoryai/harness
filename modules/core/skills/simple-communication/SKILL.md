@@ -321,7 +321,9 @@ you trim. The entries follow the order of the table in § Length per kind of tex
   "Set `DATABASE_URL` in `.env`. The server cannot start without a database address."
   Log viewers, toasts and CI summaries often cut a message after its first line. Write
   "try again" only if a retry can succeed. Text that a script prints on every run
-  deserves extra care, because every run repeats any error in it.
+  deserves extra care, because every run repeats any error in it. If only an agent
+  reads the CLI output or the error message inside a run, write it for that agent
+  instead.
 - **Pull request description.** The problem as a user meets it, what the change does
   about it, and how you tested it. Link the issue and do not restate it. Keep every
   field that the template requires.
@@ -447,8 +449,9 @@ Answer each question for the draft. Every "no" is a defect to fix before you sen
 **The kind of text**
 
 27. Does the text meet the entry for its kind in § What each kind of text needs?
-28. Is UI text, CLI output or an error message written for the person who reads it,
-    never for agents or for the team that built the product, with only words that person
-    knows, and are internal parts and edge-case rules left to the docs?
+28. Unless only an agent reads it inside a run, is UI text, CLI output or an error
+    message written for the person who reads it, never for agents or for the team that
+    built the product, with only words that person knows, and are internal parts and
+    edge-case rules left to the docs?
 29. Read aloud, does every sentence read without a stumble?
 
