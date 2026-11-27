@@ -7,9 +7,9 @@
 // The names of the variables of a run's credentials are the union of three lists: the floor,
 // credential-variables.json of this skill; the file credential-variables.json in the folder
 // of each module, in which a module of a runtime or a vendor lists its names; and
-// qory.credential_variables of inputs.json, which qory writes with the names of the runtime
-// and those that the deployment adds. Each file is {"credential_variables": [...]}, and an
-// entry is the exact name of a variable, or a prefix that ends in *, such as QORY_*. The
+// qory.credential_variables of inputs.json, which qory is to write with the names of the
+// runtime and those that the deployment adds. Each file is {"credential_variables": [...]},
+// and an entry is the exact name of a variable, or a prefix that ends in *, such as QORY_*. The
 // folders of the modules are those of the source tree that the caller passes, and in a
 // composed run each folder in $QORY_HARNESS_HOME/modules, where qory links or copies each
 // module of the harness.

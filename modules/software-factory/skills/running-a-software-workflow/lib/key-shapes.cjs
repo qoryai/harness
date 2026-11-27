@@ -1,6 +1,6 @@
 // The key shapes of the scan for keys in secrets.cjs: the default list in key-shapes.json of
 // this skill, a copy of Forager's default list, and the shapes that the deployment adds, in
-// the file that qory writes in the harness home and whose name is in qory.key_shapes of
+// the file that qory is to write in the harness home and whose name is in qory.key_shapes of
 // inputs.json. The scan uses both lists. A shape is a prefix, then a token of min to max
 // characters of the alphabet: Forager's masker replaces the same shapes (forager
 // mask/shape.go, Shapes). key-shapes.schema.json is a copy of Forager's schema of the file.

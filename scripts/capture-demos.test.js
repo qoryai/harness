@@ -439,6 +439,59 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
   }
 });
 
+test('film: the fix with the whole name of 64 characters passes the check of points', () => {
+  // The session takes the name from the line "the variable <name> has no value", since the
+  // first line of film cuts a name of 64 characters to 60 and ..., and "... in" ends a
+  // sentence for the check.
+  const name = `SHOP_${'X'.repeat(50)}_PASSWORD`;
+  const here = checkout([script('scenario-1')]);
+  const file = path.join(here.root, 'points.json');
+  const check = (shown) => {
+    fs.writeFileSync(file, JSON.stringify([{ action: 'run_again',
+      text: 'The run could not film the order scenario, because the workspace lacks a ' +
+        'sign-in variable.',
+      fix: `Add AGENT_${shown} in the Variables settings, then run another round.` }]));
+    return call(['check', 'points', file], here.deps);
+  };
+  const whole = check(name);
+  assert.equal(whole.status, 0, whole.out + whole.err);
+  const cut = check(`${name.slice(0, 60)}...`);
+  assert.equal(cut.status, 1);
+  assert.equal(cut.out.split('\n')[1], '  The text has 2 sentences.');
+});
+
+// keyRunner returns a runner that writes the file started when it starts, for the tests of a
+// script that types a key, where no runner starts.
+function keyRunner(started) {
+  const file = `${next('runner')}.cjs`;
+  fs.writeFileSync(file, `require('fs').writeFileSync(${JSON.stringify(started)}, 'x');\n`);
+  return file;
+}
+
+test('film and demo run: a step that types a credential exits 3 before the app', () => {
+  const one = script('scenario-1');
+  one.steps[0].actions = [{ do: 'type', target: '#token', variable: 'GITHUB_TOKEN' }];
+  const here = checkout([one]);
+  const started = path.join(here.dir, 'started.txt');
+  const deps = { ...here.deps, env: { ...here.deps.env, GITHUB_TOKEN: 'ghp_fake-value-0001' },
+    preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
+  const cause = '  A demo script types GITHUB_TOKEN, a variable of the run\'s credential list.';
+  const film = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(film.status, 3, film.out + film.err);
+  assert.deepEqual(film.out.split('\n').slice(0, 2), ['Remove the key from the demo scripts, ' +
+    'then run film scenario-1 again.', cause]);
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+  // demo run of the draft of the same script.
+  fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+  const draft = call(['demo', 'run', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(draft.status, 3, draft.out + draft.err);
+  assert.deepEqual(draft.out.split('\n').slice(0, 2), ['Remove the key from the demo ' +
+    'scripts, then run demo run again.', cause]);
+  assert.equal(fs.existsSync(started), false);
+  assert.equal(film.out.includes('ghp_fake'), false);
+});
+
 test('film: a title with --> is a fault of the script at its step, with no film', () => {
   const arrow = script('scenario-1');
   arrow.steps[0].title = 'Open --> the order.';

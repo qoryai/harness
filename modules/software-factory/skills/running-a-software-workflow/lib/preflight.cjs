@@ -414,14 +414,16 @@ module.exports = (lib) => {
   const credentials = (io) => listOf(credentialNames(io.env,
     io.plugin ? moduleFolders(io) : []));
 
-  // keyOfQory throws the Missing of a setup of setups that types a variable of the run's
-  // credentials, names, such as one of qory, of an agent or of a code forge, as runKey of
-  // lib/secrets.cjs finds it: the runner passes it no such variable.
-  function keyOfQory(setups, names) {
-    const name = setups.flatMap((setup) => setup.names).find((one) => runKey(one, names));
+  // keyOfQory throws the Missing of a name of typed, the variables that demo scripts type,
+  // that is a variable of the run's credentials, names, such as one of qory, of an agent or of
+  // a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no such
+  // variable. what is the part of the scripts that types it, and again the command that the
+  // fix runs again.
+  function keyOfQory(typed, names, what, again) {
+    const name = typed.find((one) => runKey(one, names));
     if (!name) return;
-    throw new Missing('Remove the key from the demo scripts, then run preflight again.',
-      [`A setup types ${name}, a variable of the run's credential list.`,
+    throw new Missing(`Remove the key from the demo scripts, then run ${again} again.`,
+      [`${what} types ${name}, a variable of the run's credential list.`,
         cause(`a demo script types ${name}, which the run keeps from scripts`)]);
   }
 
@@ -465,7 +467,7 @@ module.exports = (lib) => {
     const checks = rulesOf(io);
     const browser = findBrowser(io.env, options.browsers);
     const setups = serve ? signInSetups(scripts) : [];
-    keyOfQory(setups, credentials(io));
+    keyOfQory(setups.flatMap((setup) => setup.names), credentials(io), 'A setup', 'preflight');
     const found = [];
     const did = ['the browser'];
     if (!browser) found.push({ kind: 'browser', part: 'the browser', why: 'No browser such as ' +
@@ -530,8 +532,11 @@ module.exports = (lib) => {
   // { ok, step, why, outside } as lib/preflight-run.cjs has it, with no typed value in it, or
   // null when the runner returned none. The time is that of preflight for the same actions.
   // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
-  // file lists in dir, and run has capture, what it returns, besides.
-  function runScript(io, root, { serve, script, capture }) {
+  // file lists in dir, and run has capture, what it returns, besides. A script that types a
+  // variable of the run's credentials throws, before the app starts, the Missing whose fix
+  // runs again, the command of the caller, again.
+  function runScript(io, root, { serve, script, capture, again }) {
+    keyOfQory(typedNames([script]), credentials(io), 'A demo script', again);
     const options = io.preflight || {};
     const browser = findBrowser(io.env, options.browsers);
     if (!browser) return { browser: null };
