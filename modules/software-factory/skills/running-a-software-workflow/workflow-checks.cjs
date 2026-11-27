@@ -83,6 +83,8 @@ const FINDING_KINDS = { criterion: 'criterion', scenario: 'scenario' };
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
 function workflowChecks(core) {
+  // A stop of secretValues exits 3, as a Missing of the verbs does.
+  secrets.stopWith(core.Missing);
   const lib = { ...core, ...require('./lib/documents.cjs')(core) };
   Object.assign(lib, require('./lib/extensions.cjs')(lib));
   Object.assign(lib, require('./lib/short-path.cjs')(lib));
@@ -139,9 +141,14 @@ function workflowChecks(core) {
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),
     // The checks at the end of a Build session: no change outside a commit, no Blocked: line
-    // on a criterion without points.json, and in every session, no qory.key_shapes in
-    // inputs.json whose file cannot be used, since then no scan for keys can run.
-    end: (io) => [...uncommitted(io), ...blocked.end(io), ...keyShapesEnd(io)],
+    // on a criterion without points.json, and in every session, no inputs.json or
+    // qory.key_shapes that cannot be used, since then no scan for keys can run. With that
+    // finding, the check of the changes outside a commit does not run: it shows their paths
+    // only with the key shapes of the deployment.
+    end: (io) => {
+      const keys = keyShapesEnd(io);
+      return [...(keys.length ? [] : uncommitted(io)), ...blocked.end(io), ...keys];
+    },
     // The rule of points.json: an answer point for each criterion with a Blocked: line.
     points: [(run, list, context) => blocked.points(run, list, context, acQuestion)],
     // The record of the track at the end of a report of proposal-reviewer, which the report

@@ -1558,9 +1558,11 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
     assert.deepEqual(end(harnessHome({ key_shapes: value })).map((one) => one.line),
       [`${inputsFix}\nqory.key_shapes in inputs.json is set to ${shown}, which is no file name.`]);
   }
-  // A line that only shows a path uses the default shapes, and throws for no file.
-  assert.equal(secrets.shown(TOKEN, secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] })),
-    'a path with a key in its name');
+  // A line that only shows a path stops too, with the fix and the cause, so that it never
+  // shows a path with fewer shapes than the deployment set.
+  assert.throws(() => secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] }),
+    { message: fix, more: ['qory.key_shapes in inputs.json is set to "missing.json", which ' +
+      'is missing.'] });
 });
 
 test('key shapes: the point of the end check passes the check of points', () => {
@@ -1596,7 +1598,11 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
     assert.deepEqual(runLists.member(env, 'key_shapes'), { problem });
     assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem });
     assert.deepEqual(runLists.credentialNames(env), { problem });
-    assert.deepEqual(secrets.secretValues(env).problem, problem);
+    assert.throws(() => secrets.secretValues(env), (error) => {
+      assert.ok(error instanceof CORE.Missing, error.stack);
+      assert.deepEqual([error.message, ...error.more], problem);
+      return true;
+    });
     assert.deepEqual(secrets.keyKind('text', env), { kind: null, problem });
   }
   // No inputs.json, or no member, keeps the defaults with no problem.
@@ -1725,6 +1731,13 @@ test('diff: the change from --from to the frozen HEAD, new files included and .q
   assert.equal(dirty.status, 1);
   assert.deepEqual(dirty.lines.slice(0, 2), ['Freeze the step first, then run diff again.',
     '  The checkout has 1 changed path, such as "lib/new.js".']);
+  // A broken inputs.json stops diff before it shows a path, with the fix and the cause.
+  const broken = call(dir, ['diff', '--from', start],
+    { env: { QORY_HARNESS_HOME: harnessHome({}, { 'inputs.json': '{' }) } });
+  assert.equal(broken.status, 3, broken.out);
+  assert.deepEqual(broken.lines.slice(0, 2), ['Start the run again with qory, which writes ' +
+    'inputs.json: the run\'s lists cannot be read.',
+  '  $QORY_HARNESS_HOME/inputs.json is no JSON.']);
   assert.equal(call(dir, ['freeze', 'deliverable:d-1']).status, 0);
   const head = sh(dir, 'rev-parse', 'HEAD');
   const got = call(dir, ['diff', '--from', start]);

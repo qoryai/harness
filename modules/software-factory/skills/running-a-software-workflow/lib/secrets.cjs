@@ -115,17 +115,39 @@ function withShapes(values, got) {
   return values;
 }
 
+// The class Missing of the checks script, which stopWith sets, so that a stop of secretValues
+// exits 3 as the stops of the verbs do. Without it, the stop is a plain Error.
+let Stop = null;
+
+// stopWith sets the class of the stop of secretValues: Missing of lib/base.cjs of core.
+function stopWith(Missing) {
+  Stop = Missing;
+}
+
+// valuesWithProblem returns the values of valuesOf for env, with the key shapes of env, as
+// secretValues has them, and the problem of load of key-shapes.cjs, null or the fix and the
+// cause, as the member problem. It does not stop on the problem.
+const valuesWithProblem = (env) => withShapes(valuesOf(env), keyShapes.load(env));
+
 // secretValues returns the values of valuesOf for env, with the key shapes of env: the default
-// shapes and those of the file of the deployment when it passes, else the default ones alone,
-// and the problem of load of key-shapes.cjs, null or the fix and the cause. It writes no line
-// and throws for no file, so that a caller that only shows a path or a line can use it.
-const secretValues = (env) => withShapes(valuesOf(env), keyShapes.load(env));
+// shapes and those of the file of the deployment. It writes no line, and it throws the stop of
+// an inputs.json or a qory.key_shapes that cannot be used, the fix and the cause, so that no
+// caller scans or masks with fewer shapes than the deployment set. No file is no problem.
+function secretValues(env) {
+  const values = valuesWithProblem(env);
+  if (!values.problem) return values;
+  const [fix, cause] = values.problem;
+  if (Stop) throw new Stop(fix, [cause]);
+  throw new Error(`${fix}\n${cause}`);
+}
 
 // scanValues returns { values, problem } for the scan for keys of freeze, scope and the end
 // check: values as secretValues returns them; problem null, or the fix and the cause of an
-// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run.
+// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run. It is the
+// one read that does not stop on the problem, since the end check turns it into a point, and
+// scope and freeze into their stop.
 function scanValues(env) {
-  const values = secretValues(env);
+  const values = valuesWithProblem(env);
   return { values, problem: values.problem };
 }
 
@@ -191,4 +213,4 @@ function runKey(name, names) {
 const { fitKind } = keyShapes;
 
 module.exports = { fitKind, keyKind, runKey, scanLine, scanPatch, scanValues, secretValues,
-  shown };
+  shown, stopWith };

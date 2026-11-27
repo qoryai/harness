@@ -4692,9 +4692,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   writes inputs.json: the run's lists cannot be read." and a cause such as
   "$QORY_HARNESS_HOME/inputs.json is no JSON." or "qory.key_shapes in inputs.json is set to
   "../k.json", which is no file name."; so do `preflight`, `film` and `demo run`, which read
-  `qory.credential_variables`. With no `inputs.json` or no `qory.key_shapes`, the scan uses
-  the default shapes and prints nothing more. A line that only shows a path uses the default
-  shapes, and those of the file when it passes.
+  `qory.credential_variables`. Every other verb that scans or shows a path with the key
+  shapes, such as `diff`, `run` and `probe`, stops the same way. With no `inputs.json` or no
+  `qory.key_shapes`, the scan uses the default shapes and prints nothing more.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
   random name. A session has no start commit to read, so `--from` is required.
