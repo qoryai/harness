@@ -240,8 +240,8 @@ work item is open, qory writes `open-findings.json` for the next session of
 `checks.cjs findings open` prints as lines to fix first, as its bullet in the section "Small
 workflows" lists. The report of each fix has a reply to the finding, `fixed` or `disputed`,
 and a reviewer of the next round, or a person, closes the finding. qory writes
-`qory.review`, `qory.stage` and `open-findings.json`, and is to write `qory.review_session`;
-this harness only reads them. The tool guard denies a write to a report path below `.git` or
+`qory.review`, `qory.stage`, `open-findings.json` and `qory.review_session`; this harness
+only reads them. The tool guard denies a write to a report path below `.git` or
 `.claude` of the working folder. When the harness home is below the working folder, the deny
 of a write below the harness home applies to the report path too, so the report folder must
 be outside the home; when the home is outside the working folder, the report path may be in

@@ -393,13 +393,14 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   writes the finding of a locked check that fails. The new verb `checks.cjs findings round
   <reports> --reviewers <names> --suite <file>` reads each report and the suite result once;
   a reviewer with no valid report and a suite with a failed test, with every test skipped or
-  with no result are one blocking finding each. While a finding is blocking, it exits 1, and
-  the session records `changes-requested` with no point, so qory writes the findings from
-  the reports; otherwise it records `passed`. The session writes no build report and no
-  submission text. Build is a loop of at most 3 rounds of `implement-changes` and
-  `review-changes`, which Apiary runs. Rule 13 of `scripts/check.sh` fails when such a
-  workflow starts a `-reviewer` agent that is no member of its `review_group`, or when a
-  member of a group is no agent that a module defines.
+  with no result are one blocking finding each. While a finding is blocking, it exits 1. The
+  session records no verdict after the round: qory posts the reports to the findings of the
+  work item and sends `changes-requested` while a blocking finding of the stage is open,
+  else `passed`. The session writes no build report and no submission text. Build is a
+  loop of at most 3 rounds of `implement-changes` and `review-changes`, which Apiary runs.
+  Rule 13 of `scripts/check.sh` fails when such a workflow starts a `-reviewer` agent that
+  is no member of its `review_group`, or when a member of a group is no agent that a module
+  defines.
 - The kind `locked` of a row of `## Commands` in a build plan. Every plan has the row, as it
   has `targeted`, `lint`, `types`, `build` and `full`, because every Build runs
   `write-acceptance-checks`: a plan with no `locked` row is refused with "Add the kind
