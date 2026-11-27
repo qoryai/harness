@@ -971,6 +971,35 @@ test('pull-request: no secret in the title or the text', () => {
     /^Remove a key of the shape github-personal-access-token from \/title/);
 });
 
+test('pull-request: the key shapes of the harness home of the verb\'s env find a key', () => {
+  // A harness home whose inputs.json names a file with one more key shape.
+  const home = path.join(tmp, `home-${++folders}`);
+  fs.mkdirSync(home);
+  fs.writeFileSync(path.join(home, 'inputs.json'),
+    JSON.stringify({ qory: { key_shapes: 'k.json' } }));
+  fs.writeFileSync(path.join(home, 'k.json'), JSON.stringify({ shapes: [{
+    name: 'acme-deploy-key', prefix: 'acme_', any_case: false, blank: false,
+    alphabet: 'a-f0-9', min: 12, max: 64 }] }));
+  const doc = clone(PULL_REQUEST);
+  doc.text = doc.text.replace('## Change\n...', `## Change\nacme_${'0a'.repeat(6)}`);
+  const env = { ...process.env, QORY_HARNESS_HOME: home };
+  const folder = path.join(tmp, `files-${++folders}`);
+  fs.mkdirSync(folder);
+  write(folder, PR_FILE, doc);
+  const store = pushStore(fixture(), 'pull-request');
+  const pushed = (deps) => call({ cwd: store, artifacts: [], ...deps },
+    ['push', 'pull-request', path.join(folder, PR_FILE)]);
+  const removed = new RegExp('^Remove a key of the shape acme-deploy-key from ' +
+    '/text of pull-request\\.json\\.$', 'm');
+  fails(pushed({ env }), removed);
+  const root = fixture();
+  write(root, PR_FILE, doc);
+  fails(call({ cwd: tmp, artifacts: [root], env },
+    ['check', 'pull-request', path.join(root, PR_FILE)]), removed);
+  // Without that home in the env of the verb, the default shapes find no key in the text.
+  passes(pushed({ env: { ...process.env, QORY_HARNESS_HOME: '' } }), 'pull-request');
+});
+
 // The schema of pull-request takes the bounds of qory's format, and the shape of the members
 // that qory sets and fills: references, a branch, and a count of earlier commits.
 const pullRequestErrors = (change) => {

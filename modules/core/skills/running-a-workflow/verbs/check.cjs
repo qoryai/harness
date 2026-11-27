@@ -38,7 +38,7 @@ module.exports = {
         const { findings, last, told } = checkFiles('check', folderOf(io, rest[0]), def, rest,
           io.home, io.plugin, undefined, null,
           { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
-            phraseFiles: phraseFiles(io, def) });
+            phraseFiles: phraseFiles(io, def), env: io.env });
         io.print(findings, last);
         // io.print wrote the findings to stdout and the line of what the script checked to
         // stderr. The lines that the check of the type tells follow that line on stderr.
@@ -54,7 +54,8 @@ module.exports = {
         // The plugin gives the prefixes of ids, as the registry of typeOf reads them.
         const def = typeOf(io, 'push', what);
         const { findings, last } = checkFiles('push', cwd, def, rest, io.home, io.plugin, cwd,
-          null, { workingFolder: cwd, inputs: io.inputs, phraseFiles: phraseFiles(io, def) });
+          null, { workingFolder: cwd, inputs: io.inputs, phraseFiles: phraseFiles(io, def),
+            env: io.env });
         io.print(findings, last);
         return findings.length ? 1 : 0;
       },

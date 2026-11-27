@@ -38,6 +38,8 @@ class Context {
     // gives, or null: extensions reads them.
     this.workingFolder = null;
     this.inputs = null;
+    // The environment of the check, from which a check of a type reads the values of keys.
+    this.env = null;
     this.extensionsRead = null;
     this.destinationsRead = undefined;
     // A set of "<type>/<name>/<number>", the versions that the pulls of one call returned, or

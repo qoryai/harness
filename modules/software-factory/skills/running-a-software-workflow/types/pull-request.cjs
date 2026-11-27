@@ -22,7 +22,7 @@ module.exports = (lib) => {
     run.did('text');
     partFindings(data.text, place('text')).forEach((line) => run.find(line));
     run.did('secrets');
-    secretFindings({ title: data.title, text: data.text }, place, process.env)
+    secretFindings({ title: data.title, text: data.text }, place, run.context.env)
       .forEach((line) => run.find(line));
   }
 
