@@ -4811,17 +4811,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   file. The second is `{"credential_variables": [...]}` in the file
   `credential-variables.json` in the folder of a module, where a module of a runtime or a
   vendor adds its names, such as `ANTHROPIC_*`, `CLAUDE_*`, `OPENAI_*`, `CODEX_*` and
-  `GEMINI_*` in that of `software-factory`, read from the plugin folder and, when the plugin
-  folder is a module of the harness home, from each module beside it, and in a composed run
-  from each folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module.
-  The third is `qory.credential_variables` of `inputs.json`, for the names of the runtime
-  and those that the deployment adds; the harness uses its defaults, the first two lists,
-  until qory writes these members. An entry is the exact name of a variable or a prefix that
-  ends in `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One
-  matcher reads the three lists, and a name matches an entry in any case, as Forager matches
-  it. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the line
-  "<entry> is no variable name or prefix.", or with "Fix
-  <module>/credential-variables.json." as the first line for the file of a module.
+  `GEMINI_*` in that of `software-factory`, which is always read from the module of the
+  skill; the others are read from the plugin folder and, when the plugin folder is a module
+  of the harness home, from each module beside it, and in a composed run from each folder in
+  `$QORY_HARNESS_HOME/modules`, where qory links or copies each module. The third is
+  `qory.credential_variables` of `inputs.json`, for the names of the runtime and those that
+  the deployment adds; the harness uses its defaults, the first two lists, until qory writes
+  these members. An entry is the exact name of a variable or a prefix that ends in `*`, as
+  `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One matcher reads the
+  three lists, and a name matches an entry in any case, as Forager matches it. A bad entry
+  exits 3 with "Fix qory.credential_variables in inputs.json." and the line "<entry> is no
+  variable name or prefix.", or with "Fix <module>/credential-variables.json." as the first
+  line for the file of a module.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or

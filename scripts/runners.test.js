@@ -1337,6 +1337,8 @@ test('credential names: the floor and a list add prefixes and exact names', () =
   assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE', 'OPENAI_ORG',
     'anthropic_base_url'].map((name) => secrets.runKey(name, rows)),
   [true, true, false, false, true, true]);
+  // Without a harness home or a module folder, the rows of software-factory still apply.
+  assert.equal(secrets.runKey('GEMINI_X', runLists.credentialNames({}).names), true);
   // A list of the deployment adds ACME_*, and the floor stays without QORY_* in the list.
   const env = { QORY_HARNESS_HOME:
     harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
@@ -1615,7 +1617,8 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
     { QORY_HARNESS_HOME: harnessHome({}) }, { QORY_HARNESS_HOME: 'relative/home' }]) {
     assert.deepEqual(runLists.member(env, 'key_shapes'), { none: true });
     assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem: null });
-    assert.deepEqual(runLists.credentialNames(env), { names: runLists.FLOOR });
+    assert.deepEqual(runLists.credentialNames(env), { names: [...runLists.FLOOR, 'ANTHROPIC_*',
+      'CLAUDE_*', 'OPENAI_*', 'CODEX_*', 'GEMINI_*'] });
     assert.equal(secrets.secretValues(env).problem, null);
   }
 });

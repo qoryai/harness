@@ -96,6 +96,9 @@ const ENTRY = /^[A-Za-z_][A-Za-z0-9_]*\*?$/;
 const LIST = 'credential_variables';
 const MODULE_FILE = 'credential-variables.json';
 const FLOOR_FILE = path.join(__dirname, '..', 'denied-variables.json');
+// The folder of the module that ships this skill, software-factory, whose MODULE_FILE
+// credentialNames always reads, wherever the plugin folder and the harness home are.
+const SKILL_MODULE = path.join(__dirname, '..', '..', '..');
 // The entry of the patterns of FLOOR_FILE for the variables of qory.
 const QORY = 'QORY_*';
 
@@ -154,19 +157,35 @@ function homeModules(env) {
   }
 }
 
-// credentialNames returns { names }, the floor, the names of the file MODULE_FILE in each
-// folder of folders and of $QORY_HARNESS_HOME/modules, and those of qory.credential_variables
-// in the inputs.json of env, each once, or { problem }, the fix and the cause of a list that
-// is no list of names and prefixes. A folder without the file adds nothing.
+// realOf returns the real path of folder, or its absolute path when it cannot be resolved.
+function realOf(folder) {
+  try {
+    return fs.realpathSync(folder);
+  } catch {
+    return path.resolve(folder);
+  }
+}
+
+// credentialNames returns { names }, the floor, the names of the file MODULE_FILE of
+// SKILL_MODULE and of each folder of folders and of $QORY_HARNESS_HOME/modules, each real
+// folder read once, and those of qory.credential_variables in the inputs.json of env, each
+// once, or { problem }, the fix and the cause of a list that is no list of names and
+// prefixes. A folder without the file adds nothing, but SKILL_MODULE must have it.
 function credentialNames(env, folders = []) {
   const names = [...FLOOR];
-  for (const folder of [...folders, ...homeModules(env)]) {
+  const read = new Set();
+  const skill = realOf(SKILL_MODULE);
+  for (const folder of [SKILL_MODULE, ...folders, ...homeModules(env)]) {
+    const real = realOf(folder);
+    if (read.has(real)) continue;
+    read.add(real);
     const where = path.join(path.basename(folder), MODULE_FILE);
     let list;
     try {
       list = JSON.parse(fs.readFileSync(path.join(folder, MODULE_FILE), 'utf8'))[LIST];
     } catch (error) {
-      if (error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')) continue;
+      const gone = error && (error.code === 'ENOENT' || error.code === 'ENOTDIR');
+      if (gone && real !== skill) continue;
       list = null;
     }
     if (!Array.isArray(list)) {
