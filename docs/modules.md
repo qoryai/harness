@@ -4280,7 +4280,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
     `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
     and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
-    AGENT_<name> in the Variables settings." Its second line is "Then run film <id> again."
+    AGENT_<name> in the Variables settings." The fix cuts a name of 64 characters, the most
+    that a demo script allows, to its first 60 characters and `...`, so that the line stays
+    within 100 characters; the line "the variable <name> has no value" has the whole name.
+    The second line of that finding is "Then run film <id> again."
     Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because the build
     plan would come from the artifact folder of the session. A run that fails in a
     step, when the runner cannot write the capture because the disk is full or fails (`ENOSPC`,
@@ -4576,7 +4579,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   no frame, and a `type` only when the focus is in the element of its target. The replay
   gets only the variables that its setup types, and a setup that types a variable of the
   credential list, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY`, `GITLAB_TOKEN` or
-  `BITBUCKET_TOKEN`, exits 3 before the app starts.
+  `BITBUCKET_TOKEN`, exits 3 before the app starts. `demo run`, `film` and `film pages` exit
+  3 the same way, before the app starts, when a setup or a step of the script types such a
+  variable, with the fix "Remove the key from the demo scripts, then run <command> again."
+  and the line "A demo script types <name>, a variable of the run's credential list."
 
   The credential list is the union of three lists, each `{"credential_variables": [...]}`:
   `credential-variables.json` of `running-a-software-workflow`, with `QORY_*`,

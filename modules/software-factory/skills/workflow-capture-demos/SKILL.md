@@ -208,7 +208,9 @@ go on. When it fails again, do the steps below.
    plain words>." Its `fix` is the action of the person: the first line of the output up to
    the comma or its final period, then ", then run another round.", such as "Add ffmpeg to
    the dev container, then run another round." or "Add AGENT_<name> in the Variables
-   settings, then run another round."
+   settings, then run another round." For the fix "Add AGENT_<name>", take `<name>` whole
+   from the line of the output with "the variable <name> has no value": the first line cuts
+   a name of 64 characters to 60 and `...`.
 2. Run `<skill folder>/checks.cjs check points <folder>/points.json`. With 1, correct the
    lines it prints, at most twice.
 3. Run `<qory> run verdict escalate --points <folder>/points.json`, and end with the text
