@@ -60,9 +60,10 @@ const kindOf = (value) => {
 
 // qoryOf returns { qory } of $QORY_HARNESS_HOME/inputs.json of env: the member qory, a map,
 // or null for a file with no member qory, no home, a relative home and no file. For a link, a
-// file of more than MAX_INPUTS bytes, a file that is no regular file, cannot be read or is no
-// JSON object, and a member qory that is no map, it returns { problem }, FIX and the cause,
-// with the words of readQory of lib/repository-settings.cjs for the last two.
+// file of more than MAX_INPUTS bytes, a file that is no regular file, cannot be read, with the
+// code of the error, or is no JSON or no JSON object, and a member qory that is no map, it
+// returns { problem }, FIX and the cause, with the words of readQory of
+// lib/repository-settings.cjs.
 function qoryOf(env) {
   const home = env && env.QORY_HARNESS_HOME;
   if (typeof home !== 'string' || !path.isAbsolute(home)) return { qory: null };
@@ -73,16 +74,22 @@ function qoryOf(env) {
     stat = fs.lstatSync(file);
   } catch (error) {
     return error.code === 'ENOENT' || error.code === 'ENOTDIR' ? { qory: null }
-      : broken('is no JSON');
+      : broken(`cannot be read: ${error.code}`);
   }
   if (stat.isSymbolicLink()) return broken('is a link');
   if (stat.size > MAX_INPUTS) return broken(`has more than ${MAX_INPUTS / 1024 / 1024} MB`);
-  if (!stat.isFile()) return broken('is no JSON');
+  if (!stat.isFile()) return broken('is no regular file');
   const stamp = stampOf(file, stat);
   if (last.stamp !== stamp) {
     let got;
+    let text;
     try {
-      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      text = fs.readFileSync(file, 'utf8');
+    } catch (error) {
+      return broken(`cannot be read: ${error.code}`);
+    }
+    try {
+      const data = JSON.parse(text);
       if (!isMap(data)) {
         got = broken('is no JSON object');
       } else if (data.qory !== undefined && !isMap(data.qory)) {

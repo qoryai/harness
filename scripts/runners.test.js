@@ -1618,9 +1618,15 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
   const folder = harnessHome({});
   fs.renameSync(path.join(folder, 'inputs.json'), path.join(folder, 'old.json'));
   fs.mkdirSync(path.join(folder, 'inputs.json'));
+  // A file that the session cannot read, which root still reads.
+  const unreadable = harnessHome({});
+  fs.chmodSync(path.join(unreadable, 'inputs.json'), 0o200);
+  const asRoot = process.getuid && process.getuid() === 0;
   const where = (cause) => `$QORY_HARNESS_HOME/inputs.json ${cause}.`;
   for (const [home, line] of [[linked, where('is a link')], [large, where('has more than 16 MB')],
-    [harnessHome({}, { 'inputs.json': '{' }), where('is no JSON')], [folder, where('is no JSON')],
+    [harnessHome({}, { 'inputs.json': '{' }), where('is no JSON')],
+    [folder, where('is no regular file')],
+    ...(asRoot ? [] : [[unreadable, where('cannot be read: EACCES')]]),
     [harnessHome({}, { 'inputs.json': '[1]' }), where('is no JSON object')],
     [harnessHome({}, { 'inputs.json': 'null' }), where('is no JSON object')],
     ...[['5', 'a number'], ['null', 'null'], ['[]', 'a list']].map(([value, kind]) => [
