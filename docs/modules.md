@@ -4755,8 +4755,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `QORY_CHECK_MARK`, the mark of the supervisor. Every other variable reaches the command,
   whatever its name, such as `AWS_SECRET_ACCESS_KEY` or `DATABASE_PASSWORD`. In the agent's
   container, the environment has the variables of the workspace whose names start with
-  `AGENT_`, with the prefix removed, so `AGENT_DATABASE_PASSWORD` of the workspace reaches
-  the app as `DATABASE_PASSWORD`, and a demo script that types `DEMO_PASSWORD` needs
+  `AGENT_`, with the prefix removed, and each of them reaches the app except a name on the
+  credential list: `AGENT_DATABASE_PASSWORD` of the workspace reaches the app as
+  `DATABASE_PASSWORD`, and `AGENT_OPENAI_ORG` reaches the agent as `OPENAI_ORG` but not the
+  app, since `OPENAI_*` is on the list; and a demo script that types `DEMO_PASSWORD` needs
   `AGENT_DEMO_PASSWORD` in the workspace. In a walled run, a
   secret of the run reaches `preflight` only as a placeholder of the gateway, so a
   variable that passes is a variable of the workspace or a placeholder. In a walled run on
