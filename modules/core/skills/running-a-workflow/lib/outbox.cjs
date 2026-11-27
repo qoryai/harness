@@ -294,7 +294,8 @@ function checkOutput({ io, types, type, schema, full, file, dir, clock }) {
   if (def && allowed(def, `${type}.json`)) {
     try {
       lines.push(...checkFiles('check', dir, def, [full], io.home, io.plugin, dir, null,
-        { workingFolder: path.resolve(io.cwd), inputs: io.inputs }).findings);
+        { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
+          phraseFiles: io.registry().phraseFiles }).findings);
     } catch (error) {
       if (!(error instanceof Missing)) throw error;
       lines.push([error.message, ...(error.more || [])].join('\n'));

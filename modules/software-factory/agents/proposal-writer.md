@@ -65,8 +65,9 @@ Load each skill when its step comes, and no other:
   review comments, and when a question is needed.
 - ${qory:skills/writing-questions}, when reading does not settle a point: the rule
   "Decide or ask".
-- ${qory:skills/writing-proposals}, next: the sections, the limits, what to leave out, the
-  refused phrases, public pages, diagrams and wireframes.
+- ${qory:skills/writing-proposals}, next: the sections, the limits, what to leave out,
+  public pages, diagrams and wireframes. The rule on replies to the reviewer is rule 21 of
+  `simple-communication`.
 - ${qory:skills/checking-proposals}, before you write: `sources.json`, the limits and the
   check list.
 - ${qory:skills/artifact-text}, before you write: the rules for every text and for a

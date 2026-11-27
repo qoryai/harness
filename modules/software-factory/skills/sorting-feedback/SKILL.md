@@ -8,9 +8,9 @@ description: Load before you sort a person's feedback on a change into points. C
 Load ${qory:skills/artifact-text} before you write.
 
 Feedback is what a person asked for after they saw a change: the note of a request for
-changes, of a move back or of an escalation, a review comment, or a reply. You sort each
-note into points. A point is one thing that the person asks for. The note is the person's
-word: a point is never a disagreement, and you never decide against it.
+changes, of a move back or of an escalation, a review comment, a reply, or an answer to a
+question. You sort each note into points. A point is one thing that the person asks for. The
+note is the person's word: a point is never a disagreement, and you never decide against it.
 
 ## The file
 
@@ -20,6 +20,12 @@ Write `feedback.json` at the top of the artifact folder. It has two lists:
   with all its members. Never write a source yourself.
 - `points`: the points, with the ids `p1`, `p2` and so on.
 
+The text of an answer is the title of the option that the member picked, else the member's
+note. A line "Question of <id>: <question>" follows the source line of an answer: read that
+question in the newest `questions` for what the member answered. When the member also wrote a
+note beside the option, a line "Note of <id>: <note>" follows, with the note as a JSON string.
+The note is part of the answer: a point may quote it.
+
 Start from the newest `feedback`, when the work item has one. Keep each source and each
 point of it as it is, in its place. Add the new ones after them. The line "The next ids are"
 contains the id of the first new point and of the first new question.
@@ -28,7 +34,8 @@ A point has these members, and no other:
 
 - `id`: `p` and the next number.
 - `source`: the `id` of its source.
-- `quote`: the part of the source's `text` that the point is about, word for word.
+- `quote`: the part of the source's `text` that the point is about, word for word, or, for an
+  answer, the part of the note on its line "Note of <id>:".
 - `sort`: `fix`, `criterion-change` or `question`.
 - `output` and `item`: only as "The sort" lists.
 - `change`: one sentence on one line with what changes, without an id of an item. For a
@@ -57,6 +64,12 @@ code that the feedback is about. Then pick the first sort that fits:
    - It adds, changes or removes a criterion, or is a request for other evidence, and the
      `id` of its source starts with `cm_`. No version can link to such a source, so a
      member's answer is the link.
+   - It changes or removes a criterion, its source is an answer, and the question on the
+     line "Question of <id>: <question>" is not about that criterion. An answer approves a
+     change of the criterion that its question is about, and of no other. Give the point
+     the `output` and `item` of the criterion that it changes: the answer to its question is
+     the link, not the earlier answer. A point of an answer that adds a criterion is a
+     `criterion-change`.
 2. `criterion-change`, for a point that adds, changes or removes a criterion, or is a request
    for other evidence. `output` is `acceptance-criteria` or `demo-scenarios`. `item` is the id of
    the criterion or the scenario, such as `ac-2`. Leave out `item` for a new one.
@@ -64,6 +77,26 @@ code that the feedback is about. Then pick the first sort that fits:
 
 A `question` that is about exactly one criterion that exists has `output`
 `acceptance-criteria` and the `item` of that criterion. Any other `question` has neither.
+
+## A pick on a criterion that Build cannot meet
+
+Build asks a question about a criterion that it cannot meet as approved, with the options
+"Change AC-N", "Make it met another way" and "Withdraw AC-N". An answer whose text is the
+title of one of them gets one point of the sort of that option, on the criterion that the
+question is about:
+
+- "Change AC-N": a `criterion-change` with the `output` `acceptance-criteria` and the `item`
+  of that criterion. Its `quote` is the title. The run reads the wording that the member
+  approved from the question.
+- "Make it met another way": a `fix`. Its `quote` is the way from the note on the line "Note
+  of <id>:", else the title. Ask no question for it.
+- "Withdraw AC-N": a `criterion-change` that removes the criterion, with the `output`
+  `acceptance-criteria` and the `item` of that criterion. When the change already has a part
+  built for it and the note does not mention that part, also write the `question` of a
+  removed criterion, as "The sort" lists.
+
+Sort any other thing that the member asks for in the note beside the option as "The sort"
+lists.
 
 ## A question that an earlier run did not push
 
@@ -137,7 +170,7 @@ Quote a criterion by its first sentence in double quotes, with no id.
   or test covers it."
 
 Give no option the title "Change AC-N", "Withdraw AC-N" or "Make it met another way": those
-are the answers to a question of Verify.
+are the options of the question of Build about a criterion that it cannot meet.
 
 ## The fast track
 
@@ -153,7 +186,8 @@ as the agent's "Expected output" lists.
   version.
 - Each thing that the person asks for in a note is in one point, or the note is under "Left
   out:".
-- Each `quote` is a part of the text of its source, word for word.
+- Each `quote` is a part of the text of its source, or of the note of its answer, word for
+  word.
 - Each `fix` stays inside the approved criteria. Each `criterion-change` has an `output`.
 - Each `question` has an item in your list, with the words, each reading or the cause, and 2
   to 4 options.

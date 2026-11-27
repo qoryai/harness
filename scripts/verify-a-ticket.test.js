@@ -750,7 +750,7 @@ function inOrder(text, ...phrases) {
 
 test('the skill has its name, a description, its sections and short lines', () => {
   assert.match(frontOf(WORKFLOW),
-    /^name: workflow-verify-a-ticket\ndescription: Verify the change /);
+    /^name: workflow-verify-a-ticket\ndescription: "Verify the change /);
   let at = -1;
   for (const heading of ['## What the session writes', '## The order of the run',
     '## The reviewers', '## The round', '## The walkthrough', '## The end',

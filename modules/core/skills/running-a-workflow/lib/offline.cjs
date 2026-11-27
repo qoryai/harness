@@ -231,7 +231,7 @@ function offline(io, args) {
   const inputs = args['--inputs'] ? path.resolve(io.cwd, args['--inputs']) : null;
   const drafts = endDrafts(root, io.home, registry.types,
     { store, view, base: context.base, checked, plugin: io.plugin,
-      place: { workingFolder: path.resolve(io.cwd), inputs },
+      place: { workingFolder: path.resolve(io.cwd), inputs, phraseFiles: registry.phraseFiles },
       verdict: () => (recorded === null ? null : body) });
   const needed = reviewNeeded(root, context.index, args['--run'], earlier, checked,
     registry.types);

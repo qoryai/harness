@@ -1,6 +1,6 @@
 ---
 name: workflow-review-changes
-description: Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match or that have an open finding, each of which writes one report into the report folder, and print the findings of the round from the reports, the earlier findings and the result of the full suite. qory sends the verdict of the round; the session records changes-requested only when the change cannot be reviewed. Use in a headless run of the workflow review-changes.
+description: "Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match or that have an open finding, each of which writes one report into the report folder, and print the findings of the round from the reports, the earlier findings and the result of the full suite. qory sends the verdict of the round; the session records changes-requested only when the change cannot be reviewed. Use in a headless run of the workflow review-changes."
 ---
 
 # Review changes

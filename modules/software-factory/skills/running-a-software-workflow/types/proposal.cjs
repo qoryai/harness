@@ -53,7 +53,7 @@ module.exports = (lib) => {
   // section or a form it refuses. lists is what trackLists returns for the check: the track
   // id, the kinds of the fast track and the sensitive areas of short-path.json in this
   // skill's folder, as
-  // writing-proposals (SKILL.md:253: "whole change is of one of the kinds")
+  // writing-proposals (SKILL.md:230: "whole change is of one of the kinds")
   // and checking-proposals list them, each area with the patterns of its files, as the
   // repository changes them. The form: the line "<Name> track." alone for a track that takes
   // no kind, or, for the track of short-path.json, the line "<Name> track: <kind>. <exact
@@ -130,7 +130,7 @@ module.exports = (lib) => {
   }
 
   // changedFiles returns the text of each code span of the exact change of the fast track,
-  // where writing-proposals (SKILL.md:310-311: "Write each changed file in a code span")
+  // where writing-proposals (SKILL.md:287-288: "Write each changed file in a code span")
   // puts each changed file.
   function changedFiles(change) {
     return codeSpans(change)
@@ -265,7 +265,7 @@ module.exports = (lib) => {
 
   // sourceForm checks that each ## Sources section of a proposal has only blank lines and list
   // items, or only the line NO_SOURCE, as sourceLines reads them:
-  // writing-proposals (SKILL.md:383-386: "write only this line under the heading") states it.
+  // writing-proposals (SKILL.md:360-363: "write only this line under the heading") states it.
   function sourceForm(run, list) {
     for (const part of sourceLines(list)) {
       const wrong = part.find((line) => line.kind === 'wrong');
@@ -275,35 +275,6 @@ module.exports = (lib) => {
       }
     }
   }
-
-  // The phrases that
-  // writing-proposals (SKILL.md:170-194: "The check fails on these phrases anywhere") lists.
-  const REFUSED_PHRASES = [
-    'that is correct',
-    "that's correct",
-    'this is correct',
-    'you are correct',
-    "you're correct",
-    'the comment asks',
-    'your answer',
-    'as asked',
-    'as requested',
-    'you asked',
-    'you suggested',
-    'you are right',
-    "you're right",
-    'good point',
-    'as discussed',
-    'the review found',
-  ];
-
-  // wholeWords returns a pattern that finds text as whole words, without regard to case, with
-  // any white space, a line break included, between its words, and ' or ’ for each '.
-  const wholeWords = (text, flags = 'iu') => new RegExp(
-    `(?<![\\p{L}\\p{N}])${text.replace(/'/g, "['’]").split(' ').join('\\s+')}(?![\\p{L}\\p{N}])`,
-    flags);
-
-  const PHRASES = REFUSED_PHRASES.map((phrase) => ({ phrase, pattern: wholeWords(phrase, 'giu') }));
 
   // An After cell of a Today/After table that states no change, trimmed of punctuation, case
   // and a leading "the": one of these, or a cell that starts with "unchanged" or "same as".
@@ -379,22 +350,9 @@ module.exports = (lib) => {
       .map((question) => ({ text: question.decision.reason, now: !stored.has(question.id) }));
   }
 
-  // masked returns text with each code span and each text in double quotes, "…" or “…”, on
-  // one line, replaced by spaces of the same length, so that the refused phrases skip them.
-  function masked(text) {
-    let out = '';
-    let from = 0;
-    for (const span of codeSpans(text)) {
-      out += text.slice(from, span.start) + ' '.repeat(span.end - span.start);
-      from = span.end;
-    }
-    const quoted = /"[^"\n]*"|“[^“”\n]*”/g;
-    return (out + text.slice(from)).replace(quoted, (found) => ' '.repeat(found.length));
-  }
-
   // proposalLimits checks the counts and tables of the limits that
   // writing-proposals (SKILL.md:15-18, 116-156: "checks script checks the counts and tables")
-  // lists, and the refused phrases. source is the lines of lines().
+  // lists. source is the lines of lines().
   function proposalLimits(run, source) {
     run.did('limits');
     const list = source.map((line, index) => ({ ...line, number: index + 1 }));
@@ -554,35 +512,6 @@ module.exports = (lib) => {
       });
     }
 
-    // writing-proposals (SKILL.md:174-176: "It matches each phrase as whole words"): no line of
-    // a code block, code span or text in double quotes on one line is checked.
-    run.did('phrases');
-    let joined = '';
-    const starts = [];
-    for (const line of kept) {
-      if (line.fenced) continue;
-      starts.push({ at: joined.length, number: line.number, text: line.text });
-      joined += `${masked(line.text)}\n`;
-    }
-    const seen = new Set();
-    for (const { phrase, pattern } of PHRASES) {
-      pattern.lastIndex = 0;
-      for (let match = pattern.exec(joined); match; match = pattern.exec(joined)) {
-        // The last line that starts at or before the match, by a binary search.
-        let low = 0;
-        let high = starts.length - 1;
-        while (low < high) {
-          const middle = Math.ceil((low + high) / 2);
-          if (starts[middle].at <= match.index) low = middle;
-          else high = middle - 1;
-        }
-        const line = starts[low];
-        if (seen.has(`${phrase} ${line.number}`)) continue;
-        seen.add(`${phrase} ${line.number}`);
-        run.find(`Remove "${phrase}" from line ${line.number} of proposal.md and state the ` +
-          `outcome.\nThe line is ${quote(line.text)}.`);
-      }
-    }
   }
 
   function proposal(run, files) {
@@ -623,7 +552,7 @@ module.exports = (lib) => {
     const fast = trackForm(run, list);
     proposalLimits(run, list);
     points(run, 'proposal.md', list, 'Proposed solution');
-    // writing-proposals (SKILL.md:468-470: "Link it from the proposed solution by its file name"):
+    // writing-proposals (SKILL.md:445-447: "Link it from the proposed solution by its file name"):
     // an image links a wireframe of the same version by its file name.
     // artifact-text (SKILL.md:36-37: "The one exception is a file of the same artifact version")
     // allows that one exception.
@@ -632,7 +561,7 @@ module.exports = (lib) => {
     for (const [name, text] of files) {
       if (name.endsWith('.svg')) characters(run, name, null, text);
     }
-    // writing-proposals (SKILL.md:369-374: "List every public page and every file"):
+    // writing-proposals (SKILL.md:346-351: "List every public page and every file"):
     // sources.json and ## Sources list each page and file. That both list the same, and that no
     // file ref has .qory/repositories, a .. part or a machine path, only
     // checking-proposals (SKILL.md:47-51: "never contains `.qory/repositories`") states.
@@ -876,5 +805,8 @@ module.exports = (lib) => {
     draft: (names) => names.some((name) => /\.(md|json)$/.test(name)),
     // end and end --offline compare the track of the recorded verdict with proposal.md.
     verdict: verdictTrack,
+    // replyCheck of core skips ## Sources, whose items are the titles of pages and
+    // files, and ## Commands, whose cells are commands, as the limits skip both sections.
+    uncheckedSections: ['Sources', 'Commands'],
   };
 };

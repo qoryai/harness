@@ -1,6 +1,6 @@
 ---
 name: workflow-plan-the-build
-description: Orchestrate the build plan of one ticket: start the code explorer, the build planner and the plan reviewer in that order, decide on each finding, and push the plan. A plan of more than 7 deliverables ends with a question to a member. Use in a headless run of the workflow plan-the-build.
+description: "Orchestrate the build plan of one ticket: start the code explorer, the build planner and the plan reviewer in that order, decide on each finding, and push the plan. A plan of more than 7 deliverables ends with a question to a member. Use in a headless run of the workflow plan-the-build."
 ---
 
 # Plan the build

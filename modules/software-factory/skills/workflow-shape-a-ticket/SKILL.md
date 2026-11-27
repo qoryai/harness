@@ -1,6 +1,6 @@
 ---
 name: workflow-shape-a-ticket
-description: Orchestrate the Shape stage of one ticket: start the planner, follow the small workflows it lists, start the read across their outputs, and record the verdict. Use in a headless run of the workflow shape-a-ticket.
+description: "Orchestrate the Shape stage of one ticket: start the planner, follow the small workflows it lists, start the read across their outputs, and record the verdict. Use in a headless run of the workflow shape-a-ticket."
 ---
 
 # Shape a ticket

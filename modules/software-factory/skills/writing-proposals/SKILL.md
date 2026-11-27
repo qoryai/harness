@@ -1,6 +1,6 @@
 ---
 name: writing-proposals
-description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, the refused phrases, its background, proposed solution, track, commands, sources and targets, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
+description: Load before you write a proposal, and before you review a proposal that has a wireframe. Contains the proposal's sections and an example, its limits in words, rows and points, what to leave out, its background, proposed solution, track, commands, sources and targets, how to look up public pages, how to draw the picture of each part, wireframes and code blocks, and what to do in a run with no number.
 ---
 
 # Writing proposals
@@ -13,8 +13,8 @@ The proposal, each wireframe and each diagram are texts that members read. Membe
 word "proposal" on screen, so it is fine in them. The proposal is Markdown.
 
 A member reads the proposal to approve the outcome of the work, so keep it short. The
-checks script checks the counts and tables of the section "Limits" and the phrases of the
-section "Refused phrases". Judge the rest, such as a summary written from the parts and one
+checks script checks the counts and tables of the section "Limits" and the reply phrases
+of `simple-communication`. Judge the rest, such as a summary written from the parts and one
 outcome per point.
 
 The proposal contains no assumption: settle each unknown by reading, decide it, or list a
@@ -169,31 +169,8 @@ Leave out process, replies to comments, unchanged items, restated answers and wh
 - Who asked: never give a person, a comment, an answer or a review comment as the reason
   for a part.
 
-## Refused phrases
-
-The check fails on these phrases anywhere in `proposal.md` outside `## Sources`, code
-blocks, code spans and text in double quotes, such as quoted copy. It matches each phrase as
-whole words, without regard to case, and an apostrophe as `'` or `’`:
-
-- "that is correct"
-- "that's correct"
-- "this is correct"
-- "you are correct"
-- "you're correct"
-- "the comment asks"
-- "your answer"
-- "as asked"
-- "as requested"
-- "you asked"
-- "you suggested"
-- "you are right"
-- "you're right"
-- "good point"
-- "as discussed"
-- "the review found"
-
-These phrases appear when a text replies to someone or describes the run. State the
-outcome instead, such as "The reply lists 8:00 to 20:00."
+The checks script fails on the phrases of a reply to the reviewer, by rule 21 of
+${qory:skills/simple-communication}.
 
 ## Every section
 

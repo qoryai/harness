@@ -1,6 +1,6 @@
 ---
 name: workflow-write-specs
-description: Orchestrate the spec and acceptance criteria of one ticket: start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-specs, or when a higher workflow's skill lists this one.
+description: "Orchestrate the spec and acceptance criteria of one ticket: start the agents, decide on each finding, and push the results. Use in a headless run of the workflow write-specs, or when a higher workflow's skill lists this one."
 ---
 
 # Write specs

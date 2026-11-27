@@ -125,10 +125,23 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 - The workflow `triage-review`, which sorts the feedback that a person gave on a change into
   points: a fix, a change of a criterion, or a question. With it come the skills
   `workflow-triage-review` and `sorting-feedback`, the agent `feedback-triager`, the custom type
-  `feedback` with its push check, the rule for the question of a point, and the verbs
-  `feedback open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a
-  file whose path it gets from a workflow. No process entry starts the workflow yet. An
-  answer to a question is no source yet.
+  `feedback` with its push check, the rule for the question of a point, and the verbs `feedback
+  open` and `feedback points`. `reply-writer` also adds the `reply` of each entry of a file
+  whose path it gets from a workflow. No process entry starts the workflow yet. An answer to a
+  question is a source with the id `an_` of its note. `feedback open` prints after it a line
+  `Question of <id>: <question>` with the question in the newest questions whose answer, or an
+  earlier answer in its history, has the text of the note and its time to the second; each
+  answer pairs with one note, in one order in `feedback open` and in the check of `feedback`:
+  the sources of the newest version, then the open notes, and the check fails new sources in
+  another order than `feedback open` prints them. When that answer has an option and a note, a
+  line `Note of <id>: <note>` follows with the note as a JSON string, because the note of the
+  work item has only the option's title, and a point of the answer may quote that note. A note
+  of the kind `answer` with no id is a review comment or a reply, and is a comment. The comment
+  that a member gives with **Run another round** has the id `rc_` of its note: it is a note of
+  free text, as the note of a gate is, and a version can link to it. An answer
+  approves a change of the criterion that its question is about: the check of `feedback` fails a
+  new `criterion-change` of another criterion in it, which a member then decides in a question
+  about that criterion. A point that adds a criterion stays a `criterion-change`.
 - The verb `feedback amended <output> --decision <id> [--same <point>]...`, which checks a
   draft of the acceptance criteria or the demo scenarios for the points of one source byte for
   byte against the newest version: it changes only the item of each point, adds one item at
@@ -140,7 +153,20 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   asked at or after the time of the source, and a ripple point for each criterion checked by
   `Demo` that a linked criteria version changed, until a later linked scenario version.
   `feedback open` also lists each open question that a group waits for as "Waiting for an
-  answer:", so the run ends with an `answer` point on it.
+  answer:", so the run ends with an `answer` point on it. The triager sorts an answer to the
+  question of Build about a criterion that it cannot meet by the option that the member
+  picked: `Change AC-N` and `Withdraw AC-N` as a `criterion-change` of the criterion of the
+  question, and `Make it met another way` as a `fix`; the check of `feedback` fails a new
+  answer with no point of that sort, and, for a `Make it met another way` pick, a
+  `criterion-change` of the criterion whose `quote` is not in the note beside the option.
+  The group of a `Change AC-N` pick has `wording`: the member's edit of the criterion in the
+  note beside the option, after "Change AC-N: " up to a blank line, else the option's
+  `proposal`, and the writer writes it. Limit: the member's edited wording of a Change pick
+  is read after the English label "Change AC-N:", which Qory Apiary writes in the answer's
+  note. With a translated label, the option's proposal applies in place of the member's
+  edited wording. The group of an answer changes only the criterion that its question is
+  about, and none when the question's `about` has no item, and `feedback amended` fails a
+  change of another criterion with "Remove the change of ac-4."
 - `triage-review` writes each group of criterion changes of a source as a new version of the
   acceptance criteria or the demo scenarios, linked to that source: `spec-writer` or
   `scenario-writer` changes only the items of the group, `feedback amended` checks the draft,
@@ -1524,6 +1550,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- The check of reply phrases, such as "you are correct", runs on every artifact type, where
+  it ran on `proposal.md` alone. Core lists the 16 phrases in
+  `simple-communication/references/reply-phrases.json`, and the check stops when the stack
+  composes no `simple-communication`. A skill folder with `workflow-checks.cjs` adds more in
+  its `reply-phrases.json`, and removes none. The check reads each string of a JSON file,
+  such as the `why` of a source, and an SVG or WebVTT file as plain text. Text in double
+  quotes on one line passes in every file, and so do code blocks and code spans in a
+  Markdown file. A phrase may cross a line break, but no blank line and no skipped line. A
+  type with `replies: true` skips the check, as `questions`, `review-comments` and
+  `feedback` do. `uncheckedSections` skips `##` sections with their `###` subsections, as
+  `## Sources` and `## Commands` of a proposal. A missing or bad list stops the verb that
+  runs the check, such as `push`, `check`, `lock` or `end`. So does a phrase with a double
+  quote or a control character. The verb prints `Fix <file>: …`. Other verbs and the tool
+  guard work as before. The rule is rule 21 of `simple-communication`, and
+  `writing-proposals` has no section "Refused phrases".
 - The first line of a lock finding that no lock of the target can pass is "Ask a member to
   write the change in a request for changes.", where it was "Ask a member to upload the
   acceptance criteria they accept as a new version." The question of a locked check that
@@ -2431,6 +2472,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The descriptions of 14 skills, such as `workflow-implement-changes`, are in double quotes,
+  so their front matter parses as strict YAML, and GitHub shows it as a table. Before, a
+  `: ` in the plain value stopped the parse, and GitHub showed "Error in user YAML". Rule 15
+  of `scripts/check.sh` reads the front matter of each text file whose first line is `---`.
+  It finds a plain value with `: `, ` #`, a final `:` or a first indicator character, text
+  after a closing quote and a block scalar header with more than its indicators.
 - The tool guard reads the folders of a glob before its first wildcard through their links,
   so a glob through a link to the artifact folder, as in `rm -rf link/.step*`, reaches
   `.reports` and `.step-reports`. Before, the guard compared such a glob with the folders as

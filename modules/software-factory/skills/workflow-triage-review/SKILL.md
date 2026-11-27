@@ -1,6 +1,6 @@
 ---
 name: workflow-triage-review
-description: Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, write each criterion change as a new version of the criteria or the scenarios linked to its source, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review.
+description: "Orchestrate the first step of a Build run: sort the feedback that a person gave on the change into fixes, criterion changes and questions, start the feedback triager, the questions writer and the reply writer in that order, push the feedback and the questions, write each criterion change as a new version of the criteria or the scenarios linked to its source, and end with a question to a member when a point has one. Use in a headless run of the workflow triage-review."
 ---
 
 # Triage the review
@@ -20,17 +20,19 @@ not load the rules it needs, so it pushed no feedback."
 
 `<folder>` is the artifact folder that the pull prints. Each command that starts with
 `<skill folder>/checks.cjs` is the checks script of `running-a-workflow`. A source is one
-note of a person, a comment or a reply. A point is one thing that the person asks for in a
-source.
+note of a person, a comment, a reply or an answer to a question. A point is one thing that the
+person asks for in a source.
 
 ## The order of the run
 
 1. Pull, then run `<qory> work-item show`.
 2. Run `<skill folder>/checks.cjs feedback open`. It prints one JSON line per source that no
-   run sorted, with one line "Words of <id>: <words>" after each. A line "Not asked: <point>,
-   <question>" is a question that an earlier run did not push. A line "Waiting for an answer:
-   <point>, <question>" is a question with no answer. Its last line starts with "Open
-   feedback:".
+   run sorted, with one line "Words of <id>: <words>" after each. After the words of an
+   answer, a line "Question of <id>: <question>" is the question that the answer is to, and a
+   line "Note of <id>: <note>" is a note that the member wrote beside the option. A
+   line "Not asked: <point>, <question>" is a question that an earlier run did not push. A
+   line "Waiting for an answer: <point>, <question>" is a question with no answer. Its last
+   line starts with "Open feedback:".
    - With 0 and no line "Waiting for an answer:", when the `writer.run_id` of the newest
      `feedback` in `index.json` is the `run.id` of `work-item show`, an earlier session of
      this run pushed it: start no agent, and go to step 9.
@@ -103,6 +105,9 @@ that output makes. A group has these members:
   that criterion in a newer version of the acceptance criteria: its `quote` has the row
   `before` and `after`, and its `item` is the scenario that shows the criterion, or there is
   none when a new scenario shows it;
+- `wording`: only for a group of the acceptance criteria whose source is an answer in which
+  the member picked the option to change the criterion of the question: the wording of that
+  criterion that the member approved, the member's edit or else the option's `proposal`;
 - `waiting`: only when a question has no answer that the group depends on: a question of
   the source about the output, a question about a point of the group, such as one that a
   writer of the group raised, or a question about the output with no item, asked at or after

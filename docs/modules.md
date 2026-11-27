@@ -653,11 +653,11 @@ most 120 words and at most three short points after its picture. Each table cell
 but those of Mermaid blocks, wireframe links, `## Commands` and `## Sources`, so tables, the
 whole background, code blocks and headings count, and so does the reason of each decided
 question, because members read those reasons right under the proposal. The section "Limits"
-of `writing-proposals` lists these limits, and its section "Refused phrases" lists the
-phrases of a reply to a comment, such as "you are correct", that the proposal never contains
-outside code and text in double quotes. `checks.cjs` checks the counts and tables of these
-limits; the writer and the reviewer judge the rest, such as one outcome per point. The
-proposal states the outcome and the decisions that a person approves, in short plain points.
+of `writing-proposals` lists these limits. As every artifact, the proposal contains no
+phrase of a reply to the reviewer, such as "you are correct", by rule 21 of
+`simple-communication`. `checks.cjs` checks the counts and tables of these limits; the
+writer and the reviewer judge the rest, such as one outcome per point. The proposal states
+the outcome and the decisions that a person approves, in short plain points.
 Each screen state, each field and each edge case belongs in the spec that Shape writes, and
 `proposal-reviewer` flags such detail in a proposal as a finding marked `writer`,
 `no direction` and `no break`. An edge case or a field that the ticket or an answer settles,
@@ -953,6 +953,35 @@ that the verbs `step` and `resume` apply, the check at the end of a Build write 
 and the finding kinds `criterion` and `scenario`, each with its name as its label. A stack
 without that module, such as `core`, checks `questions` and `review-comments`, and `report`
 accepts only `needs <type>`.
+
+After the check of each type, `checks.cjs` finds the phrases of a reply to the reviewer, by
+rule 21 of `simple-communication`. Core lists them in
+`simple-communication/references/reply-phrases.json`, as `{"phrases": [...]}`. The check
+reads that file in the skills folder of `running-a-workflow`. If the stack composes no
+`simple-communication`, the check stops with "Add simple-communication to the stack's core
+skills." and the path. A skill folder whose `workflow-checks.cjs` the registry loads may
+add a `reply-phrases.json` of the same form. The check uses the phrases of all these files,
+in the order of the registry. The hash of a skill folder covers its `reply-phrases.json`. A
+file adds phrases and removes none. A phrase is text of 1 to 60 characters, with no double
+quote and no control character. The registry keeps only the paths, and the check of a type
+reads the files. A file that cannot be read stops the verb that runs the check, such as
+`push`, `check`, `lock` or `end`. So does a phrase of another form. The verb prints `Fix
+<file>: …`. Every other verb that reads the registry, and the tool guard, works as before.
+The check reads each text file of a version, without text in double quotes on one line:
+
+- a Markdown file, named `.md` in any case, also without its code blocks and code spans;
+- a JSON file by each string, with the JSON pointer of the string in the finding;
+- any other file, such as SVG or WebVTT, as plain text.
+
+It skips a file that the type reads as binary. A phrase matches as whole words in any case,
+`'` also as `’`. It may cross a line break, but no blank line and no skipped line. A type
+with `replies: true` gets no such check. `questions`, `review-comments` and `feedback` set
+it, because their text is written to a person or quotes one. A type sets
+`uncheckedSections` to the titles of the `##` sections that the check skips: `proposal`
+sets `Sources` and `Commands`. Each skipped section runs up to the next heading of level 1
+or 2, with its `###` subsections. A line underlined with `=` or `-` is a heading of level 1
+or 2 too. `check points` and the end check of `points.json` skip the phrases, because
+`points` is no type of the registry.
 
 The registry loads a `workflow-checks.cjs` only from a skill folder whose hash is in
 `running-a-workflow/trusted-checks.json`, the list that `core` ships. The registry takes the
@@ -2608,8 +2637,10 @@ The checks:
   Today/After table of 2 to 6 rows that each change something, with no "After" cell that
   states no change, such as "Unchanged" or "The same as today", at most 12 words per cell
   and 15 per "Why not" cell, and at most 450 words with the reasons of the decided
-  questions; and the refused phrases of `writing-proposals`, outside `## Sources`, code
-  blocks, code spans and text in double quotes;
+  questions;
+- the reply phrases of rule 21 of `simple-communication` in each file of each type but
+  `questions`, `review-comments` and `feedback`, outside text in double quotes, Markdown code
+  blocks and code spans, and `## Sources` and `## Commands` of a proposal;
 - the other limits: at most 450 words in a spec and a decision record (a decision record's
   count leaves out its Mermaid diagrams), a summary of 1 to 3 sentences in a spec, the
   criteria and the scenarios, at most 3 points per part in a spec, a criterion of 1 sentence
@@ -2980,18 +3011,24 @@ find:
   not the commit of the record. A check with a record that is missing or is not a record of
   `matrix` has one finding that starts "Run matrix --version <N>", so a `verification.json`
   typed by hand fails. A push reads no record;
-- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_` and `es_`,
-  `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the source's
-  time and text; a new source that differs from its note, or that has none; in a
-  check, an open note that is no source; a changed or missing source or point of the newest
-  version; a point id out of order; a `quote` that is no part of the source's text; a member
-  that the sort does not have, or lacks; an `item` that is no id of the `output`, or a
-  criterion that the criteria do not have; a `criterion-change` whose source has a `cm_` key,
-  or in a work item with no acceptance criteria; a question of two points, or one that the
-  newest questions have; in a check with a draft `questions.json`, a point whose question it
-  lacks, and a new question of a point that breaks the rule for the question of a point,
-  whatever its `about`; a `reply` of more than 3 sentences; and, in a push, a new point with
-  no `reply`;
+- `feedback`: a source whose `kind` is not the one of its id: `note` for `gd_`, `es_` and
+  `rc_`, `comment` for `cm_`, and `answer` for `an_`; a `cm_` key that is not the one of the
+  source's time and text; a new source that differs from its note, or that has none; new
+  sources in another order than `feedback open` prints them, because a later check pairs
+  equal answers in the stored order; in a check, an open note that is no source; a changed
+  or missing source or point of the newest version; a point id out of order; a `quote` that
+  is no part of the source's text, or, for an answer, of the note beside its option; a
+  member that the sort does not have, or lacks; an `item` that is no id of the `output`, or
+  a criterion that the criteria do not have; a `criterion-change` whose source has a `cm_`
+  key, or in a work item with no acceptance criteria; a new `criterion-change` of a
+  criterion whose source is an answer to a question about another item, as `feedback open`
+  pairs them; a new answer in which the member picked `Change AC-N` or `Withdraw AC-N` with
+  no `criterion-change` of the criterion of its question, or `Make it met another way` with
+  no `fix`, or with a `criterion-change` of that criterion whose `quote` is not in the note
+  beside the option; a question of two points, or one that the newest questions have; in a
+  check with a draft `questions.json`, a point whose question it lacks, and a new question
+  of a point that breaks the rule for the question of a point, whatever its `about`; a
+  `reply` of more than 3 sentences; and, in a push, a new point with no `reply`;
 - `walkthrough`: a file that does not start with `# Walkthrough: <title>` and one header
   line `Commit <7 or more hex digits>`, optionally followed by ` · <text>`, with no other
   text before the first `##`. The commit must be the start of the verified commit, the
@@ -3698,9 +3735,17 @@ question, else with `passed`. A point outside the kind of the fast track ends wi
 and one `run_again` point. The stack lists the workflow with `tier: thinking`, `access: write`
 and `plan: build-plan`. Build's `sequence` in `process.yaml` is empty, so no run starts it
 yet. Where the spec and a newer criterion differ, `planning-builds`, `checking-build-plans`,
-`writing-acceptance-checks` and `checking-code` apply the criterion. `shortcut:` an answer
-to a question is no source yet, so a run builds nothing from it; read it once each answer
-has an id.
+`writing-acceptance-checks` and `checking-code` apply the criterion. An answer to a
+question is a source with the id `an_` of its note, which a version can link to. The triager
+sorts an answer to the question of Build about a criterion that it cannot meet by the option
+that the member picked, on the criterion of the question: `Change AC-N` as a
+`criterion-change`, whose group's `wording` the writer writes, `Make it met another way` as
+a `fix`, and `Withdraw AC-N` as a `criterion-change` that removes the criterion, with the
+question of a removed criterion when a built part is not mentioned. After it,
+`feedback open` prints a line `Question of <id>: <question>` with the question whose answer
+has the text and the time of the note, and a line `Note of <id>: <note>` with the note that
+the member wrote beside the option, which the note of the work item lacks. A point may quote
+the text of its source or that note.
 
 `workflow-plan-the-build`, process entry `plan-the-build`, writes the build plan of one
 ticket. The session pulls, runs `checks.cjs resume`, and starts the ledger step `plan`. It
@@ -4862,31 +4907,42 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   changed lines."
   `shortcut:` after more than one Build run, `pull-request.base` is the start of the last
   run, so the list covers the last run only; replace it when the ledger base reaches Verify.
-- `feedback open`: prints each open note of `qory work-item show` that no version of
-  `feedback` lists, as its source in JSON, and "Words of <id>: <words>" after it, then one
-  line "Not asked: <point>, <question>" per question that the newest questions lack, and one
-  line "Waiting for an answer: <point>, <question>" per open one. It also prints that line for
-  each open question that a group of `feedback points` waits for and no `question` point has,
-  such as one that a writer raised, with the point of the group that the question is about,
-  a ripple point's included, and "Words of <point>: <words>" after it. For a ripple point,
-  the words are those of the criterion change of the source on that criterion; with no such
-  change, as for an added criterion, those of the first criterion change of the source with
-  no item; else the text of the source. A question with no item in its `about`, asked at or
-  after the time of the source (`asked.at`), is about the first point of a group of that
-  output, and a question about a criterion is also about a ripple point of that criterion.
-  A question has no member for the agent that asked it. The session then ends with an
-  `answer` point on it, not with `passed`. The notes are those of the kinds
-  `request_changes`, `move`, `escalation` and `answer` with a text. A note with no id has the
-  key of its time and text, and an answer to a question is left out. It exits with 1 for a
-  source or a question not asked, with 0 for neither, and with 3 when the notes cannot be
-  read. A line of a source is not cut.
+- `feedback open`: prints each open note of `qory work-item show` that no version of `feedback`
+  lists, as its source in JSON, and "Words of <id>: <words>" after it, then one line "Not asked:
+  <point>, <question>" per question that the newest questions lack, and one line "Waiting for an
+  answer: <point>, <question>" per open one. It also prints that line for each open question
+  that a group of `feedback points` waits for and no `question` point has, such as one that a
+  writer raised, with the point of the group that the question is about, a ripple point's
+  included, and "Words of <point>: <words>" after it. For a ripple point, the words are those of
+  the criterion change of the source on that criterion; with no such change, as for an added
+  criterion, those of the first criterion change of the source with no item; else the text of
+  the source. A question with no item in its `about`, asked at or after the time of the source
+  (`asked.at`), is about the first point of a group of that output, and a question about a
+  criterion is also about a ripple point of that criterion. A question has no member for the
+  agent that asked it. The session then ends with an `answer` point on it, not with `passed`.
+  The notes are those of the kinds `request_changes`, `move`, `escalation` and `answer` with a
+  text. The comment that a member gives with **Run another round** has the id `rc_` of its
+  note, and is a note of free text, as the note of a gate is. A note with no id, or with an id
+  of another form, has the key of its time and text. An answer to a question has the id
+  `an_` of its note, and after its words comes the line "Question of <id>: <question>", with the
+  question in the newest questions whose answer, or an earlier answer in its history, has the
+  text of the note and its time to the second; each answer pairs with one note, the sources of
+  the newest `feedback` first, then the open notes in their order, as the check of `feedback`
+  pairs them. When that answer has an option and a note that is not blank, "Note of <id>:
+  <note>" follows, with the note as a JSON string on one line. It exits with 1 for a source or a
+  question not asked, with 0 for neither, and with 3 when the notes cannot be read. A line of a
+  source is not cut.
 - `feedback points`: prints "Fix first: <id>: <change>" per `fix` with no done row `fix:<id>`
   in the newest `build-ledger`, then one JSON line per source and output with criterion
   changes that have not ended: the groups of `acceptance-criteria` first, then those of
   `demo-scenarios`, each oldest source first. A group has `decision`, `at`, `output` and
-  `points`, each with `id`, `quote`, `item` and `change`, and `waiting`, the ids of the
-  questions with no answer of the source about the output, and of the open questions about
-  a point of the group, such as one that a writer raised. While a source has a group of
+  `points`, each with `id`, `quote`, `item` and `change`, then `wording`, and `waiting`, the
+  ids of the questions with no answer of the source about the output, and of the open
+  questions about a point of the group, such as one that a writer raised. `wording` is only in
+  a group of `acceptance-criteria` whose source is an answer in which the member picked the
+  option to change the criterion of the question, the first option with a `proposal`: the
+  text after "Change AC-4: ", with the item of the question's `about` in upper case, in the
+  note beside the option, up to a blank line, else the `proposal`. While a source has a group of
   `acceptance-criteria` with no `waiting`, its group of `demo-scenarios` is left out, so
   that the group after the criteria version has both kinds of points. A criterion change has
   ended when a version of its output that counts, from a run, has the id of its source as
@@ -4907,12 +4963,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   does not name, and adds one item at the end for each such point with no item. Every other
   byte stays: each other item and its place, and the text outside the items, the summary and
   the key order included. A removed criterion keeps each member and adds only `removed`, and
-  a removed scenario keeps its heading. An item that `--same` names keeps every byte. It
-  exits with 1 for each finding, as "Restore ac-3 in acceptance-criteria.json." or "Change
-  ac-2 in acceptance-criteria.json, or add --same p2.", and with 0 and the line "Checked
-  nothing" when the output has no version. For a draft over 256 KB, it exits with 1 and the
-  finding "Cut acceptance-criteria.json to at most 256 KB." before it reads the draft, with
-  the last line "No part of acceptance-criteria.json was checked."
+  a removed scenario keeps its heading. An item that `--same` names keeps every byte. The
+  group of an answer changes only the criterion that its question's `about` has as `item`: a
+  point of it on another criterion keeps that criterion as it is, with the finding "Remove
+  the change of ac-4." for a change. With an `about` that has no item, the group changes no
+  criterion, as the check of `feedback` requires. An answer that pairs with no question is
+  not compared. It exits with 1 for each finding, as "Restore ac-3 in
+  acceptance-criteria.json." or "Change ac-2 in acceptance-criteria.json, or add --same
+  p2.", and with 0 and the line "Checked nothing" when the output has no version. For a
+  draft over 256 KB, it exits with 1 and the finding "Cut acceptance-criteria.json to at
+  most 256 KB." before it reads the draft, with the last line "No part of
+  acceptance-criteria.json was checked."
 - `matrix --version <N>`: writes the draft `verification.json` of Verify, and
   `.reports/matrix-record.json`, to the artifact folder, so that no agent types a state. It
   exits 3 when `QORY_RUN_ID` is not set, because nothing can be pulled, and when the
@@ -5778,11 +5839,22 @@ the rule passes on that file.
     from the agent to the skill, such as "Remove ${qory:skills/workflow-flow} from
     modules/m/skills/s1/references/more.md: agent a reaches it through a > s1 >
     workflow-flow".
+15. Each text file of the repository whose first line is `---`, in every module and folder,
+    has front matter that the rule reads as strict YAML reads it, as GitHub does. A plain
+    value, of a key or of a list item, has no `: `, no `:` and a tab, and no ` #` in it, no
+    `:` at its end, and does not start with `*`, `@`, `%`, a backtick, `,`, `]`, `}`, or
+    `-`, `?` or `:` and a space. A quoted value has no text after its closing quote, also
+    when it spans lines, and a block scalar header has only `|` or `>`, `-` or `+`, a digit
+    and a comment. The rule reads an anchor or a tag before the value, and skips the lines
+    of a block scalar, a flow value such as `paths: [...]` and a comment. It skips a folder
+    below the root with a `.git` entry, which is another checkout such as a worktree, and a
+    file with a NUL byte. Each finding is "Quote <key> in <path>.", and one line after the
+    findings states the reason and how to escape `"` and `\` in double quotes.
 
 Rules 4, 6, 7, 8 and 14 read a `SKILL.md` at any depth under `skills/`, except one below a
 directory that has a `SKILL.md`, which is a file of that skill. Rule 5 reads every text file
-there. Rules 1 to 4 and rule 8 read a file that starts with a UTF-8 byte order mark as they
-read the same file without it.
+there. Rules 1 to 4, rule 8 and rule 15 read a file that starts with a UTF-8 byte order
+mark as they read the same file without it.
 
 The script also checks that the compose of the `software` stack writes `roles.json` with
 six members of `agents/reviewers`: `code-reviewer`, `test-reviewer` and

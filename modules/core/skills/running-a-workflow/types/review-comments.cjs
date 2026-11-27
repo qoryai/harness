@@ -122,4 +122,7 @@ module.exports = {
   words: 'replies to review comments',
   reviewer: null,
   check: reviewComments,
+  // Each reply is written to a review comment by design, so replyCheck of
+  // lib/reply-phrases.cjs skips the type.
+  replies: true,
 };
