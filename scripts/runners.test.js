@@ -1584,6 +1584,23 @@ test('key shapes: the point of the end check passes the check of points', () => 
   assert.match(checked.err + checked.out, /0 findings\./);
 });
 
+test('key shapes: a broken list is the only end finding, before the changes left', () => {
+  const dir = checkout();
+  fs.writeFileSync(path.join(dir, 'src/a.js'), 'exports.add = (a, b) => b + a;\n');
+  const inputs = inputsFile({ qory: { outputs: [{ type: 'pull-request' }] } });
+  const end = (home) => workflow.end({ cwd: dir, root: harnessHome({}), failed: 0, inputs,
+    env: { ...ENV, QORY_HARNESS_HOME: home } });
+  // With a list that works, the change of the writable checkout is the finding.
+  const left = end(harnessHome({}));
+  assert.equal(left.length, 1);
+  assert.match(left[0].line, /\nNot committed: src\/a\.js \(1 in all\)$/);
+  // With a broken list, the key-pattern point is the only one, with no Not committed line.
+  const found = end(harnessHome({ key_shapes: 'missing.json' }));
+  assert.deepEqual(found.map((one) => one.point), ['The run could not check its changes for ' +
+    'keys, because its list of key patterns is missing or broken.']);
+  assert.doesNotMatch(found[0].line, /Not committed/);
+});
+
 test('run lists: an inputs.json that is a link, too large or no JSON stops each read', () => {
   const fix = 'Start the run again with qory, which writes inputs.json: the run\'s lists cannot ' +
     'be read.';
