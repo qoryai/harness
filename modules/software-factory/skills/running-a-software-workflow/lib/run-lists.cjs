@@ -133,12 +133,15 @@ function badEntry(list) {
   return at < 0 ? null : shown(list[at]);
 }
 
+// The cause of the problem of a list with the bad entry bad.
+const badLine = (bad) => `${bad} is no variable name or prefix.`;
+
 // floorOf returns the floor of data, the JSON of FLOOR_FILE: the entries of forge_tokens and
 // model_keys, then QORY. It throws an Error, a fault of the harness, when a member is no list
 // of names and prefixes, or when patterns has no QORY, so that the floor never lacks it.
 function floorOf(data) {
-  const fault = (words) => new Error('Fix denied-variables.json of ' +
-    `running-a-software-workflow: ${words}.`);
+  const file = 'denied-variables.json of running-a-software-workflow';
+  const fault = (words) => new Error(`Fix ${file}: ${words}.`);
   const lists = ['forge_tokens', 'model_keys', 'patterns'].map((name) => {
     const list = data !== null && typeof data === 'object' ? data[name] : undefined;
     if (!Array.isArray(list)) throw fault(`${name} is no list`);
@@ -146,15 +149,12 @@ function floorOf(data) {
   });
   const [forge, model, patterns] = lists;
   const bad = badEntry([...forge, ...model]);
-  if (bad) throw fault(`${bad} is no variable name or prefix`);
+  if (bad) throw new Error(`Fix ${file}.\n${badLine(bad)}`);
   if (!patterns.includes(QORY)) throw fault(`its patterns have no ${QORY}`);
   return [...forge, ...model, QORY];
 }
 
 const FLOOR = floorOf(JSON.parse(fs.readFileSync(FLOOR_FILE, 'utf8')));
-
-// The cause of the problem of a list with the bad entry bad.
-const badLine = (bad) => `${bad} is no variable name or prefix.`;
 
 // inputsList returns { list } of the member field of qory in the inputs.json of env, { none }
 // without it, or { problem }, the fix and the cause of an inputs.json that member cannot read

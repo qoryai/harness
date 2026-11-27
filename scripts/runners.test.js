@@ -1392,7 +1392,8 @@ test('credential names: the floor is three parts of denied-variables.json', () =
     fault('model_keys is no list'));
   assert.throws(() => runLists.floorOf(null), fault('forge_tokens is no list'));
   assert.throws(() => runLists.floorOf({ ...data, forge_tokens: ['*_TOKEN'] }),
-    fault('"*_TOKEN" is no variable name or prefix'));
+    { message: 'Fix denied-variables.json of running-a-software-workflow.\n"*_TOKEN" is no ' +
+      'variable name or prefix.' });
 });
 
 test('credential names: a composed home adds the file of each module that it links', () => {
