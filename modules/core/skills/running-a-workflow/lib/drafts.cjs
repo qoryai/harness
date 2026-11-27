@@ -46,7 +46,7 @@ function draftFile(mode, root, file) {
 // replyCheck reads with the core list after def.check. phraseFiles is null for points.json,
 // which is no type of the registry, and replyCheck then does not run. A call without
 // phraseFiles is a fault of the harness, so that no caller skips the phrases by mistake. env
-// is the io.env of the verb, from which the check of a type reads the values of keys, as
+// is the io.env of the verb, from which the check of a type reads the key shapes, as
 // Context.env; a call without env is a fault of the harness too.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
   place = {}) {

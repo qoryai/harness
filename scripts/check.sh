@@ -3017,7 +3017,7 @@ expect "the review-changes tests pass" 0 "$ROOT" node --test scripts/review-chan
 expect "the path cases of qory's contract pass" 0 "$ROOT" node --test scripts/path-cases.test.js
 # The floor of the credential list against Forager's list of the variables it keeps from an
 # agent, in FORAGER_SOURCE.
-expect "the credential floor is Forager's list" 0 "$ROOT" node --test scripts/denied-variables.test.js
+expect "the floor is Forager's list" 0 "$ROOT" node --test scripts/denied-variables.test.js
 # The tests of the outbox check of end and of the raw-text rules of the schema checker.
 expect "the outbox tests pass" 0 "$ROOT" node --test scripts/outbox.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list
