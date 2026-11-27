@@ -22,6 +22,7 @@ const { CALL_MS, RUN_BUDGET_MS, START_MS, STOP_MS } = require('./budget.cjs');
 const git = require('./git.cjs');
 const { ACTION_MS, SIGNED_IN_MS, signInSetups, variablesOf } = require('./replay.cjs');
 const { SCHEMAS } = require('./template.cjs');
+const { credentialNames } = require('./run-lists.cjs');
 const { runKey } = require('./secrets.cjs');
 const startOf = require('./start.cjs');
 
@@ -60,10 +61,11 @@ const TEXTS = {
     fix: `Make ${command} start the app in the dev container, then run another round.`,
   }),
   signIn: (names) => ({
-    text: `The run could not sign in to the app with the values of ${names} in the ` +
-      'workspace\'s variables.',
-    fix: 'Ask an owner or admin of your organisation to correct the app\'s sign-in variables ' +
-      'in Workspace settings > Secrets and variables, then run another round.',
+    text: 'The run could not sign in to the app: the workspace has no AGENT_ variable with a ' +
+      `value for ${names}.`,
+    fix: 'Ask an owner or admin of your organisation to add each sign-in variable with the ' +
+      'prefix AGENT_ in Workspace settings > Secrets and variables > Variables, then run ' +
+      'another round.',
   }),
   // A sign-in that fails with every variable set: a change to the app or its data repairs it.
   signInSetup: (names) => ({
@@ -308,12 +310,14 @@ module.exports = (lib) => {
     const limitMs = spec.limitMs + STOP_MS;
     const file = path.join(path.dirname(spec.serve.log), `result-${process.pid}.json`);
     fs.rmSync(file, { force: true });
+    const names = credentials(io);
     let ran;
     let result;
     try {
       ran = childProcess.spawnSync(process.execPath,
         [(io.preflight || {}).runner || RUNNER], {
-          input: JSON.stringify({ ...spec, resultFile: file }), env: io.env, encoding: 'utf8',
+          input: JSON.stringify({ ...spec, credentials: names, resultFile: file }),
+          env: io.env, encoding: 'utf8',
           timeout: limitMs, killSignal: 'SIGTERM', maxBuffer: 1024 * 1024,
         });
       result = resultOf(file);
@@ -391,15 +395,34 @@ module.exports = (lib) => {
     fs.rmSync(writtenFile(root), { force: true });
   }
 
-  // keyOfQory throws the Missing of a setup of setups that types a variable of qory, of an
-  // agent or of a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no
-  // such variable.
-  function keyOfQory(setups) {
-    const name = setups.flatMap((setup) => setup.names).find(runKey);
+  // moduleFolders returns the folders of the modules beside the plugin folder of io, as the
+  // registry reads them, when the plugin folder is a module of the harness home, else the
+  // plugin folder alone.
+  const moduleFolders = (io) => (path.basename(path.dirname(io.plugin)) === 'modules'
+    ? lib.pluginFolders(io.plugin) : [io.plugin]);
+
+  // listOf returns the names of got, a result of lib/run-lists.cjs, or throws the Missing of
+  // its problem, a list that is no list of names and prefixes.
+  function listOf(got) {
+    if (got.problem) throw new Missing(got.problem[0], got.problem.slice(1));
+    return got.names;
+  }
+
+  // credentials returns the names of the variables of the run's credentials, as
+  // credentialNames of lib/run-lists.cjs returns them for io, or throws the Missing of a list
+  // that is no list of names and prefixes.
+  const credentials = (io) => listOf(credentialNames(io.env,
+    io.plugin ? moduleFolders(io) : []));
+
+  // keyOfQory throws the Missing of a name of typed, the variables that demo scripts type,
+  // that is a variable of the run's credentials, names, such as one of qory, of an agent or of
+  // a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no such
+  // variable. fix is the first line of the Missing, and line returns its next line for the
+  // name.
+  function keyOfQory(typed, names, fix, line) {
+    const name = typed.find((one) => runKey(one, names));
     if (!name) return;
-    throw new Missing('Remove the key from the demo scripts, then run preflight again.',
-      [`A setup types ${name}, a variable of qory, of an agent or of a code forge.`,
-        cause(`a demo script types ${name}, which the run keeps from scripts`)]);
+    throw new Missing(fix, [line(name)]);
   }
 
   // signInFound returns what the results of the sign-ins of setups found: the browser failed,
@@ -442,7 +465,9 @@ module.exports = (lib) => {
     const checks = rulesOf(io);
     const browser = findBrowser(io.env, options.browsers);
     const setups = serve ? signInSetups(scripts) : [];
-    keyOfQory(setups);
+    keyOfQory(setups.flatMap((setup) => setup.names), credentials(io),
+      'Remove the key from the demo scripts, then run preflight again.',
+      (name) => `A setup types ${name}, which is a secret of this run.`);
     const found = [];
     const did = ['the browser'];
     if (!browser) found.push({ kind: 'browser', part: 'the browser', why: 'No browser such as ' +
@@ -507,8 +532,18 @@ module.exports = (lib) => {
   // { ok, step, why, outside } as lib/preflight-run.cjs has it, with no typed value in it, or
   // null when the runner returned none. The time is that of preflight for the same actions.
   // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
-  // file lists in dir, and run has capture, what it returns, besides.
-  function runScript(io, root, { serve, script, capture }) {
+  // file lists in dir, and run has capture, what it returns, besides. A script that types a
+  // variable of the run's credentials throws, before the app starts, the Missing whose first
+  // line is keyFix, the fix of the caller, and whose cause names the setup or the demo script
+  // that types it. A call without keyFix is a fault of the code, and
+  // throws an Error.
+  function runScript(io, root, { serve, script, capture, keyFix }) {
+    if (typeof keyFix !== 'string' || !keyFix) throw new Error('runScript needs keyFix');
+    // The line names a setup for a variable that the setup types, else the demo script.
+    const inSetup = new Set(variablesOf(script.setup || []));
+    keyOfQory(typedNames([script]), credentials(io), keyFix, (name) =>
+      `${inSetup.has(name) ? 'A setup' : 'A demo script'} types ${name}, which is a secret of ` +
+      'this run.');
     const options = io.preflight || {};
     const browser = findBrowser(io.env, options.browsers);
     if (!browser) return { browser: null };
@@ -531,5 +566,5 @@ module.exports = (lib) => {
   }
 
   return { preflight, runScript, scriptLimitMs, serveOf, demoScripts, pointOf, joined, signInMs,
-    withCause, MAX_MS, RUN_BUDGET_MS, STOP_MS };
+    withCause, moduleFolders, MAX_MS, RUN_BUDGET_MS, STOP_MS };
 };

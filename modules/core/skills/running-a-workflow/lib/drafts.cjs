@@ -40,12 +40,14 @@ function draftFile(mode, root, file) {
 // is the folder of index.json and the versions, and view is that of Context. def.maxBytes, when
 // set, replaces MAX_BYTES for the files of def. For a file that def.binary(name) accepts, such
 // as a picture, the check reads no byte and checks no size: files maps its name to null.
-// place is { workingFolder, inputs, phraseFiles }. workingFolder is the working folder of the
-// check. inputs is the path of the run's inputs.json, from which Context.extensions reads the
-// extensions. phraseFiles is the list of reply-phrases.json files of the registry, which
+// place is { workingFolder, inputs, phraseFiles, env }. workingFolder is the working folder of
+// the check. inputs is the path of the run's inputs.json, from which Context.extensions reads
+// the extensions. phraseFiles is the list of reply-phrases.json files of the registry, which
 // replyCheck reads with the core list after def.check. phraseFiles is null for points.json,
 // which is no type of the registry, and replyCheck then does not run. A call without
-// phraseFiles is a fault of the harness, so that no caller skips the phrases by mistake.
+// phraseFiles is a fault of the harness, so that no caller skips the phrases by mistake. env
+// is the io.env of the verb, from which the check of a type reads the key shapes, as
+// Context.env; a call without env, or with a null env, is a fault of the harness too.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
   place = {}) {
   const { type } = def;
@@ -53,10 +55,15 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     throw new Error(`Fix the call of checkFiles for ${type}: give place.phraseFiles.\n` +
       'Give null for a type that the registry does not have.');
   }
+  if (place.env === undefined || place.env === null) {
+    throw new Error(`Fix the call of checkFiles for ${type}: give place.env, the io.env ` +
+      'of the verb.');
+  }
   const context = new Context(root, mode, home, store, view);
   context.plugin = plugin;
   context.workingFolder = place.workingFolder || null;
   context.inputs = place.inputs || null;
+  context.env = place.env;
   const run = new Run(context);
   const files = new Map();
   const large = new Set();

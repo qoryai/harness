@@ -79,6 +79,33 @@ jobs:
           ' "$RUNNER_TEMP/qory-contracts.json")
           echo "QORY_SOURCE=$dir" >> "$GITHUB_ENV"
 
+      # scripts/denied-variables.test.js compares denied-variables.json of
+      # running-a-software-workflow with Forager's contracts, at the Forager version that qory's
+      # go.mod pins, or its replace.
+      - name: Fetch Forager's contracts
+        run: |
+          module=$(go mod edit -json "$QORY_SOURCE/go.mod" | node -e '
+            const mod = JSON.parse(require("fs").readFileSync(0, "utf8"));
+            const name = "github.com/qoryai/forager";
+            const swap = (mod.Replace || []).find((one) => one.Old.Path === name);
+            const pin = swap ? swap.New : (mod.Require || []).find((one) => one.Path === name);
+            if (!pin || !pin.Version) {
+              console.error(`qory go.mod pins no version of ${name}`);
+              process.exit(1);
+            }
+            console.log(`${pin.Path}@${pin.Version}`);
+          ')
+          go mod download -json "$module" > "$RUNNER_TEMP/forager-contracts.json"
+          dir=$(node -e '
+            const got = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"));
+            if (!got.Dir) {
+              console.error(got.Error || "go mod download printed no Dir");
+              process.exit(1);
+            }
+            console.log(got.Dir);
+          ' "$RUNNER_TEMP/forager-contracts.json")
+          echo "FORAGER_SOURCE=$dir" >> "$GITHUB_ENV"
+
       # scripts/hook-commands.js runs shellcheck on the hook commands of core. The step fails
       # when shellcheck is missing, because GitHub Actions sets CI=true. The checks pass on
       # shellcheck 0.9.0 and 0.11.0.

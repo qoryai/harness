@@ -298,12 +298,14 @@ module.exports = (lib) => {
 
   // failure prints the finding of a run that failed in a step, with the fix first, and returns 1.
   // A sign-in that failed gets the line "Kind: setup", and a variable with no value in the
-  // workspace the line "Kind: outside", for the session to sort.
+  // workspace the line "Kind: outside", for the session to sort. The schema of a demo script
+  // allows a variable name of 64 characters; the cut to 31 keeps the first line within 100.
   function failure(io, run, what, again) {
     const where = run.step === 0 ? 'the sign-in' : `step ${run.step}`;
     const last = `Stored no ${what}: it failed in ${where}.`;
     if (run.variable) {
-      io.print([`Add ${short(run.variable, 40)} in Workspace settings > Secrets and variables.\n` +
+      io.print([`Add AGENT_${cut(String(run.variable), 31)} in Workspace settings > Secrets ` +
+        'and variables > Variables.\n' +
         `Then run ${again} again.\n${run.why}.\nKind: outside`], last);
       return 1;
     }
@@ -591,7 +593,9 @@ module.exports = (lib) => {
       const shorter = { ...io, preflight: { ...io.preflight,
         maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS, RUN_BUDGET_MS) } };
       const again = kind === 'film' ? 'film it' : 'run it';
-      const run = ended(checks.runScript(shorter, root, { serve, script, capture }), serve,
+      const ran = checks.runScript(shorter, root, { serve, script, capture,
+        keyFix: `Remove the key from the demo scripts, then run film ${id} again.` });
+      const run = ended(ran, serve,
         `film ${id}`, () => new Missing(`Shorten the sign-in steps of ${id}.json, or make the ` +
           `app start faster, then ${again} again.\nThe ${START_MS / 1000} s for the app ` +
           'start, the sign-in and the browser ran out before the browser started.'));
@@ -883,8 +887,9 @@ module.exports = (lib) => {
     const dir = freshFolder(root, 'pages');
     return cleaned(dir, () => {
       const capture = { kind: 'pages', dir, name: 'pages', widths: WIDTHS };
-      const run = ended(checks.runScript(io, root, { serve, script, capture }), serve,
-        'film pages');
+      const ran = checks.runScript(io, root, { serve, script, capture,
+        keyFix: 'Remove the key from the demo scripts, then run film pages again.' });
+      const run = ended(ran, serve, 'film pages');
       if (!run.ok) {
         fs.rmSync(dir, { recursive: true, force: true });
         return failure(io, run, 'pictures of pages', 'film pages');

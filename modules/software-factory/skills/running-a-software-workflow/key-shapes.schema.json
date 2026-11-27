@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://qory.dev/contracts/forager/v1/key-shapes.schema.json",
+  "title": "Key shapes",
+  "description": "The kinds of key that a masker replaces with *** wherever they appear, whether or not the run knows the key's value: key-shapes.json, the default list, and a list that adds a deployment's shapes after the default ones. A find is the prefix, then, with blank, 1 to 16 spaces or tabs, then a token of at least min characters of the alphabet, of which it covers at most max. The schema uses only $id, type, properties, items, required, additionalProperties, minItems, minLength, minimum, maximum and pattern, so a small checker in another language reads it the same way. Rules the schema does not state, which Forager's mask.Merge checks: each name once in the list; a name and a prefix of at most 64 characters; max at least min; a max of at most 256 unless blank is true or a byte of the prefix is outside the alphabet; at most 64 shapes; and the alphabet's form, ranges and single characters such as A-Za-z0-9_-, where a - between two characters is the range from the first up to the second and a - at the end is the character - itself.",
+  "type": "object",
+  "required": ["shapes"],
+  "additionalProperties": false,
+  "properties": {
+    "shapes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["name", "prefix", "any_case", "blank", "alphabet", "min", "max"],
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "description": "The shape's id: lower-case letters and digits in parts that single hyphens join, such as github-token.",
+            "type": "string",
+            "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$"
+          },
+          "prefix": {
+            "description": "The text every key of the shape starts with: printable ASCII without a space, such as ghp_.",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[!-~]+$"
+          },
+          "any_case": {
+            "description": "True compares the prefix regardless of the case of its ASCII letters.",
+            "type": "boolean"
+          },
+          "blank": {
+            "description": "True requires 1 to 16 spaces or tabs between the prefix and the token.",
+            "type": "boolean"
+          },
+          "word_start": {
+            "description": "True counts a find only when the prefix starts the text, or the byte before it is not an ASCII letter, digit or `_`, or the prefix follows an escape: `\\` and one letter, `\\u` and four hex digits, `\\x` and two hex digits, or `%` and two hex digits. False, the default when the member is missing, counts a find wherever the prefix is.",
+            "type": "boolean"
+          },
+          "alphabet": {
+            "description": "The characters of the token: printable ASCII without a space, as ranges and single characters, such as A-Za-z0-9_-.",
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[!-~]+$"
+          },
+          "min": {
+            "description": "How many characters of the alphabet the token has at least.",
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 4096
+          },
+          "max": {
+            "description": "How many characters of the token a find covers at most; the characters after them are scanned again as text.",
+            "type": "integer",
+            "minimum": 8,
+            "maximum": 4096
+          }
+        }
+      }
+    }
+  }
+}

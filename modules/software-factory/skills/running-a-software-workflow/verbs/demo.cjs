@@ -54,7 +54,7 @@ const USAGE = 'Give demo surface, demo check, or demo write or demo run with a s
 module.exports = (lib) => {
   const { Context, DEMO_FOLDER: FOLDER, MAX_BYTES, MOST_ROWS, Missing, approved, artifactFolder,
     boundedText, cut, doneRows, draftScript, evidenceOf, isObject, newestNamed, plural,
-    pluginFolders, readLedger, schema, scenarios, scriptFindings, sha256, short, stepRows, within,
+    readLedger, schema, scenarios, scriptFindings, sha256, short, stepRows, within,
     writeJson } = lib;
   const checks = require('../lib/preflight.cjs')(lib);
 
@@ -73,8 +73,7 @@ module.exports = (lib) => {
   // hasSkill reports whether a composed skills folder has SKILL: the plugin folder, or, when the
   // plugin folder is a module of the harness home, a module beside it, as the registry loads
   // the skills folders. No other folder beside the plugin folder counts.
-  const hasSkill = (io) => (path.basename(path.dirname(io.plugin)) === 'modules'
-    ? pluginFolders(io.plugin) : [io.plugin])
+  const hasSkill = (io) => checks.moduleFolders(io)
     .some((folder) => fs.existsSync(path.join(folder, 'skills', SKILL, 'SKILL.md')));
 
   // surface prints the line that a Shape run reads: the test of check, without a scenario.
@@ -411,7 +410,9 @@ module.exports = (lib) => {
       throw new Missing('Add a serve row with a command to ## Commands of the build plan, then ' +
         `plan the build again.\nThe build plan has no serve command, so ${id} has no app to run.`);
     }
-    const ran = checks.runScript(io, root, { serve, script: draft.data });
+    const ran = checks.runScript(io, root, { serve, script: draft.data,
+      keyFix: `Remove the key from ${path.join(FOLDER, `${id}.actions.json`)}, then run demo ` +
+        `write ${id}.` });
     if (!ran.browser) {
       throw new Missing('Add a browser to the dev container, then run preflight again.\nNo ' +
         'browser such as /usr/bin/chromium exists on this machine.');

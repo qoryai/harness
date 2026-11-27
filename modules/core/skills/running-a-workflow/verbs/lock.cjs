@@ -325,7 +325,7 @@ function lockFile(io, def, draft) {
   if (!files) {
     // The check of the type has the finding on the form of the list.
     const checked = checkFiles('check', root, def, [draft], io.home, io.plugin, root, null,
-      { phraseFiles: io.registry().phraseFiles });
+      { phraseFiles: io.registry().phraseFiles, env: io.env });
     const findings = checked.findings.length ? checked.findings
       : [`Write ${def.main} with its list of locked files.`];
     io.print(findings, `Locked nothing: ${def.main} has no list of locked files.`);
@@ -339,7 +339,7 @@ function lockFile(io, def, draft) {
   if (typeof def.lock.fill === 'function') def.lock.fill(data, root);
   writeJson(draft, data);
   const checked = checkFiles('check', root, def, [draft], io.home, io.plugin, root, null,
-    { phraseFiles: io.registry().phraseFiles });
+    { phraseFiles: io.registry().phraseFiles, env: io.env });
   if (checked.findings.length) {
     io.print(checked.findings, `Locked nothing: ${checked.last}`);
     return 1;

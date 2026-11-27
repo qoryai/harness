@@ -1579,6 +1579,21 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   the approval is withdrawn.", and the finding of a check of a build plan, verification or
   walkthrough is "Write <what> after a member approves the acceptance criteria again."
   `acceptance-lock` reads `questions` besides `acceptance-criteria`.
+- The scan for keys of `scope`, `freeze` and the pull request text reads its key shapes from
+  `key-shapes.json`, a copy of Forager's default list, plus the shapes that the deployment
+  adds in the file of `qory.key_shapes`. The names of the run's credentials are the forge
+  tokens, the model keys and `QORY_*` of `denied-variables.json`, a copy of Forager's list,
+  with the names in `credential-variables.json` of each module, such as `GEMINI_*` and the
+  other prefixes of the agents' keys in that of `software-factory`, and in
+  `qory.credential_variables`. A finding names its key as "a key of the shape <name>". A
+  file of `qory.key_shapes` that cannot be used stops `scope`, `freeze`, the end check and
+  the check of a pull request's text. So does an `inputs.json` that is a link, has more than
+  16 MB, is no regular file, cannot be read, is no JSON, is not a JSON object or has a
+  `qory` that is no map, which also stops `preflight`, `film` and `demo run`, and every
+  check that scans for keys, such as `diff`, `run` and `probe`. With no `inputs.json`, the
+  default lists apply, with no warning. The app of the preflight gets every variable of the
+  session except the run's credential list and the variables that a demo script types. The
+  workspace sets a typed variable as AGENT_<NAME>.
 - The check of the type `walkthrough` replaces the sections `## Summary` and one
   `## AC-<N>` section per criterion with the layout that the entry "The walkthrough has this
   layout" lists. The walkthrough states no state of a criterion: the Evidence cell links to

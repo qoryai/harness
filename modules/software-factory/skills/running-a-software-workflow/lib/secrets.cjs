@@ -1,7 +1,8 @@
 // The scan of added lines for keys, which freeze runs before it commits. It needs no tool and
 // no network. It looks for two things:
-// - the shapes of keys that Forager's masker replaces (forager mask/shape.go, Shapes), and a
-//   PEM private key;
+// - the key shapes of key-shapes.cjs: the default ones, which Forager's masker replaces
+//   (forager mask/shape.go, Shapes), and those that the deployment adds; and a PEM private
+//   key;
 // - the value of each variable of the environment whose name contains TOKEN, SECRET, KEY,
 //   PASSWORD, PASSWD or CREDENTIAL, with at least MIN_VALUE characters, such as a key that
 //   qory passes to the agent of a run, and the values of a key file whose path such a
@@ -14,22 +15,12 @@
 
 const fs = require('node:fs');
 
-const SHAPES = [
-  { kind: 'an Anthropic key', pattern: /sk-ant-[A-Za-z0-9_-]{16,}/ },
-  { kind: 'a GitHub token', pattern: /gh[pousr]_[A-Za-z0-9]{36,}/ },
-  { kind: 'a GitHub fine-grained token', pattern: /github_pat_[A-Za-z0-9_-]{16,}/ },
-  { kind: 'an AWS access key id', pattern: /(?:AKIA|ASIA)[A-Z0-9]{16,}/ },
-  { kind: 'a bearer token', pattern: /bearer[ \t]{1,16}[A-Za-z0-9._~+/=-]{16,}/i },
-  { kind: 'a private key', pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/ },
-];
+const keyShapes = require('./key-shapes.cjs');
+const { FLOOR } = require('./run-lists.cjs');
+
+const PRIVATE_KEY = { kind: 'a private key', pattern: /-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----/ };
 
 const SECRET_NAME = /TOKEN|SECRET|KEY|PASSWORD|PASSWD|CREDENTIAL/i;
-// The name of a variable that qory or the runtime of an agent passes to a run, such as
-// QORY_RUN_KEY, ANTHROPIC_API_KEY or GITHUB_TOKEN, or a token of a code forge, such as
-// GITLAB_TOKEN: the run keeps its value from a script of the run, such as a demo script that
-// the preflight replays.
-const RUN_KEY = new RegExp('^(?:QORY|ANTHROPIC|CLAUDE|OPENAI|CODEX|GEMINI)_|' +
-  '^(?:GH|GITHUB|GH_ENTERPRISE|GITHUB_ENTERPRISE|GITLAB|GL|BITBUCKET)_TOKEN$');
 const MIN_VALUE = 12;
 // The most bytes of a key file that the scan reads.
 const MAX_KEY_FILE = 64 * 1024;
@@ -95,11 +86,11 @@ function fileValues(text) {
     .filter((value) => value.length >= MIN_VALUE && !COMMON.test(value));
 }
 
-// secretValues returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
+// valuesOf returns the values of env that SECRET_NAME and MIN_VALUE select, and each line
 // of a value of more than one line, such as a key in JSON, since the scan reads one line at a
 // time. A value that is the path of an existing file is no key itself: the scan takes the
 // values that fileValues returns for that file instead, when keyFile reads it.
-function secretValues(env) {
+function valuesOf(env) {
   const values = new Set();
   for (const [name, value] of Object.entries(env || {})) {
     if (!SECRET_NAME.test(name) || typeof value !== 'string') continue;
@@ -115,12 +106,70 @@ function secretValues(env) {
   return [...values];
 }
 
-// scanLine returns the kind of the first key in line, or null.
+// withShapes returns values with got.shapes, the compiled key shapes, as the member shapes
+// that scanLine reads, and got.problem, as the member problem, of a result of load of
+// key-shapes.cjs. The members are not enumerable, so the list compares as a plain list.
+function withShapes(values, got) {
+  Object.defineProperty(values, 'shapes', { value: got.shapes });
+  Object.defineProperty(values, 'problem', { value: got.problem });
+  return values;
+}
+
+// The class Missing of the checks script, which stopWith sets, so that a stop of secretValues
+// exits 3 as the stops of the verbs do. Without it, the stop is a plain Error. This file does
+// not require lib/base.cjs of core by its path, as no file of this module does: core may be
+// in another folder than this module. Core gives its lib to workflow-checks.cjs, which calls
+// stopWith first, so each loader of this module's checks goes through that file.
+let Stop = null;
+
+// stopWith sets the class of the stop of secretValues: Missing of lib/base.cjs of core.
+function stopWith(Missing) {
+  Stop = Missing;
+}
+
+// valuesWithProblem returns the values of valuesOf for env, with the key shapes of env, as
+// secretValues has them, and the problem of load of key-shapes.cjs, null or the fix and the
+// cause, as the member problem. It does not stop on the problem.
+const valuesWithProblem = (env) => withShapes(valuesOf(env), keyShapes.load(env));
+
+// secretValues returns the values of valuesOf for env, with the key shapes of env: the default
+// shapes and those of the file of the deployment. It writes no line, and it throws the stop of
+// an inputs.json or a qory.key_shapes that cannot be used, the fix and the cause, so that no
+// caller scans or masks with fewer shapes than the deployment set. No file is no problem.
+function secretValues(env) {
+  const values = valuesWithProblem(env);
+  if (!values.problem) return values;
+  const [fix, cause] = values.problem;
+  if (Stop) throw new Stop(fix, [cause]);
+  throw new Error(`${fix}\n${cause}`);
+}
+
+// scanValues returns { values, problem } for the scan for keys of freeze, scope and the end
+// check: values as secretValues returns them; problem null, or the fix and the cause of an
+// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run. scanValues
+// and keyKind are the two reads that do not stop on the problem: the end check turns it into
+// a point, scope and freeze into their stop, and the check of a pull request into a finding.
+function scanValues(env) {
+  const values = valuesWithProblem(env);
+  return { values, problem: values.problem };
+}
+
+// scanLine returns the kind of the first key in line, or null: the key shapes of values, the
+// default ones when values has none, then a private key, then a value of values.
 function scanLine(line, values) {
-  for (const shape of SHAPES) {
+  for (const shape of values.shapes || keyShapes.DEFAULT) {
     if (shape.pattern.test(line)) return shape.kind;
   }
+  if (PRIVATE_KEY.pattern.test(line)) return PRIVATE_KEY.kind;
   return values.some((value) => line.includes(value)) ? 'the value of a secret variable' : null;
+}
+
+// keyKind returns { kind, problem }: kind is the kind of the first key shape or private key in
+// text, of any number of lines, with the key shapes of env as secretValues has them, or null;
+// problem is that of secretValues. It looks for no value of a variable.
+function keyKind(text, env) {
+  const shapes = withShapes([], keyShapes.load(env));
+  return { kind: scanLine(text, shapes), problem: shapes.problem };
 }
 
 // scanPatch returns { line, kind } for each added line of patch, the output of git diff -U0
@@ -150,8 +199,21 @@ function scanPatch(patch, values) {
 // shows the key.
 const shown = (name, values) => (scanLine(name, values) ? 'a path with a key in its name' : name);
 
-// runKey reports whether name is the name of a variable of qory, of an agent or of a code
-// forge, as RUN_KEY matches it.
-const runKey = (name) => RUN_KEY.test(String(name));
+// runKey reports whether name is the name of a variable of a run's credentials, of qory, of an
+// agent or of a code forge: an entry of names, the list of credentialNames of run-lists.cjs,
+// is the name, or a prefix with * at its end that the name starts with, in any case, as
+// Forager matches the entries of denied-variables.json (forager
+// session/internal/variables/variables.go, entriesOf and Matches). Without such a list, such
+// as in .map(runKey), names is the floor.
+function runKey(name, names) {
+  const text = String(name).toUpperCase();
+  return (Array.isArray(names) ? names : FLOOR).some((entry) => {
+    const upper = entry.toUpperCase();
+    return upper.endsWith('*') ? text.startsWith(upper.slice(0, -1)) : text === upper;
+  });
+}
 
-module.exports = { SHAPES, runKey, secretValues, scanLine, scanPatch, shown };
+const { fitKind } = keyShapes;
+
+module.exports = { fitKind, keyKind, runKey, scanLine, scanPatch, scanValues, secretValues,
+  shown, stopWith };

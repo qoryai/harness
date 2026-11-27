@@ -27,6 +27,7 @@ const SKILL = path.join(MODULES, 'software-factory/skills/running-a-software-wor
 const { main } = require(path.join(PLUGIN, 'skills/running-a-workflow/checks.cjs'));
 const { LIBRARY } = require(path.join(PLUGIN, 'skills/running-a-workflow/lib/registry.cjs'));
 const { preflight } = require(path.join(SKILL, 'workflow-checks.cjs'))(LIBRARY);
+const runLists = require(path.join(SKILL, 'lib/run-lists.cjs'));
 const { BROWSER_START_MS, findBrowser, keyOf } = require(path.join(SKILL, 'lib/browser.cjs'));
 const replay = require(path.join(SKILL, 'lib/replay.cjs'));
 
@@ -35,6 +36,17 @@ const { watch } = require('./first-line.js');
 
 const tmp = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'preflight-test-')));
 test.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+// harnessHome returns a new harness home whose inputs.json has the members of qory.
+const harnessHome = (qory) => {
+  const dir = fs.mkdtempSync(path.join(tmp, 'home-'));
+  fs.writeFileSync(path.join(dir, 'inputs.json'), JSON.stringify({ qory }));
+  return dir;
+};
+// The harness home of the sign-in tests, with no lists in inputs.json, so that no harness home
+// of the environment of the tests adds a list. The serve command gets APP_SECRET, the
+// password of the app, since no list has its name.
+const APP_HOME = harnessHome({});
 
 // A browser of this machine for the sign-in tests: one that the preflight looks for, else the
 // Chrome of macOS.
@@ -56,22 +68,24 @@ const P01 = {
   fix: 'Add a browser to .devcontainer/devcontainer.json, then run another round.',
 };
 const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
-const P03_FIX = 'Ask an owner or admin of your organisation to correct the app\'s sign-in ' +
-  'variables in Workspace settings > Secrets and variables, then run another round.';
+const P03_FIX = 'Ask an owner or admin of your organisation to add each sign-in variable with ' +
+  'the prefix AGENT_ in Workspace settings > Secrets and variables > Variables, then run ' +
+  'another round.';
 const P03_SETUP_FIX = 'Make the sign-in of the app work with the variables set, then run ' +
   'another round.';
 const p03SetupText = (names) => `The sign-in of the app failed with the values of ${names} ` +
   'set in the workspace\'s variables.';
-const p03Text = (names) => `The run could not sign in to the app with the values of ${names} ` +
-  'in the workspace\'s variables.';
+const p03Text = (names) => 'The run could not sign in to the app: the workspace has no ' +
+  `AGENT_ variable with a value for ${names}.`;
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
 // to the form of another origin, the port OTHER_PORT, /link and /framed show a link to it and
 // a frame of it, /clock shows "Start" and, 1.5 s after its load, "Done", /popup posts the
 // form to it in a new window, /popup-same opens /orders in a new window at the submit, /leak
-// sends the password as a host name of that port at the submit, and /alert shows the form with
-// an alert at its load and at each key. The other origin adds a line to the file OTHER_LOG for each request.
+// sends the password as a host name of that port at the submit, and /alert shows the form
+// with an alert at its load and at each key. The other origin adds a line to the file
+// OTHER_LOG for each request.
 const APP = `
 const fs = require('fs');
 const http = require('http');
@@ -339,8 +353,8 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   checks(kept);
   const names = preflight.pointOf('signIn', 'DEMO__PASSWORD', { agents: new Set(),
     rules: LIBRARY.pointRules() });
-  assert.equal(names.text, 'The run could not sign in to the app with the values of the ' +
-    'sign-in variables of the demo scripts in the workspace\'s variables.');
+  assert.equal(names.text, 'The run could not sign in to the app: the workspace has no AGENT_ ' +
+    'variable with a value for the sign-in variables of the demo scripts.');
   assert.equal(names.fix, P03_FIX);
   checks(names);
   const setup = preflight.pointOf('signInSetup', 'DEMO__PASSWORD', { agents: new Set(),
@@ -473,7 +487,8 @@ async function signIn(setup, value, more = {}) {
   const other = await freePort();
   const otherLog = path.join(here.dir, 'other.log');
   fs.writeFileSync(otherLog, '');
-  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41', OTHER_PORT: String(other),
+  const env = { APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME, OTHER_PORT: String(other),
     OTHER_LOG: otherLog, ...more };
   if (value !== undefined) env.DEMO_PASSWORD = value;
   else env.DEMO_PASSWORD = '';
@@ -563,12 +578,16 @@ const outsidePoint = (address, origin) => ({
     'another round.',
 });
 
+// The fix of the key stop that the tests of runScript pass, as film passes it.
+const KEY_FIX = 'Remove the key from the demo scripts, then run film scenario-1 again.';
+
 // runScript runs a demo script whose setup is SIGN_IN and whose first step has actions, with the
 // value of DEMO_PASSWORD, on the app, as demo run does.
 async function runSteps(actions, value) {
   const here = checkout();
   const port = await freePort();
   const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: value };
   const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env,
     preflight: { browsers: [BROWSER], startMs: 10000, actionMs: 3000, signedInMs: 3000,
@@ -577,7 +596,7 @@ async function runSteps(actions, value) {
   one.steps = actions.map((list, place) => ({ step: place + 1, title: 'Step.', expected: 'Seen.',
     actions: list }));
   return preflight.runScript(io, here.root, { serve: { command: 'node app/server.cjs',
-    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one });
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one, keyFix: KEY_FIX });
 }
 
 test('runScript: a script whose setup and steps pass runs once and passes',
@@ -602,9 +621,22 @@ test('runScript: with no browser on the machine, it runs nothing', () => {
   const here = checkout();
   const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
     preflight: { browsers: [path.join(tmp, 'no-browser')] } };
-  const got = preflight.runScript(io, here.root, { serve: { command: 'true',
-    url: 'http://127.0.0.1:9/', cwd: here.dir }, script: script('scenario-1', SIGN_IN) });
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:9/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN) };
+  const got = preflight.runScript(io, here.root, { ...given, keyFix: KEY_FIX });
   assert.deepEqual(got, { browser: null });
+});
+
+test('runScript: a call without keyFix throws an Error that names keyFix', () => {
+  const here = checkout();
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
+    preflight: { browsers: [path.join(tmp, 'no-browser')] } };
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:9/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN) };
+  for (const keyFix of [undefined, '']) {
+    assert.throws(() => preflight.runScript(io, here.root, { ...given, keyFix }),
+      (error) => error.constructor === Error && error.message === 'runScript needs keyFix');
+  }
 });
 
 test('preflight: a sign-in that opens another site writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
@@ -778,7 +810,7 @@ test('preflight: a command that starts the app in the background and exits 0 pas
   assert.equal(await isFree(port), true);
 });
 
-test('preflight: the serve command gets no key of the run and no typed value in its environment', async () => {
+test('preflight: serve gets every variable but the credentials and typed ones', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   const here = checkout();
   const port = await freePort();
@@ -789,16 +821,24 @@ test('preflight: the serve command gets no key of the run and no typed value in 
     { setups: [{ actions: SIGN_IN, names: ['DEMO_PASSWORD'] }] });
   spec.serve.command = `node -e 'require("fs").writeFileSync(${JSON.stringify(names)}, ` +
     `JSON.stringify(Object.keys(process.env)))'; ${spec.serve.command}`;
+  // A name of the credential list of the run, such as ACME_HOST of ACME_*, does not reach the
+  // app. A name of a secret that no list has, such as one of a cloud vendor, reaches it.
+  spec.credentials = [...runLists.FLOOR, 'ACME_*'];
   const keys = { GITHUB_TOKEN: 'ghp_fake-value-0001', GH_TOKEN: 'fake-value-0002',
     QORY_RUN_KEY: 'fake-value-0003', ANTHROPIC_API_KEY: 'fake-value-0004',
-    GITLAB_TOKEN: 'fake-value-0005' };
-  const ran = await runner(spec, { env: { ...keys, DEMO_PASSWORD: 'parcel-blue-41',
+    GITLAB_TOKEN: 'fake-value-0005', ACME_HOST: 'fake-value-0010' };
+  const passed = { AWS_SECRET_ACCESS_KEY: 'fake-value-0006', AWS_SESSION_TOKEN: 'fake-value-0007',
+    GOOGLE_APPLICATION_CREDENTIALS: '/tmp/fake-0008.json', APP_SECRET: 'fake-value-0009',
+    DATABASE_PASSWORD: 'fake-value-0012' };
+  const ran = await runner(spec, { env: { ...keys, ...passed, DEMO_PASSWORD: 'parcel-blue-41',
     APP_NOTE: 'plain' } });
   assert.equal(ran.status, 0);
   assert.equal(JSON.parse(ran.out).app.started, true, ran.out);
   const given = JSON.parse(fs.readFileSync(names, 'utf8'));
   // A variable of the workspace that no setup types reaches the app.
-  for (const name of ['APP_NOTE', 'PATH', 'QORY_CHECK_MARK']) assert.ok(given.includes(name), name);
+  for (const name of ['APP_NOTE', 'PATH', 'QORY_CHECK_MARK', ...Object.keys(passed)]) {
+    assert.ok(given.includes(name), name);
+  }
   for (const name of ['DEMO_PASSWORD', ...Object.keys(keys)]) {
     assert.equal(given.includes(name), false, name);
   }
@@ -825,6 +865,37 @@ test('preflight: the serve command gets no variable that a step of a demo script
   assert.equal(given.includes('DEMO_CODE'), false);
   assert.ok(given.includes('APP_NOTE'));
   assert.equal(await isFree(port), true);
+});
+
+// servedNames runs the preflight with APP_SECRET set and the members of qory in inputs.json,
+// and returns the names of the environment of the serve command.
+async function servedNames(qory) {
+  const here = checkout();
+  const port = await freePort();
+  const names = path.join(here.dir, 'names.json');
+  const done = run(here, { serve: { command: `node -e 'require("fs").writeFileSync(` +
+    `${JSON.stringify(names)}, JSON.stringify(Object.keys(process.env)))'; node app/server.cjs`,
+  url: `http://127.0.0.1:${port}/`, cwd: here.dir },
+  scripts: [script('scenario-1', [{ do: 'open', url: '/sign-in' }])] },
+  { browsers: [process.execPath], env: { APP_PORT: String(port), APP_SECRET: 'fake-value-0011',
+    QORY_HARNESS_HOME: harnessHome(qory) } });
+  assert.deepEqual(done.findings, []);
+  assert.equal(await isFree(port), true);
+  return JSON.parse(fs.readFileSync(names, 'utf8'));
+}
+
+test('preflight: serve gets a name of a secret with no list in inputs.json', async () => {
+  assert.ok((await servedNames({})).includes('APP_SECRET'));
+});
+
+test('preflight: a name of qory.credential_variables does not reach the app', async () => {
+  assert.equal((await servedNames({ credential_variables: ['APP_SECRET'] }))
+    .includes('APP_SECRET'), false);
+});
+
+test('preflight: qory.run_secret_names is not read, even with the entry *', async () => {
+  // servedNames requires no finding, so a reader of the member would stop the preflight.
+  assert.ok((await servedNames({ run_secret_names: ['*'] })).includes('APP_SECRET'));
 });
 
 test('preflight: a FIFO or a symbolic link at the log of the serve command is replaced by a new file', async () => {
@@ -1270,6 +1341,28 @@ test('preflight: halt stops a child of the browser that keeps stderr open, and t
   }
 });
 
+test('preflight: a demo script that types a credential name exits 3, and a bad entry too', () => {
+  const home = (list) => harnessHome({ credential_variables: list });
+  const here = checkout();
+  const setup = [...SIGN_IN.slice(0, 2),
+    { do: 'type', target: '#password', variable: 'ACME_HOST' }];
+  const parts = { serve: { command: 'node app/server.cjs', url: 'http://127.0.0.1:9/',
+    cwd: here.dir }, scripts: [script('scenario-1', setup)] };
+  assert.throws(() => run(here, parts, { browsers: [process.execPath],
+    env: { QORY_HARNESS_HOME: home(['ACME_*']) } }), (error) => {
+    assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
+    assert.deepEqual(error.more, ['A setup types ACME_HOST, which is a secret of this run.']);
+    return true;
+  });
+  assert.throws(() => run(here, parts, { browsers: [process.execPath],
+    env: { QORY_HARNESS_HOME: home(['ACME_*', '*']) } }), (error) => {
+    assert.equal(error.message, 'Fix qory.credential_variables in inputs.json.');
+    assert.deepEqual(error.more, ['"*" is no variable name or prefix.']);
+    return true;
+  });
+  assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
+});
+
 test('preflight: a demo script that types a key of qory, of an agent or of a code forge exits 3 before the app starts', async () => {
   const { runKey } = require(path.join(SKILL, 'lib/secrets.cjs'));
   assert.deepEqual(['QORY_RUN_KEY', 'ANTHROPIC_API_KEY', 'CLAUDE_CODE_OAUTH_TOKEN',
@@ -1284,9 +1377,8 @@ test('preflight: a demo script that types a key of qory, of an agent or of a cod
     url: 'http://127.0.0.1:9/', cwd: here.dir }, scripts: [script('scenario-1', setup)] },
   { browsers: [process.execPath] }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
-    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of qory, of an ' +
-      'agent or of a code forge.',
-    'Cause: a demo script types ANTHROPIC_API_KEY, which the run keeps from scripts.']);
+    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, which is a secret of this ' +
+      'run.']);
     return true;
   });
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1362,6 +1454,7 @@ test('demo run: a script that passes prints its sha256, and a step that fails ge
   const port = await freePort();
   const pinned = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
   const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
@@ -1450,10 +1543,9 @@ test('preflight verb: each input that is missing or broken, and a runner with no
   const key = call(['preflight', '--artifacts', pinnedPlan(address, 'node app/server.cjs')],
     deps);
   assert.equal(key.status, 3, key.out + key.err);
-  assert.equal(key.out.split('\n')[0], 'Remove the key from the demo scripts, then run ' +
-    'preflight again.');
-  assert.equal(causeOf(key.out), 'Cause: a demo script types QORY_RUN_KEY, which the run keeps ' +
-    'from scripts.');
+  assert.equal(key.out, 'Remove the key from the demo scripts, then run preflight again.\n' +
+    '  A setup types QORY_RUN_KEY, which is a secret of this run.\n' +
+    'Checked nothing: the preflight could not read its input.\n');
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
   demoScript(here.root);
   // A runner of the app that prints no result, here a node that cannot start, exits 3, with
@@ -1867,6 +1959,7 @@ async function filming(scripts) {
   const port = await freePort();
   const plan = pinnedPlan([`App address: \`http://127.0.0.1:${port}/\``], 'node app/server.cjs');
   const env = { ...process.env, APP_PORT: String(port), APP_SECRET: 'parcel-blue-41',
+    QORY_HARNESS_HOME: APP_HOME,
     DEMO_PASSWORD: 'parcel-blue-41' };
   const deps = { cwd: here.dir, artifacts: [here.root], env, preflight: { browsers: [BROWSER],
     startMs: 10000, actionMs: 3000, signedInMs: 3000, browserMs: BROWSER_MS } };
@@ -2325,7 +2418,8 @@ fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' }
   const here = checkout();
   const io = { env: process.env, preflight: { browsers: [process.execPath], runner: fake } };
   const given = { serve: { command: 'true', url: 'http://127.0.0.1:1/', cwd: here.dir },
-    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir } };
+    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir },
+    keyFix: KEY_FIX };
   const done = preflight.runScript(io, here.root, given);
   assert.equal(done.run.capture.frames.length, 40000);
   assert.ok(JSON.stringify(done.run.capture).length > 1024 * 1024);

@@ -417,19 +417,106 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
     'Check the sign-in against the app, then run film scenario-1 again.',
     '  action 2 (type into #password) failed: the sign-in did not finish.',
     '  Kind: setup', 'Stored no film: it failed in the sign-in.']);
-  for (const step of [0, 1]) {
+  // A name of 31 characters stays whole, and the first line, the fix, stays within 100. A
+  // longer one, up to the 64 characters that the schema allows, is cut to 28 and ...: the
+  // line of 100 characters. The line "the variable <name> has no value" keeps the whole name.
+  const long = `SHOP_${'X'.repeat(17)}_PASSWORD`;
+  const longer = `SHOP_${'X'.repeat(18)}_PASSWORD`;
+  const longest = `SHOP_${'X'.repeat(50)}_PASSWORD`;
+  assert.deepEqual([long.length, longer.length, longest.length], [31, 32, 64]);
+  for (const [step, name] of [[0, 'SHOP_PASSWORD'], [1, 'SHOP_PASSWORD'], [0, long],
+    [0, longer], [0, longest]]) {
     const missing = failing(script('scenario-1'), { ok: false, step, why: 'action 2 (type into ' +
-      '#password) failed: the variable SHOP_PASSWORD has no value', outside: null,
-    variable: 'SHOP_PASSWORD' }, { film: { frames: 2, starts: [0], end: 1040 } });
+      `#password) failed: the variable ${name} has no value`, outside: null,
+    variable: name }, { film: { frames: 2, starts: [0], end: 1040 } });
     const out = call(['film', 'scenario-1', '--artifacts', missing.plan], missing.deps);
     assert.equal(out.status, 1, out.out + out.err);
     const lines = out.out.trim().split('\n');
-    assert.equal(lines[0], 'Add "SHOP_PASSWORD" in Workspace settings > Secrets and variables.');
+    const shown = name.length > 31 ? `${name.slice(0, 28)}...` : name;
+    assert.equal(lines[0], `Add AGENT_${shown} in Workspace settings > Secrets and variables > ` +
+      'Variables.');
     assert.equal(lines[1], '  Then run film scenario-1 again.');
-    assert.ok(lines[0].length <= 100);
+    assert.equal(lines[2], `  action 2 (type into #password) failed: the variable ${name} has ` +
+      'no value.');
+    assert.equal(lines[0].length, 69 + shown.length);
+    assert.ok(lines[0].length <= 100, lines[0]);
     assert.equal(lines.at(-2), '  Kind: outside');
     assert.equal(fs.existsSync(missing.film), false);
   }
+});
+
+test('film: the fix with the whole name of 64 characters passes the check of points', () => {
+  // The session takes the name from the line "the variable <name> has no value", since the
+  // first line of film cuts a name of more than 31 characters to 28 and ..., and "... in"
+  // ends a sentence for the check.
+  const name = `SHOP_${'X'.repeat(50)}_PASSWORD`;
+  const here = checkout([script('scenario-1')]);
+  const file = path.join(here.root, 'points.json');
+  const check = (shown) => {
+    fs.writeFileSync(file, JSON.stringify([{ action: 'run_again',
+      text: 'The run could not film the order scenario, because the workspace lacks a ' +
+        'sign-in variable.',
+      fix: `Add AGENT_${shown} in Workspace settings > Secrets and variables > Variables, ` +
+        'then run another round.' }]));
+    return call(['check', 'points', file], here.deps);
+  };
+  const whole = check(name);
+  assert.equal(whole.status, 0, whole.out + whole.err);
+  const cut = check(`${name.slice(0, 28)}...`);
+  assert.equal(cut.status, 1);
+  assert.equal(cut.out.split('\n')[1], '  The text has 2 sentences.');
+});
+
+// keyRunner returns a runner that writes the file started when it starts, for the tests of a
+// script that types a key, where no runner starts.
+function keyRunner(started) {
+  const file = `${next('runner')}.cjs`;
+  fs.writeFileSync(file, `require('fs').writeFileSync(${JSON.stringify(started)}, 'x');\n`);
+  return file;
+}
+
+test('film and demo run: a step that types a credential exits 3 before the app', () => {
+  const one = script('scenario-1');
+  one.steps[0].actions = [{ do: 'type', target: '#token', variable: 'GITHUB_TOKEN' }];
+  const here = checkout([one]);
+  const started = path.join(here.dir, 'started.txt');
+  const deps = { ...here.deps, env: { ...here.deps.env, GITHUB_TOKEN: 'ghp_fake-value-0001' },
+    preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
+  const cause = '  A demo script types GITHUB_TOKEN, which is a secret of this run.';
+  const film = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(film.status, 3, film.out + film.err);
+  assert.equal(film.out, 'Remove the key from the demo scripts, then run film scenario-1 ' +
+    `again.\n${cause}\nChecked nothing: the film could not read its input.\n`);
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'scenario-1')), false);
+  // demo run of the draft of the same script.
+  fs.mkdirSync(path.join(here.root, '.demo'), { recursive: true });
+  fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
+  const draft = call(['demo', 'run', 'scenario-1', '--artifacts', here.plan], deps);
+  assert.equal(draft.status, 3, draft.out + draft.err);
+  assert.equal(draft.out, 'Remove the key from .demo/scenario-1.actions.json, then run demo ' +
+    `write scenario-1.\n${cause}\nChecked nothing: the demo could not read its input.\n`);
+  assert.equal(fs.existsSync(started), false);
+  for (const text of [film.out, film.err, draft.out, draft.err]) {
+    assert.equal(text.includes('ghp_fake'), false, text);
+  }
+});
+
+test('film pages: a setup that types a credential exits 3 before the app', () => {
+  const one = script('scenario-1');
+  one.setup = [{ do: 'open', url: '/sign-in' },
+    { do: 'type', target: '#token', variable: 'GITHUB_TOKEN' }];
+  const here = checkout([one]);
+  const started = path.join(here.dir, 'started.txt');
+  const deps = { ...here.deps, env: { ...here.deps.env, GITHUB_TOKEN: 'ghp_fake-value-0001' },
+    preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
+  const done = call(['film', 'pages', '/orders', '--artifacts', here.plan], deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.equal(done.out, 'Remove the key from the demo scripts, then run film pages again.\n' +
+    '  A setup types GITHUB_TOKEN, which is a secret of this run.\n' +
+    'Checked nothing: the film could not read its input.\n');
+  assert.equal(fs.existsSync(started), false);
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'pages')), false);
+  assert.equal((done.out + done.err).includes('ghp_fake'), false);
 });
 
 test('film: a title with --> is a fault of the script at its step, with no film', () => {
@@ -574,7 +661,7 @@ test('preflight: a sign-in that fails with every variable set is setup, and one 
   assert.deepEqual(pointFixes, ['Make the sign-in of the app work with the variables set, ' +
     'then run another round.']);
   assert.deepEqual(kinds([lacking, lacking]), ['Kind: outside']);
-  assert.match(pointFixes[0], /^Ask an owner or admin .* correct the app's sign-in variables/);
+  assert.match(pointFixes[0], /^Ask an owner or admin .* sign-in variable with the prefix AGENT_/);
   // One call with both kinds has one finding and one point for each kind, and the session
   // keeps the outside one.
   assert.deepEqual(kinds([lacking, wrong]).sort(), ['Kind: outside', 'Kind: setup']);

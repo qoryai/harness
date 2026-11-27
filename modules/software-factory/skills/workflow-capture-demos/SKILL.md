@@ -87,9 +87,9 @@ types. Start no agent that is not `demo-reviewer`.
    - With 5, the run failed in step `<k>` after it recorded the steps before it, and `film`
      kept them. Go on to step 2, then do "The review" with the first line of the output as
      the failure of step `<k>`.
-   - With 1 and "Kind: outside" on a line of the output, a variable that the workspace lacks
-     failed the sign-in or a step: do "An outside cause". Take the person's action from its
-     first line.
+   - With 1 and "Kind: outside" on a line of the output, the workspace lacks the `AGENT_`
+     variable of a name that the sign-in or a step types: do "An outside cause". Take the
+     person's action from its first line.
    - With 1 and "Kind: setup" on a line of the output, the sign-in failed with every
      variable set: do "A setup fault" with the first two lines of the output.
    - With 1 and the last line "Stored no film: it failed in step <k>." or "Stored no
@@ -194,8 +194,8 @@ no criterion rests on reaches Build only through a later round.
 ## An outside cause
 
 An outside cause is a failure that no change to the repository repairs: the dev container
-has no browser or no ffmpeg, ffmpeg runs out of time, the disk is full,
-or the workspace lacks a secret or variable that a demo script types. The script marks it
+has no browser or no ffmpeg, ffmpeg runs out of time, the disk is full, or the workspace
+lacks `AGENT_<name>` for a variable `<name>` that a demo script types. The script marks it
 with the line "Kind: outside".
 
 A first line that starts with "Give the dev container more" is an ffmpeg timeout or a full
@@ -207,8 +207,10 @@ go on. When it fails again, do the steps below.
    one `run_again` point. Its `text` is "The run could not film <ids>, because <the cause in
    plain words>." Its `fix` is the action of the person: the first line of the output up to
    the comma or its final period, then ", then run another round.", such as "Add ffmpeg to
-   the dev container, then run another round." or "Add "<name>" in Workspace settings >
-   Secrets and variables, then run another round."
+   the dev container, then run another round." or "Add AGENT_<name> in Workspace settings >
+   Secrets and variables > Variables, then run another round." For the fix "Add
+   AGENT_<name>", take `<name>` whole from the line of the output with "the variable <name>
+   has no value": the first line cuts a name of more than 31 characters to 28 and `...`.
 2. Run `<skill folder>/checks.cjs check points <folder>/points.json`. With 1, correct the
    lines it prints, at most twice.
 3. Run `<qory> run verdict escalate --points <folder>/points.json`, and end with the text

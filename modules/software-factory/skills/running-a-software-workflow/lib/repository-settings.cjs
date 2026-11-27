@@ -51,6 +51,7 @@ const TYPES = ['object', 'array', 'string', 'integer', 'boolean'];
 const isCount = (value) => Number.isInteger(value) && value >= 0;
 const FORMS = {
   $schema: [(value) => typeof value === 'string', 'text'],
+  $id: [(value) => typeof value === 'string', 'text'],
   title: [(value) => typeof value === 'string', 'text'],
   description: [(value) => typeof value === 'string', 'text'],
   type: [(value) => TYPES.includes(value), `one of ${TYPES.join(', ')}`],
@@ -190,22 +191,28 @@ function unlisted(key, path, known) {
 }
 
 // visit adds to out the findings of node, the value at path, against schema. keys, when
-// given, lists the only keys of the root to read.
+// given, lists the only keys of the root to read. When out has the list paths, each finding
+// adds to it the path of the value that it is about: of the object for a member that the
+// schema does not list.
 function visit(part, node, path, out, keys) {
   const at = where(path);
+  const put = (text, of = path) => {
+    out.push(text);
+    if (out.paths) out.paths.push(of);
+  };
   const kind = typeOf(node);
   const root = path.length === 0;
   if (part.type) {
     const whole = part.type === 'integer' && kind === 'number';
     const fits = part.type === kind || whole;
     if (whole) {
-      out.push(finding(`Round ${at} to a whole number.`, `It is ${shown(node)}.`));
+      put(finding(`Round ${at} to a whole number.`, `It is ${shown(node)}.`));
       return;
     }
     if (!fits) {
       const words = root && part.type === 'object' ? 'a map' : WORDS[part.type];
       const is = root && kind === 'object' ? 'a map' : WORDS[kind];
-      out.push(finding(`Write ${at} as ${words}.`, `It is ${is}.`));
+      put(finding(`Write ${at} as ${words}.`, `It is ${is}.`));
       return;
     }
   }
@@ -214,34 +221,34 @@ function visit(part, node, path, out, keys) {
     let short = false;
     if (part.minLength !== undefined && count < part.minLength) {
       short = true;
-      out.push(finding(`Write ${at} as text of at least ${plural(part.minLength, 'character')}.`,
+      put(finding(`Write ${at} as text of at least ${plural(part.minLength, 'character')}.`,
         `It has ${plural(count, 'character')}.`));
     }
     if (part.pattern && !short && !new RegExp(part.pattern, 'u').test(node)) {
       if (part.pattern === ONE_LINE) {
-        out.push(finding(`Write ${at} on one line.`,
+        put(finding(`Write ${at} on one line.`,
           `It has a line break, tab, control or invisible character: ${shown(node)}.`));
       } else {
         // The file goes on the first line when that keeps at most LINE characters, else on the
         // line after it.
         const full = `Write ${at} so that it matches the pattern in extensions.schema.json.`;
         const fits = [...full].length <= LINE;
-        out.push(finding(fits ? full : `Write ${at} so that it matches its pattern.`,
+        put(finding(fits ? full : `Write ${at} so that it matches its pattern.`,
           `${fits ? '' : 'The pattern is in extensions.schema.json. '}It is ${shown(node)}.`));
       }
     }
   }
   if (kind === 'integer') {
     if (part.minimum !== undefined && node < part.minimum) {
-      out.push(finding(`Set ${at} to at least ${part.minimum}.`, `It is ${node}.`));
+      put(finding(`Set ${at} to at least ${part.minimum}.`, `It is ${node}.`));
     }
     if (part.maximum !== undefined && node > part.maximum) {
-      out.push(finding(`Set ${at} to at most ${part.maximum}.`, `It is ${node}.`));
+      put(finding(`Set ${at} to at most ${part.maximum}.`, `It is ${node}.`));
     }
   }
   if (kind === 'array') {
     if (part.minItems !== undefined && node.length < part.minItems) {
-      out.push(finding(`Give ${at} at least ${plural(part.minItems, 'entry', 'entries')}.`,
+      put(finding(`Give ${at} at least ${plural(part.minItems, 'entry', 'entries')}.`,
         `It has ${plural(node.length, 'entry', 'entries')}.`));
     }
     if (part.items) {
@@ -252,14 +259,15 @@ function visit(part, node, path, out, keys) {
   if (kind === 'object') {
     for (const key of part.required || []) {
       if (!Object.hasOwn(node, key)) {
-        out.push(finding(`Add the member ${key} to ${at}.`, 'The schema requires it.'));
+        put(finding(`Add the member ${key} to ${at}.`, 'The schema requires it.'),
+          [...path, key]);
       }
     }
     const properties = part.properties || {};
     const known = Object.keys(properties);
     for (const key of Object.keys(node)) {
       if (!Object.hasOwn(properties, key)) {
-        if (!keys && part.additionalProperties === false) out.push(unlisted(key, path, known));
+        if (!keys && part.additionalProperties === false) put(unlisted(key, path, known));
       } else if (!keys || keys.includes(key)) {
         visit(properties[key], node[key], [...path, key], out);
       }
@@ -278,6 +286,16 @@ function check(settings, keys, loaded = LOADED) {
   const out = [];
   visit(loaded.schema, settings, [], out, keys);
   return out;
+}
+
+// paths returns the path of the value of each finding of check for value against loaded, a
+// list of keys and places that count from 0, for a file that is no setting of qory.yaml, such
+// as key-shapes.json, whose finding names the place in the file and not a setting.
+function paths(value, loaded) {
+  const out = [];
+  out.paths = [];
+  visit(loaded.schema, value, [], out);
+  return out.paths;
 }
 
 // readJson returns the parsed JSON of file, or { problem } with the reason that it cannot be
@@ -371,5 +389,5 @@ function ofModule(extensions, source) {
 }
 
 module.exports = {
-  INPUTS, REPORT, PLACE, LOADED, check, loadSchema, read, readQory, setting, kindOf, isMap,
+  INPUTS, REPORT, PLACE, LOADED, check, loadSchema, paths, read, readQory, setting, kindOf, isMap,
 };

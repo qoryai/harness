@@ -666,6 +666,28 @@ test('check and push: the check verb needs --inputs, and a push runs no proof', 
   assert.equal(pushed.status, 0, pushed.out + pushed.err);
 });
 
+test('check: the proof of the fast track reads the harness home of the verb\'s env', () => {
+  const run = scene(BASE);
+  commit(run.dir, { 'docs/hours.md': 'Open from 9 to 20.\n' });
+  const folder = session(run);
+  const file = path.join(folder, 'pull-request.json');
+  fs.writeFileSync(file, JSON.stringify(delivered()));
+  const check = (env) => call(run.dir, ['check', 'pull-request', '--inputs', run.inputs(), file],
+    { artifacts: [folder], env });
+  passes(check(ENV));
+  // A harness home whose qory.key_shapes names no file, given only through the env of the
+  // verb: the proof and the scan of the text both stop on it.
+  const home = path.join(tmp, `home-${++count}`);
+  fs.mkdirSync(home);
+  fs.writeFileSync(path.join(home, 'inputs.json'),
+    JSON.stringify({ qory: { key_shapes: 'missing.json' } }));
+  const got = check({ ...ENV, QORY_HARNESS_HOME: home });
+  assert.equal(got.status, 1, got.out + got.err);
+  const fix = 'Start the run again with qory, which writes key-shapes.json: the scan for keys ' +
+    'cannot run.';
+  assert.equal(got.out.split('\n').filter((line) => line === fix).length, 2, got.out);
+});
+
 test('end: a pull request that equals its stored version is still checked, with its proof', () => {
   // The output file in the outbox is the draft, whatever the stored versions hold.
   const run = scene(BASE);

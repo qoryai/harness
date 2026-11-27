@@ -447,11 +447,13 @@ module.exports = (lib) => {
       // shortcut: with an empty start_artifacts, end reads its proposal from the outbox, which
       // has none, so it runs no fast-track proof, replace when end reads the artifact folder of
       // the session.
+      // The environment of the verb, which checkFiles gives the context, not process.env.
+      const { env } = context;
       let source = context;
       const start = context.inputs
-        ? starts.readStart(context.workingFolder, context.inputs, process.env) : null;
+        ? starts.readStart(context.workingFolder, context.inputs, env) : null;
       if (start && start.artifacts) {
-        source = new Context(start.artifacts, 'check', process.env.HOME, start.artifacts);
+        source = new Context(start.artifacts, 'check', env.HOME, start.artifacts);
         source.inputs = context.inputs;
         source.workingFolder = context.workingFolder;
       }
@@ -468,7 +470,7 @@ module.exports = (lib) => {
         run.find('Propose the standard track: ## Track names no kind of the fast track.');
         return;
       }
-      const done = prove({ cwd: context.workingFolder, env: process.env, inputs: context.inputs,
+      const done = prove({ cwd: context.workingFolder, env, inputs: context.inputs,
         kind: track.kind, lists: track.lists, parsers: { leave: true } });
       for (const one of done.findings) run.find(one);
       // The push step proves the files that need a parser that this machine lacks.

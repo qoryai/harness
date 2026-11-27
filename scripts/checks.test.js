@@ -6759,6 +6759,14 @@ test('reply phrases: a call of checkFiles without phraseFiles is a fault of the 
     { message: /^Fix the call of checkFiles for notes: give place\.phraseFiles\.\nGive null / });
 });
 
+test('checkFiles: a call without env, or with a null env, is a fault of the harness', () => {
+  const { checkFiles: filesOf } = require(path.join(path.dirname(SCRIPT), 'lib', 'drafts.cjs'));
+  for (const place of [{ phraseFiles: null }, { phraseFiles: null, env: null }]) {
+    assert.throws(() => filesOf('check', tmp, { type: 'notes' }, [], tmp, null, tmp, null, place),
+      { message: 'Fix the call of checkFiles for notes: give place.env, the io.env of the verb.' });
+  }
+});
+
 test('reply phrases: the checks of setext headings and of a paragraph', () => {
   const notes = phrasePlugin("uncheckedSections: ['Sources']");
   // A --- after a blank line, after a list item or after another --- is no underline.
@@ -10182,7 +10190,8 @@ test('end: the header of a draft counts the findings that follow, and the lines 
     check() { throw error; },
     verdict: () => ['Record the verdict again.'] });
   const lines = (error) => endDrafts(root, tmp, [def(error)],
-    { verdict: () => ({ verdict: 'passed' }), place: { phraseFiles: [] } }).map((one) => one.line);
+    { verdict: () => ({ verdict: 'passed' }), place: { phraseFiles: [], env: {} } })
+    .map((one) => one.line);
   const header = (count) => `Fix the ${count} findings of the acceptance-criteria draft in the ` +
     `lines after this one:\nThe acceptance-criteria draft has 6 files: ${names.join(', ')}.`;
   // A Missing with lines after its first line: they are no findings, but the cause of the

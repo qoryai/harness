@@ -70,6 +70,16 @@ module.exports = (lib) => {
     return text;
   }
 
+  // keyValues returns the values of scanValues of lib/secrets.cjs for io, with the key shapes,
+  // for the scan for keys of scope and freeze. It throws the Missing of an inputs.json or a
+  // qory.key_shapes that cannot be used: no scan runs without the shapes that the deployment
+  // adds.
+  function keyValues(io) {
+    const got = secrets.scanValues(io.env);
+    if (got.problem) throw new Missing(got.problem[0], [got.problem[1]]);
+    return got.values;
+  }
+
   // options returns { step, plan, base, inputs, artifacts } of the arguments of scope or
   // freeze, each option undefined when it is not given, or { problem }, the line of wrong
   // arguments.
@@ -282,6 +292,8 @@ module.exports = (lib) => {
     const fast = fastTrack(io, given);
     if (fast) return scopeFast(io, given, fast);
     const found = inScope(io, 'scope', given);
+    // Without a base no commit is scanned, but a bad file of key shapes still stops scope.
+    keyValues(io);
     const keys = found.base ? scanHistory(io, found.work.top, found.base, 'scope') : null;
     const red = found.outside.length || found.work.excluded || (keys && keys.lines.length);
     // A passing call prints one line of at most 100 characters.
@@ -335,19 +347,22 @@ module.exports = (lib) => {
   // commit, when set, is the commit that tree belongs to, for the words of a line, and verb
   // the verb that the fix runs again.
   function scan(io, top, from, tree, commit, verb = 'freeze') {
-    const values = secrets.secretValues(io.env);
+    const values = keyValues(io);
     const files = treeChanges(io, top, from, tree).filter((one) => !/^0+$/.test(one.mode));
     const size = sizes(io, top, files.filter((one) => one.mode !== GITLINK)
       .map((one) => one.blob));
     const empty = files.length ? git.emptyBlob(Missing, top, io.env) : null;
     const lines = [];
     const short = commit && commit.slice(0, 12);
-    // Each line is the fix alone: qory pushes every commit, and a key in a commit leaks, as
+    // Each line is the fix alone, with the kind of key on the line after it when the fix would
+    // pass 100 characters: qory pushes every commit, and a key in a commit leaks, as
     // running-checks (SKILL.md) states.
-    const fix = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
+    const line = (kind, where) => (commit ? `Rewrite commit ${short} without ${kind} in ${where}.`
       : `Remove ${kind} from ${where}, then ${verb} again.`);
-    const fixAt = (kind, name, line) => fitted(name, (quoted) => fix(kind,
-      `${quoted}, line ${line}`));
+    const fix = (kind, where) => secrets.fitKind((one) => line(one, where), kind);
+    // The name is cut so that the line keeps the kind, down to 6 characters of the name.
+    const fixAt = (kind, name, at) => secrets.fitKind((one) => fitted(name, (quoted) => line(one,
+      `${quoted}, line ${at}`)), kind);
     for (const { file: name, utf8, mode, blob, oldMode, oldBlob } of files) {
       const kind = secrets.scanLine(name, values);
       if (kind) {
@@ -399,7 +414,7 @@ module.exports = (lib) => {
   // encoding header other than UTF-8, such as UTF-16, is a line too: the scan reads UTF-8,
   // and a key in another encoding has other bytes. verb is the verb that the fix runs again.
   function scanCommit(io, top, commit, verb) {
-    const values = secrets.secretValues(io.env);
+    const values = keyValues(io);
     const bytes = git.ok(Missing, top, ['cat-file', 'commit', commit], `Run ${verb} again`,
       { env: io.env, raw: true });
     const text = bytes.toString('utf8');
@@ -413,8 +428,8 @@ module.exports = (lib) => {
     // A key in two headers, such as the author and the committer, results in one line.
     return [...new Set(text.split('\n').flatMap((line) => {
       const kind = secrets.scanLine(line, values);
-      return kind ? [`Rewrite the message and headers of commit ${commit.slice(0, 12)} without ` +
-        `${kind}.`] : [];
+      return kind ? [secrets.fitKind((one) => 'Rewrite the message and headers of commit ' +
+        `${commit.slice(0, 12)} without ${one}.`, kind)] : [];
     }))];
   }
 
@@ -423,6 +438,8 @@ module.exports = (lib) => {
   // count of findings for the summary line. Past MOST_COMMITS commits, the one line has the
   // fix and its cause, and count is 2, one for each.
   function scanHistory(io, top, base, verb) {
+    // The stop of a bad file of key shapes applies also when no commit is there to scan.
+    keyValues(io);
     const commits = git.unpushed(Missing, top, io.env, base, MOST_COMMITS);
     if (commits.length > MOST_COMMITS) {
       return { commits: commits.length, count: 2, lines: base

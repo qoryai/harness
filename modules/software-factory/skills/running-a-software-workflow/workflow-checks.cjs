@@ -47,6 +47,8 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+const secrets = require('./lib/secrets.cjs');
+
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
@@ -64,6 +66,11 @@ const BUILD_AND_VERIFY = [
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 
+// The point of the end check for an inputs.json or a qory.key_shapes that cannot be used, when
+// the run ends with it.
+const KEY_SHAPES_POINT = 'The run could not check its changes for keys, because its list of ' +
+  'key patterns is missing or broken.';
+
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.
 const IDS = ['ac', 'd', 'step', 'scenario', 'decision'];
@@ -76,6 +83,8 @@ const FINDING_KINDS = { criterion: 'criterion', scenario: 'scenario' };
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
 function workflowChecks(core) {
+  // A stop of secretValues exits 3, as a Missing of the verbs does.
+  secrets.stopWith(core.Missing);
   const lib = { ...core, ...require('./lib/documents.cjs')(core) };
   Object.assign(lib, require('./lib/extensions.cjs')(lib));
   Object.assign(lib, require('./lib/short-path.cjs')(lib));
@@ -101,6 +110,12 @@ function workflowChecks(core) {
   const uncommitted = require('./lib/uncommitted.cjs')(lib).end;
   const feedback = require('./types/feedback.cjs')(lib);
   const preflight = require('./lib/preflight.cjs')(lib);
+  // keyShapesEnd returns the result of the end check for a qory.key_shapes of inputs.json whose
+  // file cannot be used, as scanValues of lib/secrets.cjs finds it, or none.
+  const keyShapesEnd = (io) => {
+    const { problem } = secrets.scanValues(io.env);
+    return problem ? [{ line: problem.join('\n'), point: KEY_SHAPES_POINT }] : [];
+  };
   return {
     verbs: {
       ...require('./verbs/run.cjs')(lib), ...require('./verbs/scope.cjs')(lib),
@@ -125,9 +140,15 @@ function workflowChecks(core) {
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),
-    // The checks at the end of a Build session: no change outside a commit, and no Blocked:
-    // line on a criterion without points.json.
-    end: (io) => [...uncommitted(io), ...blocked.end(io)],
+    // The checks at the end of a Build session: no change outside a commit, no Blocked: line
+    // on a criterion without points.json, and in every session, no inputs.json or
+    // qory.key_shapes that cannot be used, since then no scan for keys can run. With that
+    // finding, the check of the changes outside a commit does not run: it shows their paths
+    // only with the key shapes of the deployment.
+    end: (io) => {
+      const keys = keyShapesEnd(io);
+      return [...(keys.length ? [] : uncommitted(io)), ...blocked.end(io), ...keys];
+    },
     // The rule of points.json: an answer point for each criterion with a Blocked: line.
     points: [(run, list, context) => blocked.points(run, list, context, acQuestion)],
     // The record of the track at the end of a report of proposal-reviewer, which the report

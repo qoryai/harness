@@ -1,0 +1,214 @@
+{
+  "shapes": [
+    {
+      "name": "anthropic-key",
+      "prefix": "sk-ant-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "github-personal-access-token",
+      "prefix": "ghp_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9",
+      "min": 36,
+      "max": 256
+    },
+    {
+      "name": "github-app-installation-token",
+      "prefix": "ghs_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9",
+      "min": 36,
+      "max": 256
+    },
+    {
+      "name": "github-oauth-token",
+      "prefix": "gho_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9",
+      "min": 36,
+      "max": 256
+    },
+    {
+      "name": "github-user-to-server-token",
+      "prefix": "ghu_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9",
+      "min": 36,
+      "max": 256
+    },
+    {
+      "name": "github-refresh-token",
+      "prefix": "ghr_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9",
+      "min": 36,
+      "max": 256
+    },
+    {
+      "name": "github-fine-grained-personal-access-token",
+      "prefix": "github_pat_",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "aws-access-key-id",
+      "prefix": "AKIA",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Z0-9",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "aws-temporary-access-key-id",
+      "prefix": "ASIA",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Z0-9",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "http-bearer-token",
+      "prefix": "Bearer",
+      "any_case": true,
+      "blank": true,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9._~+/=-",
+      "min": 16,
+      "max": 4096
+    },
+    {
+      "name": "openai-project-key",
+      "prefix": "sk-proj-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "openai-service-account-key",
+      "prefix": "sk-svcacct-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "openai-admin-key",
+      "prefix": "sk-admin-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 16,
+      "max": 256
+    },
+    {
+      "name": "google-api-key",
+      "prefix": "AIza",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 35,
+      "max": 256
+    },
+    {
+      "name": "gitlab-personal-access-token",
+      "prefix": "glpat-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 20,
+      "max": 256
+    },
+    {
+      "name": "slack-xoxa-token",
+      "prefix": "xoxa-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9-",
+      "min": 10,
+      "max": 256
+    },
+    {
+      "name": "slack-xoxb-token",
+      "prefix": "xoxb-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9-",
+      "min": 10,
+      "max": 256
+    },
+    {
+      "name": "slack-xoxp-token",
+      "prefix": "xoxp-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9-",
+      "min": 10,
+      "max": 256
+    },
+    {
+      "name": "slack-xoxr-token",
+      "prefix": "xoxr-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9-",
+      "min": 10,
+      "max": 256
+    },
+    {
+      "name": "slack-xoxs-token",
+      "prefix": "xoxs-",
+      "any_case": false,
+      "blank": false,
+      "word_start": false,
+      "alphabet": "A-Za-z0-9-",
+      "min": 10,
+      "max": 256
+    },
+    {
+      "name": "sk-api-key",
+      "prefix": "sk-",
+      "any_case": false,
+      "blank": false,
+      "word_start": true,
+      "alphabet": "A-Za-z0-9_-",
+      "min": 20,
+      "max": 256
+    }
+  ]
+}

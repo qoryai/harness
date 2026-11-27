@@ -212,7 +212,7 @@ function endPoints(root, file, io) {
   let found;
   try {
     found = checkFiles('check', root, pointsType, [file], io.home, io.plugin, root, null,
-      { phraseFiles: null }).findings;
+      { phraseFiles: null, env: io.env }).findings;
   } catch (error) {
     if (!(error instanceof Missing)) throw error;
     // The lines of more are the cause of the message, on the lines after it.
@@ -334,7 +334,7 @@ function end(io, folder) {
     // moduleEnd is the check at the end that a module of the stack adds, if any.
     found = [...pointResults, ...endDrafts(root, io.home, types, { plugin: io.plugin,
       place: { workingFolder: path.resolve(io.cwd), inputs: io.inputs,
-        phraseFiles: io.registry().phraseFiles }, verdict: body }),
+        phraseFiles: io.registry().phraseFiles, env: io.env }, verdict: body }),
     ...reportResults, ...outboxDrafts(io),
     ...(moduleEnd ? moduleEnd({ ...io, root, failed: failures(counter) }) : [])];
   }

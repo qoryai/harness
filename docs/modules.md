@@ -2826,8 +2826,8 @@ it is "Copy the first sentence from AC-2 in the criteria." Beyond the schema, th
 find:
 
 - `pull-request`: a text without the parts `## Problem`, `## Change`, `## Tests` and
-  `## Disclosed`, in this order, or with text before `## Problem`; the form of a
-  secret, such as a private key or an access token, in the title or the text; a title
+  `## Disclosed`, in this order, or with text before `## Problem`; a key shape of the scan
+  for keys of `freeze` or a private key in the title or the text; a title
   with a character that qory drops, as `report-build` lists; and, from its schema, a
   `steps` entry with no `commit` or with a `step` of 0 or more than 128 characters; a
   title of 0 or more than 256 characters, of spaces and joiners only, or with a control or
@@ -4487,9 +4487,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
     `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
     and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
-    "<name>" in Workspace settings > Secrets and variables." Its second line is "Then run film
-    <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
-    the build plan would come from the artifact folder of the session. A run that fails in a
+    AGENT_<name> in Workspace settings > Secrets and variables > Variables." The fix cuts a
+    name of more than 31 characters, up to the 64 that a demo script allows, to its first 28
+    characters and `...`, so that the line stays within 100 characters; the line "the
+    variable <name> has no value" has the whole name.
+    The second line of that finding is "Then run film <id> again."
+    Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because the build
+    plan would come from the artifact folder of the session. A run that fails in a
     step, when the runner cannot write the capture because the disk is full or fails (`ENOSPC`,
     `EIO`, `EDQUOT`, `EROFS`, `EFBIG`), exits 3 with "Kind: outside" and the fix "Give the
     dev container more disk space, then run film <id> again." Any other error of the capture,
@@ -4622,8 +4626,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   commits as
   `qory <qory@localhost>` with `git commit-tree` and `git update-ref`. Git runs with hooks,
   the file system monitor, external diff and text conversion off, so no program of the
-  checkout changes the bytes after the scan. The scan looks for the key shapes of Forager's
-  masker, a PEM private key, and the value of each variable whose name contains TOKEN,
+  checkout changes the bytes after the scan. The scan looks for the key shapes, a PEM
+  private key, and the value of each variable whose name contains TOKEN,
   SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL, with at least 12 characters, or the values
   of the key file, at most 64 KiB, whose path such a variable is set to: the string values
   of a JSON file, or each line of another file, such as YAML or INI, and the part of the
@@ -4638,7 +4642,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   digits, so that no ref named like a short id takes its place. The scan catches keys
   committed by accident, not keys hidden on purpose; qory's push needs a separate gate. A
   find leaves HEAD and the index as they were, and its line shows the file, the line and the
-  kind of key, never the value. A commit message with a key is the step id alone. After the
+  kind of key, never the value: "a key of the shape <name>", such as "a key of the shape
+  github-personal-access-token". When the line would have more than 100 characters, it has
+  "a key", and the line after it is "The key has the shape <name>." A commit message with
+  a key is the step id alone. After the
   commit, only the committed paths of the index take the new HEAD, so skip-worktree,
   assume-unchanged and intent-to-add marks stay. freeze requests no push: qory pushes after
   each session. The commits that qory pushes are, with a base, each commit since the base,
@@ -4646,6 +4653,49 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   change, `freeze` with a base or `--plan` makes no commit, and exits by the scope and the
   scan of the commits; a step with no change and no base exits 1. `freeze --plan` commits
   nothing: a change in the checkout exits 1.
+
+  The key shapes are the default list in `key-shapes.json` of
+  `running-a-software-workflow`, a copy of Forager's `contracts/forager/v1/key-shapes.json`
+  with its schema in `key-shapes.schema.json`, and the shapes that the deployment adds. qory
+  is to write those in `$QORY_HARNESS_HOME/key-shapes.json` and set `qory.key_shapes` of
+  `inputs.json` to the file name. The harness uses its defaults, the default list, until
+  qory writes these members. With the member, the scan uses both lists. A file is
+  `{"shapes": [...]}` with at least 1 shape, and each shape has all of `name`, `prefix`,
+  `any_case`, `blank`, `alphabet`, `min` and `max`; it may have `word_start`, which is false
+  when it is missing:
+  - the name, the id of the shape: 1 to 64 lower-case letters and digits in parts that
+    single hyphens join, such as `github-personal-access-token`;
+  - the prefix, 1 to 64 characters of printable ASCII without a space; `any_case` matches
+    its ASCII letters in either case;
+  - `blank` requires 1 to 16 spaces or tabs after the prefix;
+  - `word_start` requires that the prefix starts the text, or comes right after a byte that
+    is no ASCII letter, digit or `_`, or right after the end of an escape: `\` and a
+    letter, `\u` and 4 hex digits, `\x` and 2 hex digits, or `%` and 2 hex digits, such as
+    `\n` or `%3D`; of the default shapes, only the generic `sk-` key has it;
+  - the alphabet, the exact bytes of the token, of printable ASCII without a space: ranges
+    such as `A-Z` and single characters, where a `-` is the end of a range or the last
+    character, such as `A-Za-z0-9_-`;
+  - `min`, the fewest characters of the token, 8 to 4096, and `max`, the most that a find
+    covers, from `min` to 4096.
+
+  The rules of Forager's `mask.Merge` that the schema does not state hold too: each name is
+  used once and by no default shape; the default shapes and the file have at most 64 shapes
+  together; and `max` is at most 256 unless `blank` is true or a byte of the prefix is
+  outside the alphabet, since a prefix that can occur inside its token is slow to mask. When
+  `qory.key_shapes` names a file that is missing, cannot be read or does not match those
+  rules, `scope` and `freeze` exit 3 before the scan, and the end check of a session has a
+  finding, both with the fix "Start the run again with qory, which writes key-shapes.json:
+  the scan for keys cannot run." and the cause on the next line. The check of the text of a
+  pull request has the same finding. When `inputs.json` is a link, has more than 16 MB, is
+  no regular file, cannot be read, is no JSON or is not a JSON object, or its `qory` is no
+  map, such as "qory in inputs.json is a list, not a map.", or `qory.key_shapes` is no file
+  name, such as `../k.json`, the same verbs stop with the fix "Start the run again with
+  qory, which writes inputs.json: the run's lists cannot be read." and a cause such as
+  "$QORY_HARNESS_HOME/inputs.json is no JSON." or "qory.key_shapes in inputs.json is set to
+  "../k.json", which is no file name."; so do `preflight`, `film` and `demo run`, which read
+  `qory.credential_variables`. Every other verb that scans or shows a path with the key
+  shapes, such as `diff`, `run` and `probe`, stops the same way. With no `inputs.json` or no
+  `qory.key_shapes`, the scan uses the default shapes and prints nothing more.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
   random name. A session has no start commit to read, so `--from` is required.
@@ -4700,10 +4750,17 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   already returns a response at the address, the app counts as not started and the command
   does not run; a command that starts the app in the background and exits 0 counts once the
   address responds. The command gets the environment of `preflight` without each variable
-  of qory or of an agent, or token of a code forge, such as `QORY_RUN_KEY`,
-  `ANTHROPIC_API_KEY` or `GITHUB_TOKEN`, and without each variable that a `type` action of
-  a demo script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of
-  qory, it gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
+  of the credential list of the run, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY` or
+  `GITHUB_TOKEN`, and without each variable that a `type` action of a demo script types, in
+  a setup or a step, such as `DEMO_PASSWORD`; of the names of qory, it gets only
+  `QORY_CHECK_MARK`, the mark of the supervisor. Every other variable reaches the command,
+  whatever its name, such as `AWS_SECRET_ACCESS_KEY` or `DATABASE_PASSWORD`. In the agent's
+  container, the environment has the variables of the workspace whose names start with
+  `AGENT_`, with the prefix removed, and each of them reaches the app except a name on the
+  credential list: `AGENT_DATABASE_PASSWORD` of the workspace reaches the app as
+  `DATABASE_PASSWORD`, and `AGENT_OPENAI_ORG` reaches the agent as `OPENAI_ORG` but not the
+  app, since `OPENAI_*` is on the list; and a demo script that types `DEMO_PASSWORD` needs
+  `AGENT_DEMO_PASSWORD` in the workspace. In a walled run, a
   secret of the run reaches `preflight` only as a placeholder of the gateway, so a
   variable that passes is a variable of the workspace or a placeholder. In a walled run on
   Linux, the command can still read the environment of the runner of the check in
@@ -4735,9 +4792,39 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   that contains a typed value, in any case, is "another origin" in the point and the
   finding. A `type` and a `press` act only on a page of the app's origin whose focus is in
   no frame, and a `type` only when the focus is in the element of its target. The replay
-  gets only the variables that its setup types, and a setup that types a variable of qory
-  or of an agent, such as `QORY_RUN_KEY` or `ANTHROPIC_API_KEY`, or a token of a code
-  forge, such as `GITLAB_TOKEN` or `BITBUCKET_TOKEN`, exits 3 before the app starts.
+  gets only the variables that its setup types, and a setup that types a variable of the
+  credential list, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY`, `GITLAB_TOKEN` or
+  `BITBUCKET_TOKEN`, exits 3 before the app starts, with the line "A setup types <name>,
+  which is a secret of this run." after the fix. `demo run`, `film` and `film pages` exit 3
+  the same way, before the app starts, when a setup or a step of the script types such a
+  variable; for a step, the line is "A demo script types <name>, which is a secret of this
+  run." The fix of `film` is "Remove the key from the demo scripts, then run film <id>
+  again.", that of `film pages` ends "then run film pages again.", and that of `demo run` is
+  "Remove the key from .demo/<id>.actions.json, then run demo write <id>."
+
+  The credential list is the union of three lists. The first is the floor, from
+  `denied-variables.json` of `running-a-software-workflow`, a copy, byte for byte, of
+  Forager's `contracts/forager/v1/denied-variables.json` at the Forager version that qory
+  pins, which `scripts/denied-variables.test.js` compares: its `forge_tokens`, the seven
+  tokens of code forges, its `model_keys`, such as `ANTHROPIC_API_KEY` and
+  `CLAUDE_CODE_OAUTH_TOKEN`, and the entry `QORY_*` of its `patterns`. The floor takes no
+  other entry of the file: `PATH`, `HOME`, `*_PROXY` and the other names reach the app. A
+  copy with no `QORY_*` in its `patterns` stops the checks with an error that names the
+  file. The second is `{"credential_variables": [...]}` in the file
+  `credential-variables.json` in the folder of a module, where a module of a runtime or a
+  vendor adds its names, such as `ANTHROPIC_*`, `CLAUDE_*`, `OPENAI_*`, `CODEX_*` and
+  `GEMINI_*` in that of `software-factory`, which is always read from the module of the
+  skill; the others are read from the plugin folder and, when the plugin folder is a module
+  of the harness home, from each module beside it, and in a composed run from each folder in
+  `$QORY_HARNESS_HOME/modules`, where qory links or copies each module. The third is
+  `qory.credential_variables` of `inputs.json`, for the names of the runtime and those that
+  the deployment adds; the harness uses its defaults, the first two lists, until qory writes
+  these members. An entry is the exact name of a variable or a prefix that ends in `*`, as
+  `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One matcher reads the
+  three lists, and a name matches an entry in any case, as Forager matches it. A bad entry
+  exits 3 with "Fix qory.credential_variables in inputs.json." and the line "<entry> is no
+  variable name or prefix.", or with "Fix <module>/credential-variables.json." as the first
+  line for the file of a module.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
@@ -5585,9 +5672,10 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   and Write. It writes one file, `.demo/<scenario>.actions.json` in the artifact folder, in
   which each action is one of open, click, type, press and wait, a target is a CSS selector
   or `text=<words>` that it found in the code of the screens, and a secret is the name of a
-  variable of the workspace, never a text. It writes no title and no expected result. It
-  stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the step>`
-  instead of guessing a target;
+  variable without the prefix `AGENT_`, such as `DEMO_PASSWORD` for the variable
+  `AGENT_DEMO_PASSWORD` of the workspace, never a text. It writes no title and no expected
+  result. It stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the
+  step>` instead of guessing a target;
 - the skill `scripting-demos`, which `workflow-implement-changes` loads by name after its
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,
