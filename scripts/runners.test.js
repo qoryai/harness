@@ -1459,7 +1459,7 @@ test('key shapes: today\'s shapes of the scan and of the pull request text are a
   ];
   for (const line of kinds) {
     assert.ok(secrets.scanLine(line, []), line);
-    assert.ok(secrets.keyKind(line, {}), line);
+    assert.ok(secrets.keyKind(line, {}).kind, line);
   }
 });
 
@@ -1505,7 +1505,6 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
   const cases = [
     [harnessHome({ key_shapes: 'missing.json' }), '"missing.json", which is missing'],
     [harnessHome({ key_shapes: 'k.json' }, { 'k.json': '{' }), '"k.json", which cannot be read'],
-    [harnessHome({ key_shapes: '../k.json' }), '"../k.json", which cannot be read'],
     [linked, '"k.json", which cannot be read'],
     [large, '"k.json", which cannot be read'],
     [keyFile([{ name: 'x' }]), at('#/shapes/0/prefix')],
@@ -1539,19 +1538,50 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
     assert.deepEqual(end(keyFile(shapes)), [], JSON.stringify(shapes[0]));
   }
   assert.deepEqual(end(harnessHome({}), { QORY_RUN_ID: 'run-1' }), []);
+  // A value that is no file name is a fault of inputs.json.
+  const inputsFix = 'Start the run again with qory, which writes inputs.json: the run\'s lists ' +
+    'cannot be read.';
+  for (const [value, shown] of [['../k.json', '"../k.json"'], [42, '42'], ['..', '".."']]) {
+    assert.deepEqual(end(harnessHome({ key_shapes: value })).map((one) => one.line),
+      [`${inputsFix}\nqory.key_shapes in inputs.json is set to ${shown}, which is no file name.`]);
+  }
   // A line that only shows a path uses the default shapes, and throws for no file.
   assert.equal(secrets.shown(TOKEN, secrets.secretValues({ QORY_HARNESS_HOME: cases[0][0] })),
     'a path with a key in its name');
 });
 
-test('key shapes: an inputs.json that is a link has no qory.key_shapes', () => {
-  const home = harnessHome({});
-  fs.writeFileSync(path.join(home, 'real.json'),
+test('run lists: an inputs.json that is a link, too large or no JSON stops each read', () => {
+  const fix = 'Start the run again with qory, which writes inputs.json: the run\'s lists cannot ' +
+    'be read.';
+  const linked = harnessHome({});
+  fs.writeFileSync(path.join(linked, 'real.json'),
     JSON.stringify({ qory: { key_shapes: 'k.json' } }));
-  fs.renameSync(path.join(home, 'inputs.json'), path.join(home, 'old.json'));
-  fs.symlinkSync(path.join(home, 'real.json'), path.join(home, 'inputs.json'));
-  assert.deepEqual(runLists.member({ QORY_HARNESS_HOME: home }, 'key_shapes'), { none: true });
-  assert.deepEqual(keyShapes.load({ QORY_HARNESS_HOME: home }).none, true);
+  fs.renameSync(path.join(linked, 'inputs.json'), path.join(linked, 'old.json'));
+  fs.symlinkSync(path.join(linked, 'real.json'), path.join(linked, 'inputs.json'));
+  const large = harnessHome({});
+  fs.writeFileSync(path.join(large, 'inputs.json'),
+    `{"qory": {}}${' '.repeat(runLists.MAX_INPUTS)}`);
+  const folder = harnessHome({});
+  fs.renameSync(path.join(folder, 'inputs.json'), path.join(folder, 'old.json'));
+  fs.mkdirSync(path.join(folder, 'inputs.json'));
+  for (const [home, cause] of [[linked, 'is a link'], [large, 'has more than 16 MB'],
+    [harnessHome({}, { 'inputs.json': '{' }), 'is no JSON'], [folder, 'is no JSON']]) {
+    const env = { QORY_HARNESS_HOME: home };
+    const problem = [fix, `$QORY_HARNESS_HOME/inputs.json ${cause}.`];
+    assert.deepEqual(runLists.member(env, 'key_shapes'), { problem });
+    assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem });
+    assert.deepEqual(runLists.credentialNames(env), { problem });
+    assert.deepEqual(secrets.secretValues(env).problem, problem);
+    assert.deepEqual(secrets.keyKind('text', env), { kind: null, problem });
+  }
+  // No inputs.json, or no member, keeps the defaults with no problem.
+  for (const env of [{}, { QORY_HARNESS_HOME: path.join(tmp, 'no-home') },
+    { QORY_HARNESS_HOME: harnessHome({}) }, { QORY_HARNESS_HOME: 'relative/home' }]) {
+    assert.deepEqual(runLists.member(env, 'key_shapes'), { none: true });
+    assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem: null });
+    assert.deepEqual(runLists.credentialNames(env), { names: runLists.FLOOR });
+    assert.equal(secrets.secretValues(env).problem, null);
+  }
 });
 
 test('key shapes: scope and freeze stop on a qory.key_shapes whose file cannot be used', () => {
@@ -1600,7 +1630,7 @@ test('key shapes: freeze puts a long shape name on the line after the fix', () =
   ]);
 });
 
-test('key shapes: a run without qory.key_shapes prints the warning once and scans', () => {
+test('key shapes: a run without qory.key_shapes prints no warning and scans', () => {
   const dir = checkout();
   const head = sh(dir, 'rev-parse', 'HEAD');
   for (const name of ['b', 'c']) {
@@ -1609,17 +1639,18 @@ test('key shapes: a run without qory.key_shapes prints the warning once and scan
     sh(dir, '-c', 'user.name=t', '-c', 'user.email=t@example.com', 'commit', '-q', '-m', name);
   }
   write(dir, 'src/a.js', `exports.add = (a, b) => a + b;\nexports.k = '${TOKEN}';\n`);
-  const warning = 'Warning: the scan uses only the default key shapes. inputs.json has no ' +
-    'qory.key_shapes, so shapes the deployment adds are not checked.';
   const env = { QORY_HARNESS_HOME: harnessHome({}), QORY_RUN_ID: 'run-1' };
   const got = call(dir, ['freeze', 'deliverable:d-1', '--base', head], { env });
   assert.equal(got.status, 1, got.out);
-  assert.deepEqual(got.err.split('\n').filter((line) => line === warning), [warning], got.err);
+  assert.equal(got.err.includes('Warning:'), false, got.err);
   assert.equal(got.lines.at(-1), 'Froze nothing: the scan for keys has 1 finding.');
-  // Outside a run, no warning.
-  const quiet = call(dir, ['freeze', 'deliverable:d-1', '--base', head],
-    { env: { QORY_HARNESS_HOME: harnessHome({}) } });
-  assert.equal(quiet.err.includes('Warning:'), false, quiet.err);
+  // A broken inputs.json stops freeze before the scan, with the fix and the cause.
+  const broken = call(dir, ['freeze', 'deliverable:d-1', '--base', head],
+    { env: { QORY_HARNESS_HOME: harnessHome({}, { 'inputs.json': '{' }) } });
+  assert.equal(broken.status, 3, broken.out);
+  assert.deepEqual(broken.lines.slice(0, 2), ['Start the run again with qory, which writes ' +
+    'inputs.json: the run\'s lists cannot be read.',
+  '  $QORY_HARNESS_HOME/inputs.json is no JSON.']);
 });
 
 test('submission text: one finding per member, with the key shapes of the deployment', () => {
@@ -1637,6 +1668,11 @@ test('submission text: one finding per member, with the key shapes of the deploy
   ]);
   assert.deepEqual(submission.secretFindings({ title: '-----BEGIN PRIVATE KEY-----' }, place, {}),
     ['Remove a private key from the title of submission.md.']);
+  // Key shapes that cannot be read are one finding, their fix and its cause.
+  assert.deepEqual(submission.secretFindings({ title: 'Add the sum', text },
+    place, { QORY_HARNESS_HOME: harnessHome({ key_shapes: 'missing.json' }) }),
+  ['Start the run again with qory, which writes key-shapes.json: the scan for keys cannot ' +
+    'run.\nqory.key_shapes in inputs.json is set to "missing.json", which is missing.']);
 });
 
 test('freeze: the value of a secret variable that starts with / and a line of a key file stop it', () => {

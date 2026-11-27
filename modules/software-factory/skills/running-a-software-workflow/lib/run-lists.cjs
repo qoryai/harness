@@ -1,7 +1,9 @@
 // The lists of a run that qory writes as members of qory in $QORY_HARNESS_HOME/inputs.json:
 // qory.credential_variables and qory.key_shapes. The read follows the rules of qoryInputs of
 // hooks/end-gate.cjs of core: the home is an absolute path, lstat shows a regular file, and
-// the file has at most MAX_INPUTS bytes. This file requires no file of lib/ but shown.cjs,
+// the file has at most MAX_INPUTS bytes. Unlike qoryInputs, it fails closed: a file that
+// breaks a rule is a problem, and only a home or a file that is not there means the
+// defaults. This file requires no file of lib/ but shown.cjs,
 // because secrets.cjs requires it, and repository-settings.cjs requires secrets.cjs.
 //
 // The names of the variables of a run's credentials are the union of three lists: the floor,
@@ -30,42 +32,63 @@ const { shown } = require('./shown.cjs');
 // The most bytes of inputs.json that member reads, as repository-settings.cjs reads it.
 const MAX_INPUTS = 16 * 1024 * 1024;
 
-// The member qory of the newest read, by the path, inode, size and time of the file, since
-// a scan reads it for each commit and each line of a finding.
-let last = { stamp: null, qory: null };
+// The fix of an inputs.json that breaks a rule of the read, or of a member whose value is no
+// value of its kind; the line after it is the cause.
+const FIX = 'Start the run again with qory, which writes inputs.json: the run\'s lists cannot ' +
+  'be read.';
+const WHERE = '$QORY_HARNESS_HOME/inputs.json';
+
+// The result of qoryOf of the newest read, by the path, inode, size and time of the file,
+// since a scan reads it for each commit and each line of a finding.
+let last = { stamp: null, got: null };
 
 // stampOf returns the words of the state of the file with stat, which change when it changes.
 const stampOf = (file, stat) => [file, stat.ino, stat.size, stat.mtimeMs].join('\0');
 
-// shortcut: qoryOf repeats qoryInputs of hooks/end-gate.cjs of core, which this module does
-// not require, so the two reads can drift apart; join them when the modules share a reader.
-// qoryOf returns the member qory of $QORY_HARNESS_HOME/inputs.json of env when it is an
-// object, or null: for no home, a relative home, no file, a link, a file that is no regular
-// file or no JSON, and a file of more than MAX_INPUTS bytes.
+// shortcut: qoryOf repeats the rules of qoryInputs of hooks/end-gate.cjs of core, which this
+// module does not require, so the two reads can drift apart; join them when the modules share
+// a reader.
+// qoryOf returns { qory } of $QORY_HARNESS_HOME/inputs.json of env: the member qory when it is
+// an object, else null, also for no home, a relative home and no file. For a link, a file of
+// more than MAX_INPUTS bytes, and a file that is no regular file, cannot be read or is no
+// JSON, it returns { problem }, FIX and the cause.
 function qoryOf(env) {
   const home = env && env.QORY_HARNESS_HOME;
-  if (typeof home !== 'string' || !path.isAbsolute(home)) return null;
+  if (typeof home !== 'string' || !path.isAbsolute(home)) return { qory: null };
   const file = path.join(home, 'inputs.json');
+  const broken = (words) => ({ problem: [FIX, `${WHERE} ${words}.`] });
+  let stat;
   try {
-    const stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.size > MAX_INPUTS) return null;
-    const stamp = stampOf(file, stat);
-    if (last.stamp !== stamp) {
-      const { qory } = JSON.parse(fs.readFileSync(file, 'utf8'));
-      last = { stamp, qory: qory !== null && typeof qory === 'object' ? qory : null };
-    }
-    return last.qory;
-  } catch {
-    return null;
+    stat = fs.lstatSync(file);
+  } catch (error) {
+    return error.code === 'ENOENT' || error.code === 'ENOTDIR' ? { qory: null }
+      : broken('is no JSON');
   }
+  if (stat.isSymbolicLink()) return broken('is a link');
+  if (stat.size > MAX_INPUTS) return broken(`has more than ${MAX_INPUTS / 1024 / 1024} MB`);
+  if (!stat.isFile()) return broken('is no JSON');
+  const stamp = stampOf(file, stat);
+  if (last.stamp !== stamp) {
+    let got;
+    try {
+      const { qory } = JSON.parse(fs.readFileSync(file, 'utf8'));
+      got = { qory: qory !== null && typeof qory === 'object' ? qory : null };
+    } catch {
+      got = broken('is no JSON');
+    }
+    last = { stamp, got };
+  }
+  return last.got;
 }
 
 // member returns { value, home } for the member name of qory in the inputs.json of env, with
-// home the harness home, or { none: true } when the file or the member is not there.
+// home the harness home, { none: true } when the file or the member is not there, or
+// { problem }, the fix and the cause of an inputs.json that qoryOf cannot read.
 function member(env, name) {
-  const qory = qoryOf(env);
-  if (!qory || !Object.hasOwn(qory, name)) return { none: true };
-  return { value: qory[name], home: env.QORY_HARNESS_HOME };
+  const got = qoryOf(env);
+  if (got.problem) return { problem: got.problem };
+  if (!got.qory || !Object.hasOwn(got.qory, name)) return { none: true };
+  return { value: got.qory[name], home: env.QORY_HARNESS_HOME };
 }
 
 // The form of an entry of a list of variable names: a name, or a prefix with * at its end.
@@ -107,10 +130,11 @@ const FLOOR = floorOf(JSON.parse(fs.readFileSync(FLOOR_FILE, 'utf8')));
 const badLine = (bad) => `${bad} is no variable name or prefix.`;
 
 // inputsList returns { list } of the member field of qory in the inputs.json of env, { none }
-// without it, or { problem }, the fix and the cause of a value that is no list of names and
-// prefixes.
+// without it, or { problem }, the fix and the cause of an inputs.json that member cannot read
+// or of a value that is no list of names and prefixes.
 function inputsList(env, field) {
   const got = member(env, field);
+  if (got.problem) return { problem: got.problem };
   if (got.none) return { none: true };
   const list = Array.isArray(got.value) ? got.value : [got.value];
   const bad = badEntry(list);
@@ -158,4 +182,4 @@ function credentialNames(env, folders = []) {
   return { names: [...new Set(names)] };
 }
 
-module.exports = { FLOOR, FLOOR_FILE, MAX_INPUTS, credentialNames, floorOf, member };
+module.exports = { FIX, FLOOR, FLOOR_FILE, MAX_INPUTS, credentialNames, floorOf, member };

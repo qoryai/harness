@@ -9,7 +9,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const { member } = require('./run-lists.cjs');
+const { FIX: INPUTS_FIX, member } = require('./run-lists.cjs');
 const { shown } = require('./shown.cjs');
 
 const DEFAULT_FILE = path.join(__dirname, '..', 'key-shapes.json');
@@ -31,8 +31,6 @@ const KEY_MAX = 256;
 // The words before the name of a shape in the kind of a find.
 const KIND = 'a key of the shape ';
 
-const WARNING = 'Warning: the scan uses only the default key shapes. inputs.json has no ' +
-  'qory.key_shapes, so shapes the deployment adds are not checked.';
 const FIX = 'Start the run again with qory, which writes key-shapes.json: the scan for keys ' +
   'cannot run.';
 
@@ -135,14 +133,15 @@ const DEFAULT = DEFAULT_LIST.map(compile);
 // time, since a scan reads it for each commit.
 let last = { stamp: null, got: null };
 
-// fileShapes returns { shapes } of the file name in home, compiled, or { why }: "is missing",
-// "cannot be read" for a value that is no file name, a link, a file that is no regular file,
-// a file of more than MAX_FILE bytes or no JSON, or "fails key-shapes.schema.json at
-// <pointer>".
+// fileName reports whether name is the name of a file in the harness home: a string with no
+// / or \ or NUL, other than . and ..
+const fileName = (name) => typeof name === 'string' && /^[^/\\\0]+$/.test(name) &&
+  name !== '.' && name !== '..';
+
+// fileShapes returns { shapes } of the file name in home, a file name, compiled, or { why }:
+// "is missing", "cannot be read" for a link, a file that is no regular file, a file of more
+// than MAX_FILE bytes or no JSON, or "fails key-shapes.schema.json at <pointer>".
 function fileShapes(home, name) {
-  if (typeof name !== 'string' || !/^[^/\\\0]+$/.test(name) || name === '.' || name === '..') {
-    return { why: 'cannot be read' };
-  }
   const file = path.join(home, name);
   let stat;
   try {
@@ -166,19 +165,22 @@ function fileShapes(home, name) {
   return got;
 }
 
-// load returns { shapes, problem, none } for env: shapes are the compiled default shapes,
-// then the shapes of the file of the deployment, when the file passes. problem is null, or
-// the fix and the cause of a qory.key_shapes whose file cannot be used, and then shapes are
-// the default ones. none is true when inputs.json has no qory.key_shapes.
+// load returns { shapes, problem } for env: shapes are the compiled default shapes, then the
+// shapes of the file of the deployment, when the file passes. problem is null, or the fix and
+// the cause of an inputs.json that cannot be read, of a qory.key_shapes that is no file name
+// or of one whose file cannot be used, and then shapes are the default ones. Without
+// inputs.json or qory.key_shapes, shapes are the default ones and problem is null.
 function load(env) {
   const got = member(env, FIELD);
-  if (got.none) return { shapes: DEFAULT, problem: null, none: true };
-  const read = fileShapes(got.home, got.value);
-  if (read.why) {
-    return { shapes: DEFAULT, none: false, problem: [FIX,
-      `qory.key_shapes in inputs.json is set to ${shown(got.value)}, which ${read.why}.`] };
+  if (got.problem) return { shapes: DEFAULT, problem: got.problem };
+  if (got.none) return { shapes: DEFAULT, problem: null };
+  const set = `qory.key_shapes in inputs.json is set to ${shown(got.value)}`;
+  if (!fileName(got.value)) {
+    return { shapes: DEFAULT, problem: [INPUTS_FIX, `${set}, which is no file name.`] };
   }
-  return { shapes: [...DEFAULT, ...read.shapes], problem: null, none: false };
+  const read = fileShapes(got.home, got.value);
+  if (read.why) return { shapes: DEFAULT, problem: [FIX, `${set}, which ${read.why}.`] };
+  return { shapes: [...DEFAULT, ...read.shapes], problem: null };
 }
 
 // fitKind returns line(kind), the fix of a find of kind, when it has at most 100 characters.
@@ -190,5 +192,5 @@ function fitKind(line, kind) {
   return `${line('a key')}\nThe key has the shape ${kind.slice(KIND.length)}.`;
 }
 
-module.exports = { DEFAULT, DEFAULT_FILE, KEY_MAX, MAX_FILE, MAX_SHAPES, SCHEMA_FILE, WARNING,
+module.exports = { DEFAULT, DEFAULT_FILE, KEY_MAX, MAX_FILE, MAX_SHAPES, SCHEMA_FILE,
   alphabetOf, compile, faultOf, fitKind, load };

@@ -4657,8 +4657,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   `running-a-software-workflow`, a copy of Forager's `contracts/forager/v1/key-shapes.json`
   with its schema in `key-shapes.schema.json`, and the shapes that the deployment adds. qory
   is to write those in `$QORY_HARNESS_HOME/key-shapes.json` and set `qory.key_shapes` of
-  `inputs.json` to the file name. qory does not yet write `qory.key_shapes`, so the scan
-  uses the default list. With the member, the scan uses both lists. A file is
+  `inputs.json` to the file name. The harness uses its defaults, the default list, until
+  qory writes these members. With the member, the scan uses both lists. A file is
   `{"shapes": [...]}` with at least 1 shape, and each shape has all of `name`, `prefix`,
   `any_case`, `blank`, `alphabet`, `min` and `max`; it may have `word_start`, which is false
   when it is missing:
@@ -4682,12 +4682,18 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   together; and `max` is at most 256 unless `blank` is true or a byte of the prefix is
   outside the alphabet, since a prefix that can occur inside its token is slow to mask.
   When `qory.key_shapes` names a file that is missing, cannot be read or does not match
-  those rules, `scope` and `freeze` exit 3 before the scan, and the end check of a session has a finding, both with the fix "Start the run
-  again with qory, which writes key-shapes.json: the scan for keys cannot run." and the
-  cause on the next line. When `inputs.json` has no `qory.key_shapes` and `QORY_RUN_ID` is
-  set, `scope` and `freeze` print one warning on stderr and scan with the default shapes. A
-  line that only shows a path uses the default shapes, and those of the file when it
-  passes.
+  those rules, `scope` and `freeze` exit 3 before the scan, and the end check of a session
+  has a finding, both with the fix "Start the run again with qory, which writes
+  key-shapes.json: the scan for keys cannot run." and the cause on the next line. The check
+  of the text of a pull request has the same finding. When `inputs.json` is a link, has more
+  than 16 MB, is no regular file or is no JSON, or `qory.key_shapes` is no file name, such
+  as `../k.json`, the same verbs stop with the fix "Start the run again with qory, which
+  writes inputs.json: the run's lists cannot be read." and a cause such as
+  "$QORY_HARNESS_HOME/inputs.json is no JSON." or "qory.key_shapes in inputs.json is set to
+  "../k.json", which is no file name."; so do `preflight`, `film` and `demo run`, which read
+  `qory.credential_variables`. With no `inputs.json` or no `qory.key_shapes`, the scan uses
+  the default shapes and prints nothing more. A line that only shows a path uses the default
+  shapes, and those of the file when it passes.
 - `diff --from <commit>`: on a checkout with no change, writes the diff from the commit to
   HEAD, without `.qory`, to `.reports/diff/` of the artifact folder, through a folder of a
   random name. A session has no start commit to read, so `--from` is required.

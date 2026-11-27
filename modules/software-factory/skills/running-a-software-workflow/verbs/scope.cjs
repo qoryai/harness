@@ -70,20 +70,13 @@ module.exports = (lib) => {
     return text;
   }
 
-  // The calls of the scan that printed the warning of scanValues of lib/secrets.cjs.
-  const warned = new WeakSet();
-
   // keyValues returns the values of scanValues of lib/secrets.cjs for io, with the key shapes,
-  // for the scan for keys of scope and freeze. It prints the warning of scanValues once for
-  // io, and throws the Missing of a qory.key_shapes whose file cannot be used: no scan runs
-  // without the shapes that the deployment adds.
+  // for the scan for keys of scope and freeze. It throws the Missing of an inputs.json or a
+  // qory.key_shapes that cannot be used: no scan runs without the shapes that the deployment
+  // adds.
   function keyValues(io) {
     const got = secrets.scanValues(io.env);
     if (got.problem) throw new Missing(got.problem[0], [got.problem[1]]);
-    if (got.warning && !warned.has(io)) {
-      warned.add(io);
-      io.err.write(`${got.warning}\n`);
-    }
     return got.values;
   }
 

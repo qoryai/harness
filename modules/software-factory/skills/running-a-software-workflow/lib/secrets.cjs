@@ -106,28 +106,27 @@ function valuesOf(env) {
   return [...values];
 }
 
-// withShapes returns values with shapes, the compiled key shapes, as the member shapes that
-// scanLine reads. The member is not enumerable, so the list compares as a plain list.
-function withShapes(values, shapes) {
-  Object.defineProperty(values, 'shapes', { value: shapes });
+// withShapes returns values with got.shapes, the compiled key shapes, as the member shapes
+// that scanLine reads, and got.problem, as the member problem, of a result of load of
+// key-shapes.cjs. The members are not enumerable, so the list compares as a plain list.
+function withShapes(values, got) {
+  Object.defineProperty(values, 'shapes', { value: got.shapes });
+  Object.defineProperty(values, 'problem', { value: got.problem });
   return values;
 }
 
 // secretValues returns the values of valuesOf for env, with the key shapes of env: the default
-// shapes and those of the file of the deployment when it passes, else the default ones alone.
-// It writes no line and throws for no file, so that a caller that only shows a path or a line
-// can use it.
-const secretValues = (env) => withShapes(valuesOf(env), keyShapes.load(env).shapes);
+// shapes and those of the file of the deployment when it passes, else the default ones alone,
+// and the problem of load of key-shapes.cjs, null or the fix and the cause. It writes no line
+// and throws for no file, so that a caller that only shows a path or a line can use it.
+const secretValues = (env) => withShapes(valuesOf(env), keyShapes.load(env));
 
-// scanValues returns { values, problem, warning } for the scan for keys of freeze, scope and
-// the end check: values as secretValues returns them; problem null, or the fix and the cause
-// when qory.key_shapes of inputs.json names a file that cannot be used, and then no scan may
-// run; warning null, or the line that the caller prints once when a run, with QORY_RUN_ID set,
-// has no qory.key_shapes.
+// scanValues returns { values, problem } for the scan for keys of freeze, scope and the end
+// check: values as secretValues returns them; problem null, or the fix and the cause of an
+// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run.
 function scanValues(env) {
-  const got = keyShapes.load(env);
-  return { values: withShapes(valuesOf(env), got.shapes), problem: got.problem,
-    warning: got.none && env && env.QORY_RUN_ID ? keyShapes.WARNING : null };
+  const values = secretValues(env);
+  return { values, problem: values.problem };
 }
 
 // scanLine returns the kind of the first key in line, or null: the key shapes of values, the
@@ -140,10 +139,13 @@ function scanLine(line, values) {
   return values.some((value) => line.includes(value)) ? 'the value of a secret variable' : null;
 }
 
-// keyKind returns the kind of the first key shape or private key in text, of any number of
-// lines, with the key shapes of env as secretValues has them, or null. It looks for no value of
-// a variable.
-const keyKind = (text, env) => scanLine(text, withShapes([], keyShapes.load(env).shapes));
+// keyKind returns { kind, problem }: kind is the kind of the first key shape or private key in
+// text, of any number of lines, with the key shapes of env as secretValues has them, or null;
+// problem is that of secretValues. It looks for no value of a variable.
+function keyKind(text, env) {
+  const shapes = withShapes([], keyShapes.load(env));
+  return { kind: scanLine(text, shapes), problem: shapes.problem };
+}
 
 // scanPatch returns { line, kind } for each added line of patch, the output of git diff -U0
 // for one file, that has a key. line is the line's number in the new file.
