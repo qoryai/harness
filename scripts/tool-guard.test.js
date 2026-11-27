@@ -5482,6 +5482,24 @@ test('a reviewer agent of a review session writes no file but its report', () =>
   firstLine(call(claude('Write', { content: '{}' }, REVIEWER)), SESSION_ONLY);
 });
 
+test('the session runs panel and findings round with the earlier findings of the inputs ' +
+  'folder, and a reviewer reads them and the copy of the change', () => {
+  const commitFolder = next('session-commit');
+  const { home, reports, call } = sessionSetup((folder) => ({ review_session: {
+    reports: folder, commit_folder: commitFolder } }));
+  const previous = path.join(home, 'review-session', 'open-findings.json');
+  for (const command of [
+    `node ${SESSION_CHECKS} panel --names a,b --files changed.txt --previous ${previous}`,
+    `node ${SESSION_CHECKS} findings round ${reports} --reviewers a --suite s.json ` +
+      `--previous ${previous}`]) {
+    assert.equal(call(bashAs(command)), null, command);
+  }
+  for (const command of [`cat ${previous}`, `grep -rn export ${commitFolder}/src`,
+    `head -20 ${commitFolder}/src/orders.cjs`]) {
+    assert.equal(call(bashAs(command, REVIEWER)), null, command);
+  }
+});
+
 test('a reviewer agent runs only read commands in a review session', () => {
   const { reports, call } = sessionSetup();
   const file = path.join(reports, 'code-reviewer.json');

@@ -50,7 +50,7 @@ const path = require('node:path');
 // The Blocked: lines that this skill lists by their start:
 // running-a-software-workflow (SKILL.md:31: "starts with `needs a change to criterion`"),
 // and the stop of the agents of a build step that the last line matches:
-// workflow-implement-changes (SKILL.md:247: "reports `Blocked: needs a change to the build plan").
+// workflow-implement-changes (SKILL.md:248: "reports `Blocked: needs a change to the build plan").
 const STOPS = [
   /^needs a change to criterion (?:ac-\d+|`ac-\d+`)(?![\w`-])/,
   /^needs a new criterion\b/,
@@ -67,6 +67,11 @@ const BUILD_AND_VERIFY = [
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.
 const IDS = ['ac', 'd', 'step', 'scenario', 'decision'];
+
+// The kinds of the source of a finding of a software factory that Qory Apiary keeps besides
+// those of core, each with its label, the word that a line shows before the name of the
+// source, such as criterion ac-3.
+const FINDING_KINDS = { criterion: 'criterion', scenario: 'scenario' };
 
 // workflowChecks returns the types, Blocked: lines and ledger of this skill. core is the
 // library of the checks script that loads this file.
@@ -116,6 +121,7 @@ function workflowChecks(core) {
       feedback.type,
     ],
     stops: STOPS,
+    finding_kinds: FINDING_KINDS,
     ledger: require('./lib/ledger.cjs')(lib),
     // The state of the result of the full suite, which findings round reads.
     suite: require('./lib/suite.cjs'),

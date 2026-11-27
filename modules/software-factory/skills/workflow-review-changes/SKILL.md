@@ -1,13 +1,14 @@
 ---
 name: workflow-review-changes
-description: "Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match, each of which writes one report into the report folder, decide the round from the reports and the result of the full suite, and record passed or changes-requested. Use in a headless run of the workflow review-changes."
+description: "Review the change of a Build run as a review session: read the build ledger, end with changes requested while a planned deliverable is not built, verify the acceptance lock, start code-reviewer, test-reviewer, acceptance-reviewer and the members of the group role reviewers whose paths match or that have an open finding, each of which writes one report into the report folder, and print the findings of the round from the reports, the earlier findings and the result of the full suite. qory sends the verdict of the round; the session records changes-requested only when the change cannot be reviewed. Use in a headless run of the workflow review-changes."
 ---
 
 # Review changes
 
 This workflow requires subagents. The session is a review session: it reviews the change
-that `implement-changes` committed, in a checkout that it cannot write, and records the
-verdict of the round. qory runs the full suite and the locked checks before the session.
+that `implement-changes` committed, in a checkout that it cannot write, and prints the
+findings of the round. qory runs the full suite and the locked checks before the session,
+and sends the verdict of the round after it.
 
 - ${qory:skills/run-artifacts}: before step 1, in every run.
 - ${qory:skills/running-a-workflow}: before step 1, in every run. There, `<workflow>` is
@@ -26,7 +27,9 @@ ends in `/in/inputs.json`. `<folder>` is the artifact folder that the pull print
 is the folder in `qory.start_artifacts` of the input file. When `qory.start_artifacts` is
 `""`, the run pulled no artifacts at the start, and `<start>` is `<folder>`. `<reports>` is
 the report folder, `qory.review_session.reports`, and `<suite>` is the result of the full
-suite, `qory.review_session.suite_result`.
+suite, `qory.review_session.suite_result`. `<previous>` is
+`--previous <qory.review_session.previous_findings>`, the file of the earlier findings of
+the stage, when the input file has that member, and nothing when it has none.
 
 ## What the session writes
 
@@ -60,7 +63,7 @@ not a reviewer. The tool guard lets a reviewer write only `<reports>/<agent>.jso
      write "1 locked file differs". When no line contains a path, use "The stored
      acceptance lock differs from its record, so the change was not reviewed."
    - With 2, 3 or 4, end as "Failures" lists for the checks script.
-5. Do "The reviewers", then "The round", then "The end".
+5. Do "The reviewers", then "The round".
 
 ## The ledger check
 
@@ -130,11 +133,13 @@ each other member starts only when a path of the change matches its paths.
    Write those paths, one per line, to `<folder>/.notes/changed-files.txt`, which is
    `<paths>`. When the diff cannot be read, end as "Failures" lists, with "The review of
    the change did not start, because its diff could not be read."
-2. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files <paths>`.
-   Start each member of a `Start:` line in turn, each in the foreground. When panel prints
-   a line "Run panel again with --after <n>", run it again with that `--after` after those
-   members returned, and start the members of its `Start:` lines. A member of a `Skip:`
-   line does not start. With exit 1 or more, end as "Failures" lists for the checks script.
+2. Run `<skill folder>/checks.cjs panel --names "${qory:agents/reviewers}" --files <paths>`,
+   with `<previous>` at the end. A member with an open finding in the file of `<previous>`
+   starts, also when no path of the change matches its paths. Start each member of a
+   `Start:` line in turn, each in the foreground. When panel prints a line "Run panel again
+   with --after <n>", run it again with that `--after` after those members returned, and
+   start the members of its `Start:` lines. A member of a `Skip:` line does not start. With
+   exit 1 or more, end as "Failures" lists for the checks script.
 
 Before each start, run `notes <agent> --files <paths>` and count the start, as "Starting
 agents" and "Count the starts" of `running-a-workflow` list, with `review-changes-1-<agent>`
@@ -150,17 +155,17 @@ reviewer, start no reviewer again, and fix no report: "The round" decides.
 ## The round
 
 Run `<skill folder>/checks.cjs findings round <reports> --reviewers <names> --suite <suite>`
-once. `<names>` is the agent name of each member of a `Start:` line of panel, also one whose
-start `starts` refused, joined by commas, in the order of the `Start:` lines, such as
-`code-reviewer,test-reviewer,acceptance-reviewer,security-reviewer`. It reads each report
-and `<suite>` once. A reviewer that wrote no valid report is one blocking finding, and so is
-a suite that failed or did not run. It prints a line per finding, with its proof on the
-next line.
+once, with `<previous>` at the end. `<names>` is the agent name of each member of a `Start:`
+line of panel, also one whose start `starts` refused, joined by commas, in the order of the
+`Start:` lines, such as `code-reviewer,test-reviewer,acceptance-reviewer,security-reviewer`.
+It reads each report and `<suite>` once. A reviewer that wrote no valid report is one
+blocking finding, and so is a suite that failed or did not run. It prints a line per
+finding, with its proof on the next line. Each earlier finding of a member that its report
+neither repeats nor closes stays open.
 
-- With 1, a finding is blocking. Run `<qory> run verdict changes-requested` with no point,
-  and end with the last line of `findings round`. qory writes the findings for the next
-  session of `implement-changes` from the reports.
-- With 0, no finding is blocking. Do "The end".
+- With 0 or 1, run no verdict, and end with the last line of `findings round`. After the
+  session, qory posts the reports to the findings of the work item, and sends the verdict:
+  `changes-requested` while a blocking finding of the stage is open, else `passed`.
 - With 2 or 3, end as "Failures" lists for the checks script.
 
 ## Changes requested
@@ -170,12 +175,6 @@ Write no `points.json` in `<folder>`: `changes-requested` takes no point, and a
 changes-requested` with no point, and end with the line that the case lists. The next
 session of `implement-changes` then builds what is missing. When the command fails, end with
 the same line, and the run ends with no verdict.
-
-## The end
-
-When no finding is blocking, run `<qory> run verdict passed`. When the command fails, the
-run ends with no verdict. End with "The change passed the review: no blocking finding is
-open."
 
 ## Failures
 

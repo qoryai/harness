@@ -119,15 +119,16 @@ with 2, 3 or 4 otherwise, end as "Failures" lists for the checks script.
    `model:` of the agent file, else the `model` of the session's `settings.json`; on Codex,
    the `model` of `agents/<agent>.toml`, else of `config.toml`; else `unknown`. When
    `step end done` exits with 1, the step made an edit that no commit of the step has, the
-   step's file has no passing review, or the report has a list `Left out:` that
-   `report-build` cannot read: with "Fix the list Left out: of your report.", fix the list
-   with the writer of the report, then run `step end done` again once. If it exits 1 on
-   the list again, run `step end <id> failed --report <file>` with the cause. With a
-   line that starts with "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking
-   findings", do the steps of your workflow from the start of that reviewer again, or from
-   the start of the writer for a blocking finding, then run `step end done` again once. If
-   no start of that reviewer is left, or it exits 1 on the review again, run `step end <id>
-   failed`, and end as "Failures" lists. Else end as "Failures" lists. `step end failed`
+   step's file has no passing review, the report has a list `Left out:` that `report-build`
+   cannot read, or the report of a fix of a finding `fix:f<n>` has no line `Reply:`. With
+   "Fix the list Left out: of your report." or "Add one line Reply:", fix the report with
+   its writer, then run `step end done` again once. If it exits 1 on the report again, run
+   `step end <id> failed --report <file>` with the cause. With a line that starts with
+   "Start check-reviewer", "Start plan-reviewer" or "Fix the blocking findings", do the
+   steps of your workflow from the start of that reviewer again, or from the start of the
+   writer for a blocking finding, then run `step end done` again once. If no start of that
+   reviewer is left, or it exits 1 on the review again, run `step end <id> failed`, and end
+   as "Failures" lists. Else end as "Failures" lists. `step end failed`
    records the row and exits 0, also when it prints a line that it left the report out:
    go on to the next step.
 

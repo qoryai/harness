@@ -8,6 +8,37 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Reviewers, the builder and Verify work on one list of findings of the work item, which
+  Qory Apiary keeps. Each finding has an id `f<n>`. Run **Update from harness** in each
+  workspace: Qory Apiary checks a pushed build ledger against the schema that it stored, and
+  a ledger with a reply fails the old schema.
+  - A reviewer gets the earlier findings of the stage in
+    `qory.review_session.previous_findings`. Its report repeats each earlier finding of its
+    role that still holds, by its `id`, closes each one that no longer holds in `closes`,
+    as `fixed` or `dismissed` with a reason, and lists at most 100 findings and 100 closes.
+    A repeat keeps the severity that Qory Apiary stored. The `point` and the `file` of a
+    finding are on one line with no tab or other control or format character, and `file`
+    has at most 300 characters. A report that repeats or closes a finding of another role,
+    or one id twice, counts as no report. An earlier finding that a report leaves out stays
+    open. The verbs read qory's findings files up to 64 MiB, and a larger file exits 3.
+  - A module adds the kinds of the source of a finding that it reads, with their labels, as
+    `finding_kinds` of the registry. `core` reads `reviewer`, `check` and `hook`, and
+    `software-factory` adds `criterion` and `scenario`. A findings file with a kind that no
+    module adds exits 3.
+  - `checks.cjs panel --previous <file>` starts each reviewer with an open finding, also
+    when no path of the change matches its paths. `checks.cjs findings round --previous
+    <file>` prints the open findings after the round, and its last line is `Checked <n>
+    reports and the suite result: <b> blocking, <k> non-blocking open findings; <c>
+    closed.`
+  - `review-changes` records no verdict after the round: qory posts the reports and sends
+    the verdict. Verify still records its verdict, after qory posts its reports.
+  - The builder fixes each open finding of every stage. The report of a step `fix:f<n>`
+    has one line `Reply: fixed: <what changed>` or `Reply: disputed: <why>`; `step end
+    done` exits with 1 without it, and the build-ledger row gets `reply`, which qory posts.
+    `findings open` prints the source and the dispute of each open finding. The build
+    report has the section `## Replies`, and `## Review rounds` has the column Source and
+    no line "Frozen commit". `implement-changes` ends with "The change is ready for
+    review: <k> planned changes built, <m> findings fixed, <d> disputed."
 - The tool guard denies an agent's redirect to a brace list of more than one word, such as
   `> checks/{a,b}.check`, because zsh writes to each word. A brace list of one word, a quoted
   brace, a command with no brace and a brace list in the body of a here-document that `cat` or
@@ -356,25 +387,26 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
   `test-reviewer` and `acceptance-reviewer` are members with no `paths`, so they start for
   every change. Each writes one report, `<reports>/<agent>.json`, where `<reports>` is
-  `qory.review_session.reports` of `inputs.json`, which qory does not write yet. qory is to
-  run the full suite before the session and pass in `qory.review_session.suite_result` the
+  `qory.review_session.reports` of `inputs.json`. qory runs the full suite on the pushed
+  commit after the session before it, and passes in `qory.review_session.suite_result` the
   absolute path of a file with its result, `{tests, failed, skipped, output_tail}`; qory
   writes the finding of a locked check that fails. The new verb `checks.cjs findings round
   <reports> --reviewers <names> --suite <file>` reads each report and the suite result once;
   a reviewer with no valid report and a suite with a failed test, with every test skipped or
-  with no result are one blocking finding each. While a finding is blocking, it exits 1, and
-  the session records `changes-requested` with no point, so qory writes the findings from
-  the reports; otherwise it records `passed`. The session writes no build report and no
-  submission text. Build is a loop of at most 3 rounds of `implement-changes` and
-  `review-changes`, which Apiary runs. Rule 13 of `scripts/check.sh` fails when such a
-  workflow starts a `-reviewer` agent that is no member of its `review_group`, or when a
-  member of a group is no agent that a module defines.
+  with no result are one blocking finding each. While a finding is blocking, it exits 1. The
+  session records no verdict after the round: qory posts the reports to the findings of the
+  work item and sends `changes-requested` while a blocking finding of the stage is open,
+  else `passed`. The session writes no build report and no submission text. Build is a
+  loop of at most 3 rounds of `implement-changes` and `review-changes`, which Apiary runs.
+  Rule 13 of `scripts/check.sh` fails when such a workflow starts a `-reviewer` agent that
+  is no member of its `review_group`, or when a member of a group is no agent that a module
+  defines.
 - The kind `locked` of a row of `## Commands` in a build plan. Every plan has the row, as it
   has `targeted`, `lint`, `types`, `build` and `full`, because every Build runs
   `write-acceptance-checks`: a plan with no `locked` row is refused with "Add the kind
   locked to ## Commands of build-plan.md." With no such command, the row has `none` and the
   reason in Source. The row has a Source in one of its three forms. qory is to run its
-  command after the session as it runs `full`; qory `64e700db` reads only the `full` row.
+  command after the session as it runs `full`; qory `05ef56eb` reads only the `full` row.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
@@ -1031,9 +1063,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory run verdict passed` at its end, and the next workflow of the loop judges the change;
   `running-a-workflow` states this in "The end". An end through "Points" still runs
   `escalate`, and so does `checks.cjs end` with `points.json`, whatever `inputs.json`
-  contains. Every other workflow runs `passed`. Not built yet in qory:
-  `qory.workflow.judges` in `inputs.json`, so a session of `implement-changes` runs
-  `qory run verdict passed` until qory writes it.
+  contains. Every other workflow runs `passed`.
 - The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
   that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
   at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a
@@ -1519,6 +1549,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `.github/workflows/check.yml` builds qory at `05ef56eb`, in place of `64e700db`.
 - The check of reply phrases, such as "you are correct", runs on every artifact type, where
   it ran on `proposal.md` alone. Core lists the 16 phrases in
   `simple-communication/references/reply-phrases.json`, and the check stops when the stack

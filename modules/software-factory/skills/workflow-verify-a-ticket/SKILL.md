@@ -136,10 +136,13 @@ again, and fix no report: "The round" decides.
 ## The round
 
 Run `<skill folder>/checks.cjs findings round <reports> --reviewers
-tamper-reviewer,verification-reviewer` once, and add `--suite <suite>` only when the member
+tamper-reviewer,verification-reviewer` once. Add `--suite <suite>` only when the member
 `qory.review_session.suite_result` exists. With no `--suite`, the round has no suite
-finding. It reads each report once. A reviewer that wrote no valid report is one blocking
-finding. It prints a line per finding, with its proof on the next line.
+finding. Add `--previous <file>` only when the member
+`qory.review_session.previous_findings` exists, with its path as `<file>`: the earlier
+findings of the stage. Each earlier finding of a reviewer that its report neither repeats
+nor closes stays open. It reads each report once. A reviewer that wrote no valid report is
+one blocking finding. It prints a line per finding, with its proof on the next line.
 
 - With 1, a finding is blocking. Go on to step 10; the verdict is `changes-requested`.
 - With 0, no finding is blocking. Go on to step 10.
@@ -212,8 +215,9 @@ Record the verdict once, as the last command, with `<qory> run verdict` and no p
   7 found a failed scenario, or a finding is blocking. Never record `passed` while step 7
   has a failed scenario.
 
-With `changes-requested`, qory writes the findings for the next session of
-`implement-changes` from the reports. When the command fails, the run ends with no verdict.
+qory posts the reports to the findings of the work item before it records the verdict, and
+the next session of `implement-changes` gets each open finding. When the command fails, the
+run ends with no verdict.
 
 End with one line, and a second line when "The walkthrough" kept a reason: "The walkthrough
 was not stored: <reason>." The first line, after `passed`: "The change passed Verify: <m>
@@ -222,7 +226,7 @@ Verify: 1 criterion is met and no finding is blocking." After `changes-requested
 of `matrix` and the last line of `findings round`, and, when step 7 kept names, "Failed
 scenarios: <names>." with the names joined by ", ". Such a line reads "Wrote
 verification.json for 4e1c9b0a21ff: 3 met, 1 not met, 0 not verified. Checked 2 reports: 1
-blocking and 0 non-blocking findings. Failed scenarios: scenario-2."
+blocking, 0 non-blocking open findings; 0 closed. Failed scenarios: scenario-2."
 
 ## Failures
 

@@ -8,13 +8,14 @@
 
 module.exports = (lib) => {
   const {
-    cut, gatherReport, headings, markdownText, renderReport, same, sectionTitles, splitReport,
+    cut, gatherReport, headings, markdownText, registryOf, renderReport, same, sectionTitles,
+    splitReport,
   } = lib;
 
   const FILE = 'build-report.md';
   // The sections of the standard track (FULL), and those of the fast track (SHORT).
-  const FULL = ['Summary', 'Steps', 'Review rounds', 'Checks', 'Counts', 'Not run',
-    'Left out'];
+  const FULL = ['Summary', 'Steps', 'Review rounds', 'Replies', 'Checks', 'Counts',
+    'Not run', 'Left out'];
   const SHORT = ['Summary', 'Change', 'Proofs', 'Criterion', 'Not run', 'Left out'];
   // A fast-track session that escalated adds this section at the end.
   const ESCALATION = 'Escalation';
@@ -26,7 +27,7 @@ module.exports = (lib) => {
     const { context } = run;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
     const data = gatherReport({ context, cwd: context.workingFolder, env: process.env,
-      inputs: context.inputs });
+      inputs: context.inputs, kinds: registryOf(context.plugin).finding_kinds });
     if (!data) {
       run.tell('The tables of the report were not checked: the artifact folder has no ' +
         'build-ledger.json.');

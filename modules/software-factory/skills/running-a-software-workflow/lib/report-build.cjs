@@ -3,8 +3,9 @@
 // build-report renders them again and compares the text byte for byte. The records are the
 // build ledger, .reports/build-ledger.json of the artifact folder, the check records of
 // .reports/runs/, the newest acceptance lock, which records that each check failed on the
-// start commit, open-findings.json beside the inputs.json of the session, and the previous
-// version of build-report.md for the rounds before the latest.
+// start commit, open-findings.json beside the inputs.json of the session, with the open
+// findings of every stage, and the previous version of build-report.md for the rounds before
+// the latest.
 //
 // shortcut: no verb records the full suite, so the full-suite line is `unknown`; replace it
 // when a verb writes it.
@@ -24,11 +25,15 @@ const REPLACED = "an item that the report cannot contain; see the row's report i
 // The item of ## Left out for a row with a list `Left out:` that leftOut cannot read.
 const UNREAD =
   "a list Left out: that the report cannot read; see the row's report in the ledger";
+// The text of a line of ## Replies that the check of the report rejects.
+const REPLY_REPLACED = "a reply that the report cannot contain; see the row's reply in the ledger";
+// The most characters of the text of a line of ## Replies.
+const REPLY_TEXT = 500;
 
 module.exports = (lib) => {
   const {
-    MAX_BYTES, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson, plainText, readFile,
-    readOpen, schema, sections,
+    FINDINGS_BYTES, FINDINGS_FIX, Missing, POINT_TEXT, cells, cut, isObject, lines, parseJson,
+    plainText, readFile, readLimited, readOpen, schema, sections,
   } = lib;
   const LEDGER = schema.load(SCHEMAS, 'build-ledger');
 
@@ -74,10 +79,11 @@ module.exports = (lib) => {
     });
   }
 
-  // readRound returns the latest round of the open-findings.json beside the inputs.json
-  // inputs, { round, commit, reviewers, findings }, or null when inputs or the file is
-  // missing.
-  function readRound(inputs) {
+  // readRound returns the open findings of every stage that the session started with, from
+  // the open-findings.json beside the inputs.json inputs, { round, reviewers, findings }, or
+  // null when inputs or the file is missing. reviewers are the reviewers of those findings.
+  // kinds is the map of the finding kinds of the registry.
+  function readRound(inputs, kinds) {
     if (!inputs) return null;
     const file = path.join(path.dirname(inputs), 'open-findings.json');
     let stat;
@@ -86,34 +92,34 @@ module.exports = (lib) => {
     } catch {
       return null;
     }
-    if (!stat.isFile() || stat.size > MAX_BYTES) {
+    if (!stat.isFile()) {
       throw new Missing('Give report-build the open-findings.json that qory wrote.\n' +
-        'It is no regular file of at most 256 KB.');
+        'It is not a regular file.');
     }
-    const data = parseJson(readFile(file, 'open-findings.json'), 'open-findings.json');
-    const { round, findings } = readOpen(data, 'open-findings.json');
+    if (stat.size > FINDINGS_BYTES) {
+      throw new Missing(`${FINDINGS_FIX}\n"open-findings.json" has ${stat.size} bytes.`);
+    }
+    const data = parseJson(readLimited(file, 'open-findings.json', stat.size, FINDINGS_BYTES),
+      'open-findings.json');
+    const { round, findings } = readOpen(data, 'open-findings.json', kinds);
+    const open = findings.filter((one) => one.state === 'open');
     return {
-      round, findings,
-      commit: typeof data.commit === 'string' && git.COMMIT.test(data.commit) ? data.commit : null,
-      // qory writes the findings of a full suite that failed under the entry full-suite,
-      // which is no reviewer.
-      reviewers: [...new Set(data.reviewers.map((one) => one.reviewer))]
-        .filter((name) => name !== 'full-suite'),
+      round, findings: open,
+      reviewers: [...new Set(open.filter((one) => one.source.kind === 'reviewer')
+        .map((one) => one.source.name))],
     };
   }
 
   // roundText returns the lines of ### Round <N> of round, as readRound returns it.
   function roundText(round) {
     const out = [`### Round ${round.round}`, ''];
-    const facts = [];
-    if (round.commit) facts.push(`Frozen commit: ${round.commit}`);
-    if (round.reviewers.length) facts.push(`Reviewers: ${round.reviewers.join(', ')}`);
-    if (facts.length) out.push(`${facts.join('. ')}.`, '');
+    if (round.reviewers.length) out.push(`Reviewers: ${round.reviewers.join(', ')}.`, '');
     if (!round.findings.length) {
       out.push('None.');
     } else {
-      out.push(...table(['Finding', 'Reviewer', 'Blocking', 'Proof'], round.findings.map((one) =>
-        [`${one.id}: ${one.point}`, one.reviewer, one.severity === 'blocking' ? 'yes' : 'no',
+      out.push(...table(['Finding', 'Source', 'Blocking', 'Proof'], round.findings.map((one) =>
+        [`${one.id}: ${one.point}`, one.from,
+          one.severity === 'blocking' ? 'yes' : 'no',
           one.proof === null || one.proof === '' ? 'none' : cut(one.proof, POINT_TEXT)])));
     }
     return out.join('\n');
@@ -211,8 +217,9 @@ module.exports = (lib) => {
 
   // gather returns what render needs, or null when the artifact folder has no build
   // ledger. context is the Context of the artifact folder, cwd the working folder, env the
-  // environment for git, and inputs the path of the inputs.json of the session, or null.
-  function gather({ context, cwd, env, inputs }) {
+  // environment for git, inputs the path of the inputs.json of the session, or null, and kinds
+  // the map of the finding kinds of the registry.
+  function gather({ context, cwd, env, inputs, kinds }) {
     const ledger = readLedger(context.root);
     if (!ledger) return null;
     const head = git.head(cwd, env);
@@ -225,7 +232,7 @@ module.exports = (lib) => {
     return {
       ledger, head, records: readRecords(context.root),
       checks: locked && Array.isArray(locked.checks) ? locked.checks.filter(isObject) : [],
-      round: readRound(inputs), previous: previous ? previous.text : null,
+      round: readRound(inputs, kinds), previous: previous ? previous.text : null,
       machine: context.machine,
     };
   }
@@ -237,6 +244,17 @@ module.exports = (lib) => {
     const probe = { context: { machine }, did() {}, find() { count += 1; } };
     lib.markdownText(probe, FILE, text);
     return count > 0;
+  }
+
+  // repliesText returns the lines of ## Replies, one per row { id, word, text }, in the order
+  // of rows: `- <id>, <word>: <text>`, the text cut at 500 characters and replaced when the
+  // check of the report rejects it, or "None." with no row.
+  function repliesText(rows, machine) {
+    if (!rows.length) return ['None.'];
+    return rows.map(({ id, word, text }) => {
+      const line = `- ${id}, ${word}: ${cut(plainText(text), REPLY_TEXT)}`;
+      return refused(line, machine) ? `- ${id}, ${word}: ${REPLY_REPLACED}` : line;
+    });
   }
 
   // render returns the text of build-report.md of the standard track for what gather
@@ -267,6 +285,10 @@ module.exports = (lib) => {
       : ['None.']]);
     out.push(['Review rounds', [
       ...(rounds.length ? rounds.flatMap((one) => [one.text, '']) : ['None.', '']), CLOSING]]);
+    // A done row of a fix of a finding has the builder's reply, which qory posts.
+    out.push(['Replies', repliesText(rows.filter((row) => row.state === 'done' && row.reply)
+      .map((row) => ({ id: row.id.replace(/^fix:/, ''), word: row.reply.kind,
+        text: row.reply.reason })), data.machine)]);
     out.push(['Checks', [
       ...(checks.length ? [...table(['Check', 'Start', 'Head'], checks.map((check) => [
         `${check.criterion}: ${check.path}`, check.failed_with > 0 ? 'red' : 'unknown',
@@ -310,5 +332,5 @@ module.exports = (lib) => {
   }
 
   return { BUILD_REPORT_FILE: FILE, gatherReport: gather, leftOut, readLedger, readRecords,
-    renderReport: render, splitReport: split };
+    renderReport: render, repliesText, splitReport: split };
 };

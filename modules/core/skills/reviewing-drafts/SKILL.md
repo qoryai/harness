@@ -199,8 +199,8 @@ Write it as your last step before the text report, also when you have no finding
 file exists, read it, then write it. With the last word `blocked`, write no report file.
 
 The file is one JSON object: `reviewer` is your agent's name, and `findings` has one item
-for each finding of your text report, and is empty with none. An item has these members and
-no other:
+for each finding of your text report, and is empty with none. Report at most 100 findings,
+the blocking ones first. An item has these members and no other:
 
 - `severity`: `blocking` for a finding marked `break` and for one that quotes a line of
   "Checks:", because each keeps the draft from passing. Every other finding is
