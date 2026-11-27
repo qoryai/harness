@@ -62,8 +62,8 @@ const kindOf = (value) => {
 // or null for a file with no member qory, no home, a relative home and no file. For a link, a
 // file of more than MAX_INPUTS bytes, a file that is no regular file, cannot be read, with the
 // code of the error, or is no JSON or not a JSON object, and a member qory that is no map, it
-// returns { problem }, FIX and the cause, with the words of readQory of
-// lib/repository-settings.cjs.
+// returns { problem }, FIX and the cause. The cause of a member qory that is no map has the
+// words of readQory of lib/repository-settings.cjs; the others are this file's.
 function qoryOf(env) {
   const home = env && env.QORY_HARNESS_HOME;
   if (typeof home !== 'string' || !path.isAbsolute(home)) return { qory: null };

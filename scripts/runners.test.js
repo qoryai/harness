@@ -1362,6 +1362,35 @@ test('credential names: the floor and a list add prefixes and exact names', () =
     ['Fix vendor/credential-variables.json.', '"*" is no variable name or prefix.'] });
 });
 
+test('credential names: the file of software-factory must be there, and is read once', () => {
+  // A copy of the module without its credential-variables.json stops each read of the list.
+  const real = path.join(MODULES, 'software-factory');
+  const copy = path.join(tmp, `module-${++homes}`, 'software-factory');
+  fs.cpSync(real, copy, { recursive: true,
+    filter: (from) => from !== path.join(real, 'credential-variables.json') });
+  const copied = require(path.join(copy, path.relative(real, SKILL), 'lib', 'run-lists.cjs'));
+  assert.deepEqual(copied.credentialNames({}), { problem: ['Write software-factory/' +
+    'credential-variables.json as {"credential_variables": [<name or prefix>, ...]}.'] });
+  // A home whose modules/software-factory links to the module, and the plugin folder, which
+  // is the module too, read its file once.
+  const home = harnessHome({});
+  fs.mkdirSync(path.join(home, 'modules'));
+  fs.symlinkSync(real, path.join(home, 'modules', 'software-factory'));
+  const reads = [];
+  const readFileSync = fs.readFileSync;
+  fs.readFileSync = (file, ...more) => {
+    if (String(file).endsWith('credential-variables.json')) reads.push(file);
+    return readFileSync(file, ...more);
+  };
+  try {
+    const got = runLists.credentialNames({ QORY_HARNESS_HOME: home }, [real]);
+    assert.equal(secrets.runKey('GEMINI_X', got.names), true);
+  } finally {
+    fs.readFileSync = readFileSync;
+  }
+  assert.equal(reads.length, 1, reads.join(', '));
+});
+
 test('credential names: a name matches an entry in any case, as Forager matches it', () => {
   // Forager's Matches, at the version that qory pins, upper-cases the entries and the name
   // (forager session/internal/variables/variables.go:518-539), and its test

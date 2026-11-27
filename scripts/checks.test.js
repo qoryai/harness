@@ -6759,11 +6759,12 @@ test('reply phrases: a call of checkFiles without phraseFiles is a fault of the 
     { message: /^Fix the call of checkFiles for notes: give place\.phraseFiles\.\nGive null / });
 });
 
-test('checkFiles: a call without env is a fault of the harness', () => {
+test('checkFiles: a call without env, or with a null env, is a fault of the harness', () => {
   const { checkFiles: filesOf } = require(path.join(path.dirname(SCRIPT), 'lib', 'drafts.cjs'));
-  assert.throws(() => filesOf('check', tmp, { type: 'notes' }, [], tmp, null, tmp, null,
-    { phraseFiles: null }),
-  { message: 'Fix the call of checkFiles for notes: give place.env, the io.env of the verb.' });
+  for (const place of [{ phraseFiles: null }, { phraseFiles: null, env: null }]) {
+    assert.throws(() => filesOf('check', tmp, { type: 'notes' }, [], tmp, null, tmp, null, place),
+      { message: 'Fix the call of checkFiles for notes: give place.env, the io.env of the verb.' });
+  }
 });
 
 test('reply phrases: the checks of setext headings and of a paragraph', () => {

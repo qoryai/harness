@@ -47,7 +47,7 @@ function draftFile(mode, root, file) {
 // which is no type of the registry, and replyCheck then does not run. A call without
 // phraseFiles is a fault of the harness, so that no caller skips the phrases by mistake. env
 // is the io.env of the verb, from which the check of a type reads the key shapes, as
-// Context.env; a call without env is a fault of the harness too.
+// Context.env; a call without env, or with a null env, is a fault of the harness too.
 function checkFiles(mode, root, def, given, home, plugin = null, store = root, view = null,
   place = {}) {
   const { type } = def;
@@ -55,7 +55,7 @@ function checkFiles(mode, root, def, given, home, plugin = null, store = root, v
     throw new Error(`Fix the call of checkFiles for ${type}: give place.phraseFiles.\n` +
       'Give null for a type that the registry does not have.');
   }
-  if (place.env === undefined) {
+  if (place.env === undefined || place.env === null) {
     throw new Error(`Fix the call of checkFiles for ${type}: give place.env, the io.env ` +
       'of the verb.');
   }
