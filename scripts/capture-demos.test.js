@@ -512,7 +512,7 @@ test('film pages: a setup that types a credential exits 3 before the app', () =>
   const done = call(['film', 'pages', '/orders', '--artifacts', here.plan], deps);
   assert.equal(done.status, 3, done.out + done.err);
   assert.equal(done.out, 'Remove the key from the demo scripts, then run film pages again.\n' +
-    '  A demo script types GITHUB_TOKEN, which is a secret of this run.\n' +
+    '  A setup types GITHUB_TOKEN, which is a secret of this run.\n' +
     'Checked nothing: the film could not read its input.\n');
   assert.equal(fs.existsSync(started), false);
   assert.equal(fs.existsSync(path.join(here.root, '.film', 'pages')), false);

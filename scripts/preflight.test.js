@@ -1351,8 +1351,7 @@ test('preflight: a demo script that types a credential name exits 3, and a bad e
   assert.throws(() => run(here, parts, { browsers: [process.execPath],
     env: { QORY_HARNESS_HOME: home(['ACME_*']) } }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
-    assert.deepEqual(error.more, ['A setup types ACME_HOST, a variable of the run\'s credential ' +
-      'list.']);
+    assert.deepEqual(error.more, ['A setup types ACME_HOST, which is a secret of this run.']);
     return true;
   });
   assert.throws(() => run(here, parts, { browsers: [process.execPath],
@@ -1378,8 +1377,8 @@ test('preflight: a demo script that types a key of qory, of an agent or of a cod
     url: 'http://127.0.0.1:9/', cwd: here.dir }, scripts: [script('scenario-1', setup)] },
   { browsers: [process.execPath] }), (error) => {
     assert.equal(error.message, 'Remove the key from the demo scripts, then run preflight again.');
-    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, a variable of the run\'s ' +
-      'credential list.']);
+    assert.deepEqual(error.more, ['A setup types ANTHROPIC_API_KEY, which is a secret of this ' +
+      'run.']);
     return true;
   });
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
@@ -1545,7 +1544,7 @@ test('preflight verb: each input that is missing or broken, and a runner with no
     deps);
   assert.equal(key.status, 3, key.out + key.err);
   assert.equal(key.out, 'Remove the key from the demo scripts, then run preflight again.\n' +
-    '  A setup types QORY_RUN_KEY, a variable of the run\'s credential list.\n' +
+    '  A setup types QORY_RUN_KEY, which is a secret of this run.\n' +
     'Checked nothing: the preflight could not read its input.\n');
   assert.equal(fs.existsSync(path.join(here.root, '.reports/preflight/serve.log')), false);
   demoScript(here.root);

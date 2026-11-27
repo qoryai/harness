@@ -1628,8 +1628,8 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
     [harnessHome({}, { 'inputs.json': '{' }), where('is no JSON')],
     [folder, where('is no regular file')],
     ...(asRoot ? [] : [[unreadable, where('cannot be read: EACCES')]]),
-    [harnessHome({}, { 'inputs.json': '[1]' }), where('is no JSON object')],
-    [harnessHome({}, { 'inputs.json': 'null' }), where('is no JSON object')],
+    [harnessHome({}, { 'inputs.json': '[1]' }), where('is not a JSON object')],
+    [harnessHome({}, { 'inputs.json': 'null' }), where('is not a JSON object')],
     ...[['5', 'a number'], ['null', 'null'], ['[]', 'a list']].map(([value, kind]) => [
       harnessHome({}, { 'inputs.json': `{"qory": ${value}}` }),
       `qory in inputs.json is ${kind}, not a map.`])]) {

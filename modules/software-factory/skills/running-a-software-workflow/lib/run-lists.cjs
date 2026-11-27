@@ -61,7 +61,7 @@ const kindOf = (value) => {
 // qoryOf returns { qory } of $QORY_HARNESS_HOME/inputs.json of env: the member qory, a map,
 // or null for a file with no member qory, no home, a relative home and no file. For a link, a
 // file of more than MAX_INPUTS bytes, a file that is no regular file, cannot be read, with the
-// code of the error, or is no JSON or no JSON object, and a member qory that is no map, it
+// code of the error, or is no JSON or not a JSON object, and a member qory that is no map, it
 // returns { problem }, FIX and the cause, with the words of readQory of
 // lib/repository-settings.cjs.
 function qoryOf(env) {
@@ -91,7 +91,7 @@ function qoryOf(env) {
     try {
       const data = JSON.parse(text);
       if (!isMap(data)) {
-        got = broken('is no JSON object');
+        got = broken('is not a JSON object');
       } else if (data.qory !== undefined && !isMap(data.qory)) {
         got = { problem: [FIX, `qory in inputs.json is ${kindOf(data.qory)}, not a map.`] };
       } else {

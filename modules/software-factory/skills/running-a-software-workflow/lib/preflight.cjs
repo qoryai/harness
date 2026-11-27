@@ -467,7 +467,7 @@ module.exports = (lib) => {
     const setups = serve ? signInSetups(scripts) : [];
     keyOfQory(setups.flatMap((setup) => setup.names), credentials(io),
       'Remove the key from the demo scripts, then run preflight again.',
-      (name) => `A setup types ${name}, a variable of the run's credential list.`);
+      (name) => `A setup types ${name}, which is a secret of this run.`);
     const found = [];
     const did = ['the browser'];
     if (!browser) found.push({ kind: 'browser', part: 'the browser', why: 'No browser such as ' +
@@ -534,12 +534,16 @@ module.exports = (lib) => {
   // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
   // file lists in dir, and run has capture, what it returns, besides. A script that types a
   // variable of the run's credentials throws, before the app starts, the Missing whose first
-  // line is keyFix, the fix of the caller. A call without keyFix is a fault of the code, and
+  // line is keyFix, the fix of the caller, and whose cause names the setup or the demo script
+  // that types it. A call without keyFix is a fault of the code, and
   // throws an Error.
   function runScript(io, root, { serve, script, capture, keyFix }) {
     if (typeof keyFix !== 'string' || !keyFix) throw new Error('runScript needs keyFix');
-    keyOfQory(typedNames([script]), credentials(io), keyFix,
-      (name) => `A demo script types ${name}, which is a secret of this run.`);
+    // The line names a setup for a variable that the setup types, else the demo script.
+    const inSetup = new Set(variablesOf(script.setup || []));
+    keyOfQory(typedNames([script]), credentials(io), keyFix, (name) =>
+      `${inSetup.has(name) ? 'A setup' : 'A demo script'} types ${name}, which is a secret of ` +
+      'this run.');
     const options = io.preflight || {};
     const browser = findBrowser(io.env, options.browsers);
     if (!browser) return { browser: null };

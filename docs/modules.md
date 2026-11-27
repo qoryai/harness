@@ -4687,10 +4687,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   finding, both with the fix "Start the run again with qory, which writes key-shapes.json:
   the scan for keys cannot run." and the cause on the next line. The check of the text of a
   pull request has the same finding. When `inputs.json` is a link, has more than 16 MB, is
-  no regular file, cannot be read or is no JSON object, or its `qory` is no map, such as
-  "qory in inputs.json is a list, not a map.", or `qory.key_shapes` is no file name, such as
-  `../k.json`, the same verbs stop with the fix "Start the run again with qory, which writes
-  inputs.json: the run's lists cannot be read." and a cause such as
+  no regular file, cannot be read, is no JSON or is not a JSON object, or its `qory` is no
+  map, such as "qory in inputs.json is a list, not a map.", or `qory.key_shapes` is no file
+  name, such as `../k.json`, the same verbs stop with the fix "Start the run again with
+  qory, which writes inputs.json: the run's lists cannot be read." and a cause such as
   "$QORY_HARNESS_HOME/inputs.json is no JSON." or "qory.key_shapes in inputs.json is set to
   "../k.json", which is no file name."; so do `preflight`, `film` and `demo run`, which read
   `qory.credential_variables`. Every other verb that scans or shows a path with the key
@@ -4794,10 +4794,11 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   no frame, and a `type` only when the focus is in the element of its target. The replay
   gets only the variables that its setup types, and a setup that types a variable of the
   credential list, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY`, `GITLAB_TOKEN` or
-  `BITBUCKET_TOKEN`, exits 3 before the app starts. `demo run`, `film` and `film pages` exit
-  3 the same way, before the app starts, when a setup or a step of the script types such a
-  variable, with the line "A demo script types <name>, which is a secret of this run." after
-  the fix. The fix of `film` is "Remove the key from the demo scripts, then run film <id>
+  `BITBUCKET_TOKEN`, exits 3 before the app starts, with the line "A setup types <name>,
+  which is a secret of this run." after the fix. `demo run`, `film` and `film pages` exit 3
+  the same way, before the app starts, when a setup or a step of the script types such a
+  variable; for a step, the line is "A demo script types <name>, which is a secret of this
+  run." The fix of `film` is "Remove the key from the demo scripts, then run film <id>
   again.", that of `film pages` ends "then run film pages again.", and that of `demo run` is
   "Remove the key from .demo/<id>.actions.json, then run demo write <id>."
 
