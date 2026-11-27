@@ -4583,8 +4583,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   3 the same way, before the app starts, when a setup or a step of the script types such a
   variable, with the line "A demo script types <name>, which is a secret of this run." after
   the fix. The fix of `film` is "Remove the key from the demo scripts, then run film <id>
-  again." (`film pages` for `film pages`), and that of `demo run` is "Remove the key from
-  .demo/<id>.actions.json, then run demo write <id>."
+  again.", that of `film pages` ends "then run film pages again.", and that of `demo run` is
+  "Remove the key from .demo/<id>.actions.json, then run demo write <id>."
 
   The credential list is the union of three lists, each `{"credential_variables": [...]}`:
   `credential-variables.json` of `running-a-software-workflow`, with `QORY_*`,

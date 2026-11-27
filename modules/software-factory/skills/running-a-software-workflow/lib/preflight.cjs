@@ -535,8 +535,10 @@ module.exports = (lib) => {
   // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
   // file lists in dir, and run has capture, what it returns, besides. A script that types a
   // variable of the run's credentials throws, before the app starts, the Missing whose first
-  // line is keyFix, the fix of the caller.
+  // line is keyFix, the fix of the caller. A call without keyFix is a fault of the code, and
+  // throws an Error.
   function runScript(io, root, { serve, script, capture, keyFix }) {
+    if (typeof keyFix !== 'string' || !keyFix) throw new Error('runScript needs keyFix');
     keyOfQory(typedNames([script]), credentials(io), keyFix,
       (name) => `A demo script types ${name}, which is a secret of this run.`);
     const options = io.preflight || {};

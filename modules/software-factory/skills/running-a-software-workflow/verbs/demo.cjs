@@ -411,7 +411,8 @@ module.exports = (lib) => {
         `plan the build again.\nThe build plan has no serve command, so ${id} has no app to run.`);
     }
     const ran = checks.runScript(io, root, { serve, script: draft.data,
-      keyFix: `Remove the key from .demo/${id}.actions.json, then run demo write ${id}.` });
+      keyFix: `Remove the key from ${path.join(FOLDER, `${id}.actions.json`)}, then run demo ` +
+        `write ${id}.` });
     if (!ran.browser) {
       throw new Missing('Add a browser to the dev container, then run preflight again.\nNo ' +
         'browser such as /usr/bin/chromium exists on this machine.');

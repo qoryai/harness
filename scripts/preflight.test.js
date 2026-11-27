@@ -578,6 +578,9 @@ const outsidePoint = (address, origin) => ({
     'another round.',
 });
 
+// The fix of the key stop that the tests of runScript pass, as film passes it.
+const KEY_FIX = 'Remove the key from the demo scripts, then run film scenario-1 again.';
+
 // runScript runs a demo script whose setup is SIGN_IN and whose first step has actions, with the
 // value of DEMO_PASSWORD, on the app, as demo run does.
 async function runSteps(actions, value) {
@@ -593,7 +596,7 @@ async function runSteps(actions, value) {
   one.steps = actions.map((list, place) => ({ step: place + 1, title: 'Step.', expected: 'Seen.',
     actions: list }));
   return preflight.runScript(io, here.root, { serve: { command: 'node app/server.cjs',
-    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one });
+    url: `http://127.0.0.1:${port}/`, cwd: here.dir }, script: one, keyFix: KEY_FIX });
 }
 
 test('runScript: a script whose setup and steps pass runs once and passes',
@@ -618,9 +621,22 @@ test('runScript: with no browser on the machine, it runs nothing', () => {
   const here = checkout();
   const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
     preflight: { browsers: [path.join(tmp, 'no-browser')] } };
-  const got = preflight.runScript(io, here.root, { serve: { command: 'true',
-    url: 'http://127.0.0.1:9/', cwd: here.dir }, script: script('scenario-1', SIGN_IN) });
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:9/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN) };
+  const got = preflight.runScript(io, here.root, { ...given, keyFix: KEY_FIX });
   assert.deepEqual(got, { browser: null });
+});
+
+test('runScript: a call without keyFix throws an Error that names keyFix', () => {
+  const here = checkout();
+  const io = { cwd: here.dir, home: process.env.HOME, plugin: PLUGIN, env: process.env,
+    preflight: { browsers: [path.join(tmp, 'no-browser')] } };
+  const given = { serve: { command: 'true', url: 'http://127.0.0.1:9/', cwd: here.dir },
+    script: script('scenario-1', SIGN_IN) };
+  for (const keyFix of [undefined, '']) {
+    assert.throws(() => preflight.runScript(io, here.root, { ...given, keyFix }),
+      (error) => error.constructor === Error && error.message === 'runScript needs keyFix');
+  }
 });
 
 test('preflight: a sign-in that opens another site writes the point of the page outside the app', { skip: NO_BROWSER }, async () => {
@@ -2404,7 +2420,8 @@ fs.writeFileSync(spec.resultFile, JSON.stringify(result) + '\\n', { flag: 'wx' }
   const here = checkout();
   const io = { env: process.env, preflight: { browsers: [process.execPath], runner: fake } };
   const given = { serve: { command: 'true', url: 'http://127.0.0.1:1/', cwd: here.dir },
-    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir } };
+    script: script('scenario-1', SIGN_IN), capture: { kind: 'film', dir: here.dir },
+    keyFix: KEY_FIX };
   const done = preflight.runScript(io, here.root, given);
   assert.equal(done.run.capture.frames.length, 40000);
   assert.ok(JSON.stringify(done.run.capture).length > 1024 * 1024);
