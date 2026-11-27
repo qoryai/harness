@@ -1546,6 +1546,12 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   limit, the finding is "Plan at most <m> separate changes, or ask a member whether to
   build all <n>: the plan has <n>, and no member's answer allows more than <m>.", and when
   the notes cannot be read, a later line says why and the limit stays 7.
+- The skill `simple-communication` has a rule for UI text, CLI output and error messages:
+  write for the person who reads them, never for agents or for the team that built the
+  product, with only words that person knows. Internal parts and edge-case rules go to
+  the docs. UI text, CLI output or an error message that only an agent reads inside a run
+  is written for that agent. Self-check question 28 checks the rule, and "Read aloud"
+  becomes question 29.
 
 ### Changed
 
