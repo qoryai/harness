@@ -4280,9 +4280,9 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
     `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
     and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
-    "<name>" in Workspace settings > Secrets and variables." Its second line is "Then run film
-    <id> again." Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because
-    the build plan would come from the artifact folder of the session. A run that fails in a
+    AGENT_<name> in the Variables settings." Its second line is "Then run film <id> again."
+    Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because the build
+    plan would come from the artifact folder of the session. A run that fails in a
     step, when the runner cannot write the capture because the disk is full or fails (`ENOSPC`,
     `EIO`, `EDQUOT`, `EROFS`, `EFBIG`), exits 3 with "Kind: outside" and the fix "Give the
     dev container more disk space, then run film <id> again." Any other error of the capture,
@@ -4446,10 +4446,12 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   The key shapes are the default list in `key-shapes.json` of
   `running-a-software-workflow`, a copy of Forager's `contracts/forager/v1/key-shapes.json`
   with its schema in `key-shapes.schema.json`, and the shapes that the deployment adds. qory
-  writes those in `$QORY_HARNESS_HOME/key-shapes.json` and sets `qory.key_shapes` of
-  `inputs.json` to the file name. The scan uses both lists. A file is `{"shapes": [...]}`
-  with at least 1 shape, and each shape has all of `name`, `prefix`, `any_case`, `blank`,
-  `alphabet`, `min` and `max`; it may have `word_start`, which is false when it is missing:
+  is to write those in `$QORY_HARNESS_HOME/key-shapes.json` and set `qory.key_shapes` of
+  `inputs.json` to the file name. qory does not yet write `qory.key_shapes`, so the scan
+  uses the default list. With the member, the scan uses both lists. A file is
+  `{"shapes": [...]}` with at least 1 shape, and each shape has all of `name`, `prefix`,
+  `any_case`, `blank`, `alphabet`, `min` and `max`; it may have `word_start`, which is false
+  when it is missing:
   - the name, the id of the shape: 1 to 64 lower-case letters and digits in parts that
     single hyphens join, such as `github-personal-access-token`;
   - the prefix, 1 to 64 characters of printable ASCII without a space; `any_case` matches
@@ -4533,12 +4535,14 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   does not run; a command that starts the app in the background and exits 0 counts once the
   address responds. The command gets the environment of `preflight` without each variable
   of the credential list of the run, such as `QORY_RUN_KEY`, `ANTHROPIC_API_KEY` or
-  `GITHUB_TOKEN`, without each variable whose name contains TOKEN, SECRET, KEY, PASSWORD,
-  PASSWD or CREDENTIAL, such as `AWS_SECRET_ACCESS_KEY`, `AWS_SESSION_TOKEN` or
-  `GOOGLE_APPLICATION_CREDENTIALS`, unless `qory.run_secret_names` lists it and the
-  credential list does not, and without each variable that a `type` action of a demo
-  script types, in a setup or a step, such as `DEMO_PASSWORD`; of the names of qory, it
-  gets only `QORY_CHECK_MARK`, the mark of the supervisor. In a walled run, a
+  `GITHUB_TOKEN`, and without each variable that a `type` action of a demo script types, in
+  a setup or a step, such as `DEMO_PASSWORD`; of the names of qory, it gets only
+  `QORY_CHECK_MARK`, the mark of the supervisor. Every other variable reaches the command,
+  whatever its name, such as `AWS_SECRET_ACCESS_KEY` or `DATABASE_PASSWORD`. In the agent's
+  container, the environment has the variables of the workspace whose names start with
+  `AGENT_`, with the prefix removed, so `AGENT_DATABASE_PASSWORD` of the workspace reaches
+  the app as `DATABASE_PASSWORD`, and a demo script that types `DEMO_PASSWORD` needs
+  `AGENT_DEMO_PASSWORD` in the workspace. In a walled run, a
   secret of the run reaches `preflight` only as a placeholder of the gateway, so a
   variable that passes is a variable of the workspace or a placeholder. In a walled run on
   Linux, the command can still read the environment of the runner of the check in
@@ -4581,19 +4585,13 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   a runtime or a vendor adds its names, read from the plugin folder and, when the plugin
   folder is a module of the harness home, from each module beside it, and in a composed run
   from each folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module;
-  and `qory.credential_variables` of `inputs.json`, which qory writes with the names of the
-  runtime and those that the deployment adds. An entry is the exact name of a variable or a
+  and `qory.credential_variables` of `inputs.json`, for the names of the runtime and those
+  that the deployment adds. qory does not yet write `qory.credential_variables`, so the list
+  is the union of the first two. An entry is the exact name of a variable or a
   prefix that ends in `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no
   entry. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the
   line "<entry> is no variable name or prefix.", or with "Fix
   <module>/credential-variables.json." as the first line for the file of a module.
-
-  `qory.run_secret_names` of `inputs.json` lists the names of the run secrets that qory puts
-  in the environment of the run, with entries of the same form and the same check: "Fix
-  qory.run_secret_names in inputs.json." and the line of the entry. The `serve` command gets
-  a variable whose name contains TOKEN, SECRET, KEY, PASSWORD, PASSWD or CREDENTIAL only
-  when the list has its name and the credential list does not. Without the member, it gets
-  none of them.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or
@@ -5315,9 +5313,10 @@ a browser. The `software` stack lists it after `software-factory`. It ships:
   and Write. It writes one file, `.demo/<scenario>.actions.json` in the artifact folder, in
   which each action is one of open, click, type, press and wait, a target is a CSS selector
   or `text=<words>` that it found in the code of the screens, and a secret is the name of a
-  variable of the workspace, never a text. It writes no title and no expected result. It
-  stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the step>`
-  instead of guessing a target;
+  variable without the prefix `AGENT_`, such as `DEMO_PASSWORD` for the variable
+  `AGENT_DEMO_PASSWORD` of the workspace, never a text. It writes no title and no expected
+  result. It stops with `Blocked: no screen for <the step>` or `Blocked: no action for <the
+  step>` instead of guessing a target;
 - the skill `scripting-demos`, which `workflow-implement-changes` loads by name after its
   last deliverable. For each scenario that `demo check` lists or refuses, it opens the
   ledger step `script:<id>`, runs `notes`, starts `browser-demo-author`, runs `demo write`,

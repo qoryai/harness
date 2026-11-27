@@ -31,9 +31,10 @@ Each action is one of these five, with the keys that its form lists and no other
 - `{"do": "click", "target": "<target>"}`
 - `{"do": "type", "target": "<target>", "text": "<text>"}`, or, for a secret, such as a
   password, `{"do": "type", "target": "<target>", "variable": "<NAME>"}`, where `<NAME>` is
-  the name of a variable of the workspace in capitals, digits and `_`, such as
-  `DEMO_PASSWORD`. Reuse the name that the build plan or an earlier demo script of the work
-  item uses for the same value. A password, key or token never goes into `text`.
+  the name of a variable in capitals, digits and `_`, such as `DEMO_PASSWORD`, without the
+  prefix `AGENT_`: the workspace sets it as `AGENT_<NAME>`, and the run has it as `<NAME>`.
+  Reuse the name that the build plan or an earlier demo script of the work item uses for the
+  same value. A password, key or token never goes into `text`.
 - `{"do": "press", "key": "<key>"}`, such as `Enter` or `Control+a`.
 - `{"do": "wait", "text": "<the words that show on the screen>"}`, with `"timeout_ms"` of
   at most 60000 when the page needs longer than 5 seconds. All waits of a script add up
