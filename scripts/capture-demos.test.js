@@ -475,7 +475,7 @@ test('film and demo run: a step that types a credential exits 3 before the app',
   const started = path.join(here.dir, 'started.txt');
   const deps = { ...here.deps, env: { ...here.deps.env, GITHUB_TOKEN: 'ghp_fake-value-0001' },
     preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
-  const cause = '  A demo script types GITHUB_TOKEN, a variable of the run\'s credential list.';
+  const cause = '  A demo script types GITHUB_TOKEN, which is a secret of this run.';
   const film = call(['film', 'scenario-1', '--artifacts', here.plan], deps);
   assert.equal(film.status, 3, film.out + film.err);
   assert.deepEqual(film.out.split('\n').slice(0, 2), ['Remove the key from the demo scripts, ' +
@@ -486,10 +486,30 @@ test('film and demo run: a step that types a credential exits 3 before the app',
   fs.writeFileSync(path.join(here.root, '.demo', 'scenario-1.json'), JSON.stringify(one));
   const draft = call(['demo', 'run', 'scenario-1', '--artifacts', here.plan], deps);
   assert.equal(draft.status, 3, draft.out + draft.err);
-  assert.deepEqual(draft.out.split('\n').slice(0, 2), ['Remove the key from the demo ' +
-    'scripts, then run demo run again.', cause]);
+  assert.deepEqual(draft.out.split('\n').slice(0, 2), ['Remove the key from ' +
+    '.demo/scenario-1.actions.json, then run demo write scenario-1.', cause]);
   assert.equal(fs.existsSync(started), false);
-  assert.equal(film.out.includes('ghp_fake'), false);
+  for (const text of [film.out, film.err, draft.out, draft.err]) {
+    assert.equal(text.includes('ghp_fake'), false, text);
+  }
+});
+
+test('film pages: a setup that types a credential exits 3 before the app', () => {
+  const one = script('scenario-1');
+  one.setup = [{ do: 'open', url: '/sign-in' },
+    { do: 'type', target: '#token', variable: 'GITHUB_TOKEN' }];
+  const here = checkout([one]);
+  const started = path.join(here.dir, 'started.txt');
+  const deps = { ...here.deps, env: { ...here.deps.env, GITHUB_TOKEN: 'ghp_fake-value-0001' },
+    preflight: { ...here.deps.preflight, runner: keyRunner(started) } };
+  const done = call(['film', 'pages', '/orders', '--artifacts', here.plan], deps);
+  assert.equal(done.status, 3, done.out + done.err);
+  assert.deepEqual(done.out.split('\n').slice(0, 2), ['Remove the key from the demo scripts, ' +
+    'then run film pages again.', '  A demo script types GITHUB_TOKEN, which is a secret of ' +
+    'this run.']);
+  assert.equal(fs.existsSync(started), false);
+  assert.equal(fs.existsSync(path.join(here.root, '.film', 'pages')), false);
+  assert.equal((done.out + done.err).includes('ghp_fake'), false);
 });
 
 test('film: a title with --> is a fault of the script at its step, with no film', () => {

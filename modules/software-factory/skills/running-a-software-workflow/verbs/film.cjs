@@ -593,7 +593,7 @@ module.exports = (lib) => {
         maxMs: Math.min((io.preflight || {}).maxMs || RUN_BUDGET_MS, RUN_BUDGET_MS) } };
       const again = kind === 'film' ? 'film it' : 'run it';
       const ran = checks.runScript(shorter, root, { serve, script, capture,
-        again: `film ${id}` });
+        keyFix: `Remove the key from the demo scripts, then run film ${id} again.` });
       const run = ended(ran, serve,
         `film ${id}`, () => new Missing(`Shorten the sign-in steps of ${id}.json, or make the ` +
           `app start faster, then ${again} again.\nThe ${START_MS / 1000} s for the app ` +
@@ -886,8 +886,9 @@ module.exports = (lib) => {
     const dir = freshFolder(root, 'pages');
     return cleaned(dir, () => {
       const capture = { kind: 'pages', dir, name: 'pages', widths: WIDTHS };
-      const run = ended(checks.runScript(io, root, { serve, script, capture,
-        again: 'film pages' }), serve, 'film pages');
+      const ran = checks.runScript(io, root, { serve, script, capture,
+        keyFix: 'Remove the key from the demo scripts, then run film pages again.' });
+      const run = ended(ran, serve, 'film pages');
       if (!run.ok) {
         fs.rmSync(dir, { recursive: true, force: true });
         return failure(io, run, 'pictures of pages', 'film pages');

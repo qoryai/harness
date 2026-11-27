@@ -417,14 +417,13 @@ module.exports = (lib) => {
   // keyOfQory throws the Missing of a name of typed, the variables that demo scripts type,
   // that is a variable of the run's credentials, names, such as one of qory, of an agent or of
   // a code forge, as runKey of lib/secrets.cjs finds it: the runner passes it no such
-  // variable. what is the part of the scripts that types it, and again the command that the
-  // fix runs again.
-  function keyOfQory(typed, names, what, again) {
+  // variable. fix is the first line of the Missing, and line returns its next line for the
+  // name.
+  function keyOfQory(typed, names, fix, line) {
     const name = typed.find((one) => runKey(one, names));
     if (!name) return;
-    throw new Missing(`Remove the key from the demo scripts, then run ${again} again.`,
-      [`${what} types ${name}, a variable of the run's credential list.`,
-        cause(`a demo script types ${name}, which the run keeps from scripts`)]);
+    throw new Missing(fix, [line(name),
+      cause(`a demo script types ${name}, which the run keeps from scripts`)]);
   }
 
   // signInFound returns what the results of the sign-ins of setups found: the browser failed,
@@ -467,7 +466,9 @@ module.exports = (lib) => {
     const checks = rulesOf(io);
     const browser = findBrowser(io.env, options.browsers);
     const setups = serve ? signInSetups(scripts) : [];
-    keyOfQory(setups.flatMap((setup) => setup.names), credentials(io), 'A setup', 'preflight');
+    keyOfQory(setups.flatMap((setup) => setup.names), credentials(io),
+      'Remove the key from the demo scripts, then run preflight again.',
+      (name) => `A setup types ${name}, a variable of the run's credential list.`);
     const found = [];
     const did = ['the browser'];
     if (!browser) found.push({ kind: 'browser', part: 'the browser', why: 'No browser such as ' +
@@ -533,10 +534,11 @@ module.exports = (lib) => {
   // null when the runner returned none. The time is that of preflight for the same actions.
   // With capture, { kind, dir, name, widths } of lib/capture.cjs, the runner stores what that
   // file lists in dir, and run has capture, what it returns, besides. A script that types a
-  // variable of the run's credentials throws, before the app starts, the Missing whose fix
-  // runs again, the command of the caller, again.
-  function runScript(io, root, { serve, script, capture, again }) {
-    keyOfQory(typedNames([script]), credentials(io), 'A demo script', again);
+  // variable of the run's credentials throws, before the app starts, the Missing whose first
+  // line is keyFix, the fix of the caller.
+  function runScript(io, root, { serve, script, capture, keyFix }) {
+    keyOfQory(typedNames([script]), credentials(io), keyFix,
+      (name) => `A demo script types ${name}, which is a secret of this run.`);
     const options = io.preflight || {};
     const browser = findBrowser(io.env, options.browsers);
     if (!browser) return { browser: null };
