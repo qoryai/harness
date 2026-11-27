@@ -48,10 +48,21 @@ const stampOf = (file, stat) => [file, stat.ino, stat.size, stat.mtimeMs].join('
 // shortcut: qoryOf repeats the rules of qoryInputs of hooks/end-gate.cjs of core, which this
 // module does not require, so the two reads can drift apart; join them when the modules share
 // a reader.
-// qoryOf returns { qory } of $QORY_HARNESS_HOME/inputs.json of env: the member qory when it is
-// an object, else null, also for no home, a relative home and no file. For a link, a file of
-// more than MAX_INPUTS bytes, and a file that is no regular file, cannot be read or is no
-// JSON, it returns { problem }, FIX and the cause.
+// isMap reports whether value is a JSON object, and kindOf returns the words for the type of a
+// value, as those of lib/repository-settings.cjs, which this file cannot require, since that
+// file requires secrets.cjs, which requires this one.
+const isMap = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const kindOf = (value) => {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'a list';
+  return typeof value === 'object' ? 'a map' : `a ${typeof value}`;
+};
+
+// qoryOf returns { qory } of $QORY_HARNESS_HOME/inputs.json of env: the member qory, a map,
+// or null for a file with no member qory, no home, a relative home and no file. For a link, a
+// file of more than MAX_INPUTS bytes, a file that is no regular file, cannot be read or is no
+// JSON object, and a member qory that is no map, it returns { problem }, FIX and the cause,
+// with the words of readQory of lib/repository-settings.cjs for the last two.
 function qoryOf(env) {
   const home = env && env.QORY_HARNESS_HOME;
   if (typeof home !== 'string' || !path.isAbsolute(home)) return { qory: null };
@@ -71,8 +82,14 @@ function qoryOf(env) {
   if (last.stamp !== stamp) {
     let got;
     try {
-      const { qory } = JSON.parse(fs.readFileSync(file, 'utf8'));
-      got = { qory: qory !== null && typeof qory === 'object' ? qory : null };
+      const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (!isMap(data)) {
+        got = broken('is no JSON object');
+      } else if (data.qory !== undefined && !isMap(data.qory)) {
+        got = { problem: [FIX, `qory in inputs.json is ${kindOf(data.qory)}, not a map.`] };
+      } else {
+        got = { qory: data.qory === undefined ? null : data.qory };
+      }
     } catch {
       got = broken('is no JSON');
     }

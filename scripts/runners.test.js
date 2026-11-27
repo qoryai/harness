@@ -1598,10 +1598,16 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
   const folder = harnessHome({});
   fs.renameSync(path.join(folder, 'inputs.json'), path.join(folder, 'old.json'));
   fs.mkdirSync(path.join(folder, 'inputs.json'));
-  for (const [home, cause] of [[linked, 'is a link'], [large, 'has more than 16 MB'],
-    [harnessHome({}, { 'inputs.json': '{' }), 'is no JSON'], [folder, 'is no JSON']]) {
+  const where = (cause) => `$QORY_HARNESS_HOME/inputs.json ${cause}.`;
+  for (const [home, line] of [[linked, where('is a link')], [large, where('has more than 16 MB')],
+    [harnessHome({}, { 'inputs.json': '{' }), where('is no JSON')], [folder, where('is no JSON')],
+    [harnessHome({}, { 'inputs.json': '[1]' }), where('is no JSON object')],
+    [harnessHome({}, { 'inputs.json': 'null' }), where('is no JSON object')],
+    ...[['5', 'a number'], ['null', 'null'], ['[]', 'a list']].map(([value, kind]) => [
+      harnessHome({}, { 'inputs.json': `{"qory": ${value}}` }),
+      `qory in inputs.json is ${kind}, not a map.`])]) {
     const env = { QORY_HARNESS_HOME: home };
-    const problem = [fix, `$QORY_HARNESS_HOME/inputs.json ${cause}.`];
+    const problem = [fix, line];
     assert.deepEqual(runLists.member(env, 'key_shapes'), { problem });
     assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem });
     assert.deepEqual(runLists.credentialNames(env), { problem });
@@ -1614,7 +1620,8 @@ test('run lists: an inputs.json that is a link, too large or no JSON stops each 
   }
   // No inputs.json, or no member, keeps the defaults with no problem.
   for (const env of [{}, { QORY_HARNESS_HOME: path.join(tmp, 'no-home') },
-    { QORY_HARNESS_HOME: harnessHome({}) }, { QORY_HARNESS_HOME: 'relative/home' }]) {
+    { QORY_HARNESS_HOME: harnessHome({}) }, { QORY_HARNESS_HOME: 'relative/home' },
+    { QORY_HARNESS_HOME: harnessHome({}, { 'inputs.json': '{}' }) }]) {
     assert.deepEqual(runLists.member(env, 'key_shapes'), { none: true });
     assert.deepEqual(keyShapes.load(env), { shapes: keyShapes.DEFAULT, problem: null });
     assert.deepEqual(runLists.credentialNames(env), { names: [...runLists.FLOOR, 'ANTHROPIC_*',

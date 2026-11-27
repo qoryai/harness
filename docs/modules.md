@@ -4687,9 +4687,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   has a finding, both with the fix "Start the run again with qory, which writes
   key-shapes.json: the scan for keys cannot run." and the cause on the next line. The check
   of the text of a pull request has the same finding. When `inputs.json` is a link, has more
-  than 16 MB, is no regular file or is no JSON, or `qory.key_shapes` is no file name, such
-  as `../k.json`, the same verbs stop with the fix "Start the run again with qory, which
-  writes inputs.json: the run's lists cannot be read." and a cause such as
+  than 16 MB, is no regular file or is no JSON object, or its `qory` is no map, such as
+  "qory in inputs.json is a list, not a map.", or `qory.key_shapes` is no file name, such as
+  `../k.json`, the same verbs stop with the fix "Start the run again with qory, which writes
+  inputs.json: the run's lists cannot be read." and a cause such as
   "$QORY_HARNESS_HOME/inputs.json is no JSON." or "qory.key_shapes in inputs.json is set to
   "../k.json", which is no file name."; so do `preflight`, `film` and `demo run`, which read
   `qory.credential_variables`. Every other verb that scans or shows a path with the key
