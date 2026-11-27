@@ -61,10 +61,10 @@ const TEXTS = {
     fix: `Make ${command} start the app in the dev container, then run another round.`,
   }),
   signIn: (names) => ({
-    text: 'The run could not sign in to the app: the workspace has no AGENT_ variable for ' +
-      `${names}.`,
+    text: 'The run could not sign in to the app: the workspace has no AGENT_ variable with a ' +
+      `value for ${names}.`,
     fix: 'Ask an owner or admin of your organisation to add each sign-in variable with the ' +
-      'prefix AGENT_ in the Variables settings of the workspace or the organisation, then run ' +
+      'prefix AGENT_ in Workspace settings > Secrets and variables > Variables, then run ' +
       'another round.',
   }),
   // A sign-in that fails with every variable set: a change to the app or its data repairs it.

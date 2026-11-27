@@ -66,10 +66,10 @@ const BUILD_AND_VERIFY = [
   'demo-evidence', 'demo-video', 'screenshot', 'verification', 'walkthrough',
 ];
 
-// The point of the end check for a qory.key_shapes whose file cannot be used, when the run
-// ends with it.
-const KEY_SHAPES_POINT = 'The scan for keys could not run, because the file of key shapes ' +
-  'that inputs.json lists is missing, cannot be read or does not match its schema.';
+// The point of the end check for an inputs.json or a qory.key_shapes that cannot be used, when
+// the run ends with it.
+const KEY_SHAPES_POINT = 'The run could not check its changes for keys, because its list of ' +
+  'key patterns is missing or broken. Another round starts with a new list.';
 
 // The prefixes of the ids of items of a software factory, such as ac of ac-3, which the
 // checks of a point and a question read.

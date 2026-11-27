@@ -417,22 +417,28 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
     'Check the sign-in against the app, then run film scenario-1 again.',
     '  action 2 (type into #password) failed: the sign-in did not finish.',
     '  Kind: setup', 'Stored no film: it failed in the sign-in.']);
-  // A name of 40 characters stays whole, and the first line, the fix, stays within 100. The
-  // schema allows 64 characters, and a name of 64 is cut to 60 and ..., 100 characters.
-  const long = `SHOP_${'X'.repeat(26)}_PASSWORD`;
+  // A name of 31 characters stays whole, and the first line, the fix, stays within 100. A
+  // longer one, up to the 64 characters that the schema allows, is cut to 28 and ...: the
+  // line of 100 characters. The line "the variable <name> has no value" keeps the whole name.
+  const long = `SHOP_${'X'.repeat(17)}_PASSWORD`;
+  const longer = `SHOP_${'X'.repeat(18)}_PASSWORD`;
   const longest = `SHOP_${'X'.repeat(50)}_PASSWORD`;
-  assert.deepEqual([long.length, longest.length], [40, 64]);
+  assert.deepEqual([long.length, longer.length, longest.length], [31, 32, 64]);
   for (const [step, name] of [[0, 'SHOP_PASSWORD'], [1, 'SHOP_PASSWORD'], [0, long],
-    [0, longest]]) {
+    [0, longer], [0, longest]]) {
     const missing = failing(script('scenario-1'), { ok: false, step, why: 'action 2 (type into ' +
       `#password) failed: the variable ${name} has no value`, outside: null,
     variable: name }, { film: { frames: 2, starts: [0], end: 1040 } });
     const out = call(['film', 'scenario-1', '--artifacts', missing.plan], missing.deps);
     assert.equal(out.status, 1, out.out + out.err);
     const lines = out.out.trim().split('\n');
-    const shown = name === longest ? `${name.slice(0, 60)}...` : name;
-    assert.equal(lines[0], `Add AGENT_${shown} in the Variables settings.`);
+    const shown = name.length > 31 ? `${name.slice(0, 28)}...` : name;
+    assert.equal(lines[0], `Add AGENT_${shown} in Workspace settings > Secrets and variables > ` +
+      'Variables.');
     assert.equal(lines[1], '  Then run film scenario-1 again.');
+    assert.equal(lines[2], `  action 2 (type into #password) failed: the variable ${name} has ` +
+      'no value.');
+    assert.equal(lines[0].length, 69 + shown.length);
     assert.ok(lines[0].length <= 100, lines[0]);
     assert.equal(lines.at(-2), '  Kind: outside');
     assert.equal(fs.existsSync(missing.film), false);
@@ -441,8 +447,8 @@ test('film: a sign-in that fails is of kind setup, and a variable with no value 
 
 test('film: the fix with the whole name of 64 characters passes the check of points', () => {
   // The session takes the name from the line "the variable <name> has no value", since the
-  // first line of film cuts a name of 64 characters to 60 and ..., and "... in" ends a
-  // sentence for the check.
+  // first line of film cuts a name of more than 31 characters to 28 and ..., and "... in"
+  // ends a sentence for the check.
   const name = `SHOP_${'X'.repeat(50)}_PASSWORD`;
   const here = checkout([script('scenario-1')]);
   const file = path.join(here.root, 'points.json');
@@ -450,12 +456,13 @@ test('film: the fix with the whole name of 64 characters passes the check of poi
     fs.writeFileSync(file, JSON.stringify([{ action: 'run_again',
       text: 'The run could not film the order scenario, because the workspace lacks a ' +
         'sign-in variable.',
-      fix: `Add AGENT_${shown} in the Variables settings, then run another round.` }]));
+      fix: `Add AGENT_${shown} in Workspace settings > Secrets and variables > Variables, ` +
+        'then run another round.' }]));
     return call(['check', 'points', file], here.deps);
   };
   const whole = check(name);
   assert.equal(whole.status, 0, whole.out + whole.err);
-  const cut = check(`${name.slice(0, 60)}...`);
+  const cut = check(`${name.slice(0, 28)}...`);
   assert.equal(cut.status, 1);
   assert.equal(cut.out.split('\n')[1], '  The text has 2 sentences.');
 });

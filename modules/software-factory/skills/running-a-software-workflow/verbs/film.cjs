@@ -299,12 +299,13 @@ module.exports = (lib) => {
   // failure prints the finding of a run that failed in a step, with the fix first, and returns 1.
   // A sign-in that failed gets the line "Kind: setup", and a variable with no value in the
   // workspace the line "Kind: outside", for the session to sort. The schema of a demo script
-  // allows a variable name of 64 characters; the cut to 63 keeps the first line within 100.
+  // allows a variable name of 64 characters; the cut to 31 keeps the first line within 100.
   function failure(io, run, what, again) {
     const where = run.step === 0 ? 'the sign-in' : `step ${run.step}`;
     const last = `Stored no ${what}: it failed in ${where}.`;
     if (run.variable) {
-      io.print([`Add AGENT_${cut(String(run.variable), 63)} in the Variables settings.\n` +
+      io.print([`Add AGENT_${cut(String(run.variable), 31)} in Workspace settings > Secrets ` +
+        'and variables > Variables.\n' +
         `Then run ${again} again.\n${run.why}.\nKind: outside`], last);
       return 1;
     }

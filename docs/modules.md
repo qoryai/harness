@@ -4487,9 +4487,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
     line "Stored no film: it failed in step <k>." ("Stored no pictures" for the evidence
     `pictures`). A sign-in that fails with every variable set adds the line "Kind: setup",
     and a `type` action whose variable has no value adds "Kind: outside" and the fix "Add
-    AGENT_<name> in the Variables settings." The fix cuts a name of 64 characters, the most
-    that a demo script allows, to its first 60 characters and `...`, so that the line stays
-    within 100 characters; the line "the variable <name> has no value" has the whole name.
+    AGENT_<name> in Workspace settings > Secrets and variables > Variables." The fix cuts a
+    name of more than 31 characters, up to the 64 that a demo script allows, to its first 28
+    characters and `...`, so that the line stays within 100 characters; the line "the
+    variable <name> has no value" has the whole name.
     The second line of that finding is "Then run film <id> again."
     Without `--inputs` and `--artifacts`, `film` and `film pages` exit 3, because the build
     plan would come from the artifact folder of the session. A run that fails in a

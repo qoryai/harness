@@ -69,14 +69,14 @@ const P01 = {
 };
 const P02_TEXT = 'The app did not start in the dev container, so the run could not check the app.';
 const P03_FIX = 'Ask an owner or admin of your organisation to add each sign-in variable with ' +
-  'the prefix AGENT_ in the Variables settings of the workspace or the organisation, then run ' +
+  'the prefix AGENT_ in Workspace settings > Secrets and variables > Variables, then run ' +
   'another round.';
 const P03_SETUP_FIX = 'Make the sign-in of the app work with the variables set, then run ' +
   'another round.';
 const p03SetupText = (names) => `The sign-in of the app failed with the values of ${names} ` +
   'set in the workspace\'s variables.';
 const p03Text = (names) => 'The run could not sign in to the app: the workspace has no ' +
-  `AGENT_ variable for ${names}.`;
+  `AGENT_ variable with a value for ${names}.`;
 
 // The app of the sign-in tests: a sign-in form at /sign-in that sends the reader to /orders
 // when the password is APP_SECRET, and shows the form again when it is not. /away redirects
@@ -354,7 +354,7 @@ test('preflight: a serve command or a variable name that breaks the text of a po
   const names = preflight.pointOf('signIn', 'DEMO__PASSWORD', { agents: new Set(),
     rules: LIBRARY.pointRules() });
   assert.equal(names.text, 'The run could not sign in to the app: the workspace has no AGENT_ ' +
-    'variable for the sign-in variables of the demo scripts.');
+    'variable with a value for the sign-in variables of the demo scripts.');
   assert.equal(names.fix, P03_FIX);
   checks(names);
   const setup = preflight.pointOf('signInSetup', 'DEMO__PASSWORD', { agents: new Set(),

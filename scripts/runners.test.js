@@ -1527,8 +1527,8 @@ test('key shapes: a file passes the rules of Forager\'s mask.Merge, or is one en
     const found = end(home);
     assert.equal(found.length, 1, why);
     assert.equal(found[0].line, `${fix}\nqory.key_shapes in inputs.json is set to ${why}.`);
-    assert.equal(found[0].point, 'The scan for keys could not run, because the file of key ' +
-      'shapes that inputs.json lists is missing, cannot be read or does not match its schema.');
+    assert.equal(found[0].point, 'The run could not check its changes for keys, because its ' +
+      'list of key patterns is missing or broken. Another round starts with a new list.');
   }
   // Files that pass, and no field, are no finding, also in a run: the longest name and prefix,
   // a max over 256 with blank or with a prefix byte outside the alphabet, and 64 shapes.
