@@ -1,6 +1,6 @@
 {
   "about": "The sha256 of each skill folder of the stack's modules whose workflow-checks.cjs the checks script loads: of the JSON of the sorted pairs of path and sha256 of each .js, .cjs, .mjs, .json and .node file in the real folder, as treeHash of lib/registry.cjs computes it. scripts/check.sh compares the list with the skills under modules/.",
   "sha256": [
-    "2528c391d3f4a6a1014663907c902c0ab6da1a9b91a11845fed0f88112243407"
+    "d977084e72b307dabc97296ad71f6ed9a29a0037a4c92b3bd991d0818e531f23"
   ]
 }

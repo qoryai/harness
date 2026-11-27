@@ -116,7 +116,10 @@ function withShapes(values, got) {
 }
 
 // The class Missing of the checks script, which stopWith sets, so that a stop of secretValues
-// exits 3 as the stops of the verbs do. Without it, the stop is a plain Error.
+// exits 3 as the stops of the verbs do. Without it, the stop is a plain Error. This file does
+// not require lib/base.cjs of core by its path, as no file of this module does: core may be
+// in another folder than this module. Core gives its lib to workflow-checks.cjs, which calls
+// stopWith first, so each loader of this module's checks goes through that file.
 let Stop = null;
 
 // stopWith sets the class of the stop of secretValues: Missing of lib/base.cjs of core.
@@ -143,9 +146,9 @@ function secretValues(env) {
 
 // scanValues returns { values, problem } for the scan for keys of freeze, scope and the end
 // check: values as secretValues returns them; problem null, or the fix and the cause of an
-// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run. It is the
-// one read that does not stop on the problem, since the end check turns it into a point, and
-// scope and freeze into their stop.
+// inputs.json or a qory.key_shapes that cannot be used, and then no scan may run. scanValues
+// and keyKind are the two reads that do not stop on the problem: the end check turns it into
+// a point, scope and freeze into their stop, and the check of a pull request into a finding.
 function scanValues(env) {
   const values = valuesWithProblem(env);
   return { values, problem: values.problem };
