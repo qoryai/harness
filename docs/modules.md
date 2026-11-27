@@ -4804,20 +4804,20 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   pins, which `scripts/denied-variables.test.js` compares: its `forge_tokens`, the seven
   tokens of code forges, its `model_keys`, such as `ANTHROPIC_API_KEY` and
   `CLAUDE_CODE_OAUTH_TOKEN`, and the entry `QORY_*` of its `patterns`. The floor takes no
-  other entry of the file: `PATH`, `HOME`, `*_PROXY` and the other names reach the app, and
-  a name such as `ANTHROPIC_BASE_URL` or `GEMINI_API_KEY` that the file does not list is no
-  credential. A copy with no `QORY_*` in its `patterns` stops the checks with an error that
-  names the file. The second is `{"credential_variables": [...]}` in the file
+  other entry of the file: `PATH`, `HOME`, `*_PROXY` and the other names reach the app. A
+  copy with no `QORY_*` in its `patterns` stops the checks with an error that names the
+  file. The second is `{"credential_variables": [...]}` in the file
   `credential-variables.json` in the folder of a module, where a module of a runtime or a
-  vendor adds its names, read from the plugin folder and, when the plugin folder is a
-  module of the harness home, from each module beside it, and in a composed run from each
-  folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module. The third
-  is `qory.credential_variables` of `inputs.json`, for the names of the runtime and those
-  that the deployment adds; the harness uses its defaults, the first two lists, until qory
-  writes these members. An entry is the exact name of a variable or a prefix that ends in
-  `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One matcher
-  reads the three lists, and a name matches an entry in any case, as Forager matches it. A
-  bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the line
+  vendor adds its names, such as `ANTHROPIC_*`, `CLAUDE_*`, `OPENAI_*`, `CODEX_*` and
+  `GEMINI_*` in that of `software-factory`, read from the plugin folder and, when the plugin
+  folder is a module of the harness home, from each module beside it, and in a composed run
+  from each folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module.
+  The third is `qory.credential_variables` of `inputs.json`, for the names of the runtime
+  and those that the deployment adds; the harness uses its defaults, the first two lists,
+  until qory writes these members. An entry is the exact name of a variable or a prefix that
+  ends in `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One
+  matcher reads the three lists, and a name matches an entry in any case, as Forager matches
+  it. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the line
   "<entry> is no variable name or prefix.", or with "Fix
   <module>/credential-variables.json." as the first line for the file of a module.
 

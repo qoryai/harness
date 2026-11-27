@@ -1332,6 +1332,11 @@ test('credential names: the floor and a list add prefixes and exact names', () =
   assert.deepEqual(['QORY_X', 'GL_TOKEN', 'OPENAI_API_KEY', 'MY_GL_TOKEN', 'GL_TOKEN_FILE',
     'OPENAI_ORG', 'PATH', 'HTTPS_PROXY'].map((name) => secrets.runKey(name)),
   [true, true, true, false, false, false, false, false]);
+  // The floor with the rows of software-factory, which add the prefixes of the agents' keys.
+  const rows = runLists.credentialNames({}, [path.join(MODULES, 'software-factory')]).names;
+  assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE', 'OPENAI_ORG',
+    'anthropic_base_url'].map((name) => secrets.runKey(name, rows)),
+  [true, true, false, false, true, true]);
   // A list of the deployment adds ACME_*, and the floor stays without QORY_* in the list.
   const env = { QORY_HARNESS_HOME:
     harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
