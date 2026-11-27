@@ -283,7 +283,10 @@ and a question of fact is in section 13.
 ## What each kind of text needs
 
 The sentence rules apply to every kind of text. What changes is what must stay after
-you trim. The entries follow the order of the table in § Length per kind of text.
+you trim. The entries follow the order of the table in § Length per kind of text. In
+the entries for CLI output, error messages and UI text, you write for the person who
+reads the text. If only an agent reads the text inside a run, write it for that agent
+instead.
 
 - **Chat or terminal reply.** The answer is the first sentence; evidence follows. When
   you correct something that you said earlier, state the correction without apology or
@@ -320,10 +323,8 @@ you trim. The entries follow the order of the table in § Length per kind of tex
   the fix, then the cause, then the bad value:
   "Set `DATABASE_URL` in `.env`. The server cannot start without a database address."
   Log viewers, toasts and CI summaries often cut a message after its first line. Write
-  "try again" only if a retry can succeed. Text that a script prints on every run
-  deserves extra care, because every run repeats any error in it. If only an agent
-  reads the CLI output or the error message inside a run, write it for that agent
-  instead.
+  "try again" only if a retry can succeed. Text that a script prints each time it
+  starts deserves extra care, because each start repeats any error in it.
 - **Pull request description.** The problem as a user meets it, what the change does
   about it, and how you tested it. Link the issue and do not restate it. Keep every
   field that the template requires.
@@ -340,8 +341,8 @@ you trim. The entries follow the order of the table in § Length per kind of tex
   argue against it: include what the problem costs and the reason for this design.
 - **UI text.** Write for the person on that screen, never for agents or for the team
   that built the product: each sentence helps them act and uses only words they know.
-  Internal parts and edge-case rules go to the docs. Use the same words as the
-  documentation. Label a button with the action that runs when the reader clicks it:
+  Internal parts and edge-case rules go to the docs. Use the same words as the docs.
+  Label a button with the action that runs when the person clicks it:
   **Delete branch**, not **OK**. In an empty state or a confirmation, answer the two
   questions too.
 
@@ -449,9 +450,9 @@ Answer each question for the draft. Every "no" is a defect to fix before you sen
 **The kind of text**
 
 27. Does the text meet the entry for its kind in § What each kind of text needs?
-28. Unless only an agent reads it inside a run, is UI text, CLI output or an error
-    message written for the person who reads it, never for agents or for the team that
-    built the product, with only words that person knows, and are internal parts and
-    edge-case rules left to the docs?
+28. If a person reads the UI text, CLI output or error message, is it written for that
+    person, never for agents or for the team that built the product? Does each sentence
+    help them act, with only words that they know, and do internal parts and edge-case
+    rules go to the docs?
 29. Read aloud, does every sentence read without a stumble?
 
