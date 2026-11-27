@@ -1581,12 +1581,15 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `acceptance-lock` reads `questions` besides `acceptance-criteria`.
 - The scan for keys of `scope`, `freeze` and the pull request text reads its key shapes from
   `key-shapes.json`, a copy of Forager's default list, plus the shapes that the deployment
-  adds in the file of `qory.key_shapes`; the names of the run's credentials come from
-  `credential-variables.json` of the skill, of each module and `qory.credential_variables`.
-  A finding names its key as "a key of the shape <name>". A file of `qory.key_shapes` that
-  cannot be used stops `scope`, `freeze` and the end check. The app of the preflight gets
-  every variable of the session except the run's credential list and the variables that a
-  demo script types. The workspace sets a typed variable as AGENT_<NAME>.
+  adds in the file of `qory.key_shapes`. The names of the run's credentials are the forge
+  tokens, the model keys and `QORY_*` of `denied-variables.json`, a copy of Forager's list,
+  with the names in `credential-variables.json` of each module and in
+  `qory.credential_variables`; a name such as `GEMINI_API_KEY` or `ANTHROPIC_BASE_URL` that
+  none of them lists reaches the app. A finding names its key as "a key of the shape
+  <name>". A file of `qory.key_shapes` that cannot be used stops `scope`, `freeze` and
+  the end check. The app of the preflight gets every variable of the session except the
+  run's credential list and the variables that a demo script types. The workspace sets a
+  typed variable as AGENT_<NAME>.
 - The check of the type `walkthrough` replaces the sections `## Summary` and one
   `## AC-<N>` section per criterion with the layout that the entry "The walkthrough has this
   layout" lists. The walkthrough states no state of a criterion: the Evidence cell links to

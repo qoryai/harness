@@ -4681,10 +4681,8 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   used once and by no default shape; the default shapes and the file have at most 64 shapes
   together; and `max` is at most 256 unless `blank` is true or a byte of the prefix is
   outside the alphabet, since a prefix that can occur inside its token is slow to mask.
-  `scripts/key-shapes.test.js` compares both copies with Forager's files, byte for byte, at
-  the Forager version that qory pins. When `qory.key_shapes` names a file that is missing,
-  cannot be read or does not match those rules, `scope` and `freeze` exit 3 before the
-  scan, and the end check of a session has a finding, both with the fix "Start the run
+  When `qory.key_shapes` names a file that is missing, cannot be read or does not match
+  those rules, `scope` and `freeze` exit 3 before the scan, and the end check of a session has a finding, both with the fix "Start the run
   again with qory, which writes key-shapes.json: the scan for keys cannot run." and the
   cause on the next line. When `inputs.json` has no `qory.key_shapes` and `QORY_RUN_ID` is
   set, `scope` and `freeze` print one warning on stderr and scan with the default shapes. A
@@ -4793,20 +4791,28 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   again.", that of `film pages` ends "then run film pages again.", and that of `demo run` is
   "Remove the key from .demo/<id>.actions.json, then run demo write <id>."
 
-  The credential list is the union of three lists, each `{"credential_variables": [...]}`:
-  `credential-variables.json` of `running-a-software-workflow`, with `QORY_*`,
-  `ANTHROPIC_*`, `CLAUDE_*`, `OPENAI_*`, `CODEX_*`, `GEMINI_*` and seven tokens of code
-  forges; the file `credential-variables.json` in the folder of a module, where a module of
-  a runtime or a vendor adds its names, read from the plugin folder and, when the plugin
-  folder is a module of the harness home, from each module beside it, and in a composed run
-  from each folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module;
-  and `qory.credential_variables` of `inputs.json`, for the names of the runtime and those
-  that the deployment adds. qory does not yet write `qory.credential_variables`, so the list
-  is the union of the first two. An entry is the exact name of a variable or a
-  prefix that ends in `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no
-  entry. A bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the
-  line "<entry> is no variable name or prefix.", or with "Fix
-  <module>/credential-variables.json." as the first line for the file of a module.
+  The credential list is the union of three lists. The first is the floor, from
+  `denied-variables.json` of `running-a-software-workflow`, a copy, byte for byte, of
+  Forager's `contracts/forager/v1/denied-variables.json` at the Forager version that qory
+  pins, which `scripts/denied-variables.test.js` compares: its `forge_tokens`, the seven
+  tokens of code forges, its `model_keys`, such as `ANTHROPIC_API_KEY` and
+  `CLAUDE_CODE_OAUTH_TOKEN`, and the entry `QORY_*` of its `patterns`. The floor takes no
+  other entry of the file: `PATH`, `HOME`, `*_PROXY` and the other names reach the app, and
+  a name such as `ANTHROPIC_BASE_URL` or `GEMINI_API_KEY` that the file does not list is no
+  credential. A copy with no `QORY_*` in its `patterns` stops the checks with an error that
+  names the file. The second is `{"credential_variables": [...]}` in the file
+  `credential-variables.json` in the folder of a module, where a module of a runtime or a
+  vendor adds its names, read from the plugin folder and, when the plugin folder is a
+  module of the harness home, from each module beside it, and in a composed run from each
+  folder in `$QORY_HARNESS_HOME/modules`, where qory links or copies each module. The third
+  is `qory.credential_variables` of `inputs.json`, for the names of the runtime and those
+  that the deployment adds; the harness uses its defaults, the first two lists, until qory
+  writes these members. An entry is the exact name of a variable or a prefix that ends in
+  `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One matcher
+  reads the three lists, and a name matches in its case only. A bad entry exits 3 with
+  "Fix qory.credential_variables in inputs.json." and the line "<entry> is no variable name
+  or prefix.", or with "Fix <module>/credential-variables.json." as the first line for the
+  file of a module.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or

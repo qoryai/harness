@@ -5,14 +5,21 @@
 // because secrets.cjs requires it, and repository-settings.cjs requires secrets.cjs.
 //
 // The names of the variables of a run's credentials are the union of three lists: the floor,
-// credential-variables.json of this skill; the file credential-variables.json in the folder
+// from denied-variables.json of this skill; the file credential-variables.json in the folder
 // of each module, in which a module of a runtime or a vendor lists its names; and
 // qory.credential_variables of inputs.json, which qory is to write with the names of the
-// runtime and those that the deployment adds. Each file is {"credential_variables": [...]},
-// and an entry is the exact name of a variable, or a prefix that ends in *, such as QORY_*. The
-// folders of the modules are those of the source tree that the caller passes, and in a
-// composed run each folder in $QORY_HARNESS_HOME/modules, where qory links or copies each
-// module of the harness.
+// runtime and those that the deployment adds. Each file of a module is
+// {"credential_variables": [...]}, and an entry of a list is the exact name of a variable, or
+// a prefix that ends in *, such as QORY_*: the form of the entries of the floor, which runKey
+// of secrets.cjs matches. The folders of the modules are those of the source tree that the
+// caller passes, and in a composed run each folder in $QORY_HARNESS_HOME/modules, where qory
+// links or copies each module of the harness.
+//
+// denied-variables.json is a copy, byte for byte, of Forager's
+// contracts/forager/v1/denied-variables.json, the variables that Forager keeps from an agent.
+// The floor is its forge_tokens, its model_keys and the entry QORY_* of its patterns. Its
+// names and its other patterns, such as PATH, HOME and *_PROXY, are no credentials: the app
+// needs them.
 'use strict';
 
 const fs = require('node:fs');
@@ -65,7 +72,9 @@ function member(env, name) {
 const ENTRY = /^[A-Za-z_][A-Za-z0-9_]*\*?$/;
 const LIST = 'credential_variables';
 const MODULE_FILE = 'credential-variables.json';
-const FLOOR = JSON.parse(fs.readFileSync(path.join(__dirname, '..', MODULE_FILE), 'utf8'))[LIST];
+const FLOOR_FILE = path.join(__dirname, '..', 'denied-variables.json');
+// The entry of the patterns of FLOOR_FILE for the variables of qory.
+const QORY = 'QORY_*';
 
 // badEntry returns the first entry of list that is no name or prefix, as shown.cjs shows it,
 // or null.
@@ -73,6 +82,26 @@ function badEntry(list) {
   const at = list.findIndex((entry) => typeof entry !== 'string' || !ENTRY.test(entry));
   return at < 0 ? null : shown(list[at]);
 }
+
+// floorOf returns the floor of data, the JSON of FLOOR_FILE: the entries of forge_tokens and
+// model_keys, then QORY. It throws an Error, a fault of the harness, when a member is no list
+// of names and prefixes, or when patterns has no QORY, so that the floor never lacks it.
+function floorOf(data) {
+  const fault = (words) => new Error('Fix denied-variables.json of ' +
+    `running-a-software-workflow: ${words}.`);
+  const lists = ['forge_tokens', 'model_keys', 'patterns'].map((name) => {
+    const list = data !== null && typeof data === 'object' ? data[name] : undefined;
+    if (!Array.isArray(list)) throw fault(`${name} is no list`);
+    return list;
+  });
+  const [forge, model, patterns] = lists;
+  const bad = badEntry([...forge, ...model]);
+  if (bad) throw fault(`${bad} is no variable name or prefix`);
+  if (!patterns.includes(QORY)) throw fault(`its patterns have no ${QORY}`);
+  return [...forge, ...model, QORY];
+}
+
+const FLOOR = floorOf(JSON.parse(fs.readFileSync(FLOOR_FILE, 'utf8')));
 
 // The cause of the problem of a list with the bad entry bad.
 const badLine = (bad) => `${bad} is no variable name or prefix.`;
@@ -129,4 +158,4 @@ function credentialNames(env, folders = []) {
   return { names: [...new Set(names)] };
 }
 
-module.exports = { FLOOR, MAX_INPUTS, credentialNames, member };
+module.exports = { FLOOR, FLOOR_FILE, MAX_INPUTS, credentialNames, floorOf, member };

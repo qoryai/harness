@@ -10,8 +10,8 @@
 # scripts/checks.test.js reads it too, for the example reports of the reviewer agents.
 # Make the folder with: git -C <qory checkout> archive <commit> contracts | tar -x -C <dir>
 # Set `FORAGER_SOURCE` to a folder with Forager's contracts/ at the version that qory's go.mod
-# pins: scripts/key-shapes.test.js compares the key shapes of running-a-software-workflow
-# with it. Make the folder with:
+# pins: scripts/denied-variables.test.js compares denied-variables.json of
+# running-a-software-workflow with it. Make the folder with:
 # git -C <forager checkout> archive <version> contracts | tar -x -C <dir>
 #
 # Every compose runs with --dry-run, except the ones that write the settings and hook files
@@ -3015,7 +3015,9 @@ expect "the review-changes tests pass" 0 "$ROOT" node --test scripts/review-chan
 # The matcher of the paths of an agent, which panel uses, against each case of qory's
 # contracts/harness/v1/path-cases.json in QORY_SOURCE.
 expect "the path cases of qory's contract pass" 0 "$ROOT" node --test scripts/path-cases.test.js
-expect "the key shapes are Forager's contract" 0 "$ROOT" node --test scripts/key-shapes.test.js
+# The floor of the credential list against Forager's list of the variables it keeps from an
+# agent, in FORAGER_SOURCE.
+expect "the credential floor is Forager's list" 0 "$ROOT" node --test scripts/denied-variables.test.js
 # The tests of the outbox check of end and of the raw-text rules of the schema checker.
 expect "the outbox tests pass" 0 "$ROOT" node --test scripts/outbox.test.js
 # The tests of the notes in an agent's start: the notes verb, and the report check of the list

@@ -79,8 +79,9 @@ jobs:
           ' "$RUNNER_TEMP/qory-contracts.json")
           echo "QORY_SOURCE=$dir" >> "$GITHUB_ENV"
 
-      # scripts/key-shapes.test.js compares the key shapes of running-a-software-workflow with
-      # Forager's contracts, at the Forager version that qory's go.mod pins, or its replace.
+      # scripts/denied-variables.test.js compares denied-variables.json of
+      # running-a-software-workflow with Forager's contracts, at the Forager version that qory's
+      # go.mod pins, or its replace.
       - name: Fetch Forager's contracts
         run: |
           module=$(go mod edit -json "$QORY_SOURCE/go.mod" | node -e '

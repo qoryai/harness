@@ -1327,9 +1327,11 @@ const KIND = (name) => `a key of the shape ${name}`;
 const keyFile = (shapes) => harnessHome({ key_shapes: 'k.json' }, { 'k.json': { shapes } });
 
 test('credential names: the floor and a list add prefixes and exact names', () => {
-  // The floor: GEMINI_* is a prefix, GL_TOKEN an exact name.
-  assert.deepEqual(['GEMINI_X', 'GL_TOKEN', 'MY_GL_TOKEN', 'GL_TOKEN_FILE'].map((name) =>
-    secrets.runKey(name)), [true, true, false, false]);
+  // The floor: QORY_* is a prefix, GL_TOKEN and OPENAI_API_KEY exact names. PATH and
+  // HTTPS_PROXY, of the names and patterns of Forager's list, are no credentials.
+  assert.deepEqual(['QORY_X', 'GL_TOKEN', 'OPENAI_API_KEY', 'MY_GL_TOKEN', 'GL_TOKEN_FILE',
+    'OPENAI_ORG', 'PATH', 'HTTPS_PROXY'].map((name) => secrets.runKey(name)),
+  [true, true, true, false, false, false, false, false]);
   // A list of the deployment adds ACME_*, and the floor stays without QORY_* in the list.
   const env = { QORY_HARNESS_HOME:
     harnessHome({ credential_variables: ['ACME_*', 'DEPLOY_NAME'] }) };
@@ -1351,6 +1353,23 @@ test('credential names: the floor and a list add prefixes and exact names', () =
     JSON.stringify({ credential_variables: ['*'] }));
   assert.deepEqual(runLists.credentialNames({}, folders), { problem:
     ['Fix vendor/credential-variables.json.', '"*" is no variable name or prefix.'] });
+});
+
+test('credential names: the floor is three parts of denied-variables.json', () => {
+  const data = JSON.parse(fs.readFileSync(runLists.FLOOR_FILE, 'utf8'));
+  // The copy of Forager's list keeps QORY_* in its patterns, which the floor takes from it.
+  assert.ok(data.patterns.includes('QORY_*'), 'denied-variables.json has no QORY_* in patterns');
+  assert.deepEqual(runLists.FLOOR, [...data.forge_tokens, ...data.model_keys, 'QORY_*']);
+  assert.deepEqual(runLists.floorOf(data), runLists.FLOOR);
+  const fault = (words) => ({ message: 'Fix denied-variables.json of ' +
+    `running-a-software-workflow: ${words}.` });
+  const without = { ...data, patterns: data.patterns.filter((one) => one !== 'QORY_*') };
+  assert.throws(() => runLists.floorOf(without), fault('its patterns have no QORY_*'));
+  assert.throws(() => runLists.floorOf({ ...data, model_keys: null }),
+    fault('model_keys is no list'));
+  assert.throws(() => runLists.floorOf(null), fault('forge_tokens is no list'));
+  assert.throws(() => runLists.floorOf({ ...data, forge_tokens: ['*_TOKEN'] }),
+    fault('"*_TOKEN" is no variable name or prefix'));
 });
 
 test('credential names: a composed home adds the file of each module that it links', () => {
