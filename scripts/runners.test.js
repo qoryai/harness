@@ -4644,6 +4644,13 @@ test('check build-report: renders the tables again and refuses a table with one 
   assert.equal(ok.status, 0, ok.out + ok.err);
   assert.match(ok.err, /tables from the records/);
   assert.doesNotMatch(ok.err, /were not checked/);
+  // git runs with the env of the verb: with a PATH there that has no git, it finds no HEAD.
+  const empty = path.join(tmp, `no-git-${process.pid}`);
+  fs.mkdirSync(empty, { recursive: true });
+  const away = call(dir, ['check', 'build-report', '--inputs', inputs, file],
+    { env: { PATH: empty } });
+  assert.equal(away.status, 3, away.out + away.err);
+  assert.equal(away.lines[0], 'Run the verb in the checkout of the work.', away.out);
   for (const [from, to, section] of [['| red | green |\n| ac-2', '| red | red |\n| ac-2', 'Checks'],
     ['| deliverable:d-1 | 1 |', '| deliverable:d-1 | 2 |', 'Steps'], ['| f2: A second point |', '| f2: A third point |', 'Review rounds'],
     ['Review rounds: 1.', 'Review rounds: 3.', 'Summary'], ['| Returns | 1 |', '| Returns | 0 |', 'Counts']]) {

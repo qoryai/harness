@@ -26,7 +26,7 @@ module.exports = (lib) => {
   function rendered(run) {
     const { context } = run;
     if (context.mode !== 'check' || context.offline || !context.workingFolder) return;
-    const data = gatherReport({ context, cwd: context.workingFolder, env: process.env,
+    const data = gatherReport({ context, cwd: context.workingFolder, env: context.env,
       inputs: context.inputs, kinds: registryOf(context.plugin).finding_kinds });
     if (!data) {
       run.tell('The tables of the report were not checked: the artifact folder has no ' +
