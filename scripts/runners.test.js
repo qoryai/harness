@@ -1355,6 +1355,19 @@ test('credential names: the floor and a list add prefixes and exact names', () =
     ['Fix vendor/credential-variables.json.', '"*" is no variable name or prefix.'] });
 });
 
+test('credential names: a name matches an entry in any case, as Forager matches it', () => {
+  // Forager's Matches, at the version that qory pins, upper-cases the entries and the name
+  // (forager session/internal/variables/variables.go:518-539), and its test
+  // (variables_test.go:423-431) has, for the entries EXACT and PRE*, these results.
+  const forager = { EXACT: true, exact: true, EXACTLY: false, PRE: true, PREFIX: true,
+    XPRE: false };
+  for (const [name, denied] of Object.entries(forager)) {
+    assert.equal(secrets.runKey(name, ['EXACT', 'PRE*']), denied, name);
+  }
+  assert.deepEqual(['gh_token', 'Qory_Run_Key', 'openai_api_key'].map((name) =>
+    secrets.runKey(name)), [true, true, true]);
+});
+
 test('credential names: the floor is three parts of denied-variables.json', () => {
   const data = JSON.parse(fs.readFileSync(runLists.FLOOR_FILE, 'utf8'));
   // The copy of Forager's list keeps QORY_* in its patterns, which the floor takes from it.

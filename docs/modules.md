@@ -4816,10 +4816,10 @@ replace ref, a graft or a commit graph file changes nothing that they read.
   that the deployment adds; the harness uses its defaults, the first two lists, until qory
   writes these members. An entry is the exact name of a variable or a prefix that ends in
   `*`, as `^[A-Za-z_][A-Za-z0-9_]*\*?$` matches it, so a bare `*` is no entry. One matcher
-  reads the three lists, and a name matches in its case only. A bad entry exits 3 with
-  "Fix qory.credential_variables in inputs.json." and the line "<entry> is no variable name
-  or prefix.", or with "Fix <module>/credential-variables.json." as the first line for the
-  file of a module.
+  reads the three lists, and a name matches an entry in any case, as Forager matches it. A
+  bad entry exits 3 with "Fix qory.credential_variables in inputs.json." and the line
+  "<entry> is no variable name or prefix.", or with "Fix
+  <module>/credential-variables.json." as the first line for the file of a module.
 
   With no `serve` command, `preflight` checks no app and no sign-in; with no browser or no
   app, it checks no sign-in. It reads the build plan from the folder of `--artifacts` or

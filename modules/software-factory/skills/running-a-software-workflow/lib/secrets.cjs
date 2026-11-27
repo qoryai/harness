@@ -176,12 +176,16 @@ const shown = (name, values) => (scanLine(name, values) ? 'a path with a key in 
 
 // runKey reports whether name is the name of a variable of a run's credentials, of qory, of an
 // agent or of a code forge: an entry of names, the list of credentialNames of run-lists.cjs,
-// is the name, or a prefix with * at its end that the name starts with. Without such a list,
-// such as in .map(runKey), names is the floor.
+// is the name, or a prefix with * at its end that the name starts with, in any case, as
+// Forager matches the entries of denied-variables.json (forager
+// session/internal/variables/variables.go, entriesOf and Matches). Without such a list, such
+// as in .map(runKey), names is the floor.
 function runKey(name, names) {
-  const text = String(name);
-  return (Array.isArray(names) ? names : FLOOR).some((entry) => (entry.endsWith('*')
-    ? text.startsWith(entry.slice(0, -1)) : text === entry));
+  const text = String(name).toUpperCase();
+  return (Array.isArray(names) ? names : FLOOR).some((entry) => {
+    const upper = entry.toUpperCase();
+    return upper.endsWith('*') ? text.startsWith(upper.slice(0, -1)) : text === upper;
+  });
 }
 
 const { fitKind } = keyShapes;
