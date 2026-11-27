@@ -396,9 +396,9 @@ agents and the settings for a run of those workflows:
   `debugger`.
 - `workflow-review-changes`: the review session of a Build run. Build runs a loop of at most
   3 rounds of `implement-changes` and `review-changes`, which Apiary runs: `passed` leaves
-  the loop, `changes-requested` runs `implement-changes` again. qory is to run the full
-  suite before the session and to write `qory.review_session`; it does neither yet. With no
-  build plan, the session ends with a `run_again` point. While a planned change is not
+  the loop, `changes-requested` runs `implement-changes` again. qory runs the full suite
+  on the pushed commit after the session before it, and writes `qory.review_session`. With
+  no build plan, the session ends with a `run_again` point. While a planned change is not
   built, or a locked file differs from the acceptance lock, it ends with `qory run verdict
   changes-requested`. Otherwise it starts each member of the group role `reviewers` that
   `checks.cjs panel` starts for the paths of the change, in turn: `code-reviewer`,

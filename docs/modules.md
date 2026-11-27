@@ -189,16 +189,16 @@ A change is reviewed in one of two ways, and the reviewers and their report are 
 both:
 
 - **A review session.** Build's workflow `review-changes` is a review session: its
-  `inputs.json` has `qory.review_session`, which qory does not write yet, as "Not built yet"
-  in the section on `review-changes` lists. It has `reports`, the report folder, and
-  `suite_result`, the absolute path of the file with the result of the full suite, which
-  qory is to run before the session; `commit_folder`, `diff`, `previous_findings` and
-  `build_report` are absolute paths too. `commit_folder` is a read-only copy of the files of
-  `commit`, beside the working folder, which is empty, and the reviewers read the change
-  there. `previous_findings` is a file with the findings of the reviewers of the stage: the
-  open ones and those that a run closed. `outputs`, when qory writes it, is no path: the
-  outputs that passed the check of their schema, inline, keyed by type. The session starts
-  each reviewer as one of its agents, and each writes one report, `<reports>/<agent>.json`.
+  `inputs.json` has `qory.review_session`, which qory writes. It has `reports`, the report
+  folder, and `suite_result`, the absolute path of the file with the result of the full
+  suite, which qory runs on the pushed commit after the session before it; `commit_folder`,
+  `diff`, `previous_findings` and `build_report` are absolute paths too. `commit_folder` is
+  a read-only copy of the files of `commit`, beside the working folder, which is empty, and
+  the reviewers read the change there. `previous_findings` is a file with the findings of
+  the reviewers of the stage: the open ones and those that a run closed. `outputs`, when
+  qory writes it, is no path: the outputs that passed the check of their schema, inline,
+  keyed by type. The session starts each reviewer as one of its agents, and each writes one
+  report, `<reports>/<agent>.json`.
   Each reviewer reads `commit`, `commit_folder`, `diff`, `previous_findings` when the stage
   has an earlier finding of a reviewer, `build_report` and `outputs` when qory writes them,
   and the two other members from `qory.review_session`, and the prompt passes only the path
@@ -253,15 +253,14 @@ bullet "a write from the main session outside the artifact folder" lists.
 Two agents of `software-factory` review Verify's work: `tamper-reviewer` with the skill
 `checking-tampering`, and `verification-reviewer` with the skill `judging-criteria`. They
 are agents of the `verify-a-ticket` session, which starts them. They are no reviewer
-sessions that qory starts, and they read no `qory.review`. qory is to write
+sessions that qory starts, and they read no `qory.review`. qory writes
 `qory.review_session` into the `inputs.json` of the session, with `commit`, the pushed head
 of the change, `commit_folder`, the path of the read-only copy of the files of `commit`,
 where the agents read the change, while the working folder is the run's checkout at the
 same commit, `diff`, the path of the diff, `previous_findings`, the path of the file with
 the earlier findings of the reviewers of the stage, which qory leaves out when the stage has
-none, `reports`, the report folder, `suite_result`, the path of the file with the suite
-result, which qory leaves out when Verify has no suite, and, when there is one,
-`build_report`, the path of the file with the report of the build. The prompt of each agent
+none, and `reports`, the report folder. It writes no `suite_result` and no `build_report`,
+because Verify runs no full suite and has no report of a build. The prompt of each agent
 has only the path of the input file, so the prompt has no commit, diff or findings; the path
 of `inputs.json` itself comes from the prompt. Where a skill lists a value of `qory.review`,
 the agent reads the member of the same name in `qory.review_session`. Each agent writes one
@@ -4001,9 +4000,7 @@ highest id in `open-findings.json`, so that `scope` and `freeze` take its id.
   `review-changes` runs next. It starts no reviewer, and ends with "The change is ready for
   review: <k> planned changes built, <m> findings fixed, <d> disputed." `<k>` counts the
   steps `deliverable:` that the session ended done, and `<m>` and `<d>` the steps `fix:`
-  that it ended done whose report has `Reply: fixed:` or `Reply: disputed:`. Not built yet
-  in qory: `qory.workflow.judges` in `inputs.json`, so until qory writes it, the session
-  runs `qory run verdict passed` at its end.
+  that it ended done whose report has `Reply: fixed:` or `Reply: disputed:`.
 - **Reviewers.** `code-reviewer` and `acceptance-reviewer` load `making-small-changes`
   before they write a finding, and report a finding on one of its rules as `non-blocking`,
   unless the finding also breaks a criterion.
@@ -4016,11 +4013,12 @@ blocking finding open the stage goes to a person with the newest findings. The s
 the workflow with `tier: thinking`, `access: read` and `review_group: reviewers`, the group
 role whose reports qory checks the verdict against, and no `plan`, because qory refuses a
 `plan` on a workflow that cannot write: the checkout is read-only, and the session writes
-only into the artifact folder and the report folder `qory.review_session.reports`. qory is
-to run the full suite before the session, and to pass the absolute path of its result file
-in `qory.review_session.suite_result`, as "Not built yet" lists; `findings round` reads that
-file, and a file that it cannot read is one blocking finding. qory writes the finding of a
-locked check that fails. The session runs no ledger step. In this order:
+only into the artifact folder and the report folder `qory.review_session.reports`. qory runs
+the full suite on the pushed commit after the session before it, and passes the absolute
+path of its result file in `qory.review_session.suite_result`; with no result for that
+commit, the session does not start. `findings round` reads that file, and a file that it
+cannot read is one blocking finding. qory writes the finding of a locked check that fails.
+The session runs no ledger step. In this order:
 
 1. It pulls and runs `checks.cjs resume`, and stops when the input file has no
    `qory.review_session`.
@@ -4131,11 +4129,8 @@ replacement is a check of the list against the group in `findings round`.
   reason. A reply of the builder is a claim that the reviewer checks against the change. A
   report that repeats or closes a finding of another role counts as no report.
 - **Not built yet.** These parts are not built yet:
-  - `qory.review_session` in the `inputs.json` of the `review-changes` session, and the
-    run of the full suite before it: at qory `64e700db`, `newReviewSessionInputs` and the
-    check of the round have `shortcut: not called yet`, so qory writes neither;
   - the run of the `locked` row of the build plan: qory is to run it after the session as it
-    runs `full`, and at qory `64e700db` `FullRow` reads only the `full` row;
+    runs `full`, and at qory `05ef56eb` `FullRow` reads only the `full` row;
   - the run of the loop of Build, which Apiary runs;
   - `qory.review_session.outputs` in the `inputs.json` of the session: the outputs that
     passed the check of their schema, inline, keyed by type, with the title and the text of

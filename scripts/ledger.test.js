@@ -333,8 +333,10 @@ function pluginWith({ models = {}, files = {}, settings } = {}) {
   return path.join(modules, 'core');
 }
 
-// twoRuntimes returns the folders of a home that qory 64e700db composes for claude and codex
-// with --model main-model-x --tier thinking=think-model-y; the debugger's tier has no map.
+// twoRuntimes returns the folders of a home that qory 05ef56eb composes for claude and
+// codex with --model main-model-x --tier thinking=think-model-y. qory gives the developer
+// and the debugger the model of the thinking tier; the debugger here has an unmapped tier
+// on purpose, so that it takes the model of settings.json.
 // checkout has the .agents, .codex and .claude of a checkout.
 function twoRuntimes() {
   const home = fresh('harness');

@@ -387,8 +387,8 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   starts for the paths of the change, in turn, as agents of the session. `code-reviewer`,
   `test-reviewer` and `acceptance-reviewer` are members with no `paths`, so they start for
   every change. Each writes one report, `<reports>/<agent>.json`, where `<reports>` is
-  `qory.review_session.reports` of `inputs.json`, which qory does not write yet. qory is to
-  run the full suite before the session and pass in `qory.review_session.suite_result` the
+  `qory.review_session.reports` of `inputs.json`. qory runs the full suite on the pushed
+  commit after the session before it, and passes in `qory.review_session.suite_result` the
   absolute path of a file with its result, `{tests, failed, skipped, output_tail}`; qory
   writes the finding of a locked check that fails. The new verb `checks.cjs findings round
   <reports> --reviewers <names> --suite <file>` reads each report and the suite result once;
@@ -405,7 +405,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `write-acceptance-checks`: a plan with no `locked` row is refused with "Add the kind
   locked to ## Commands of build-plan.md." With no such command, the row has `none` and the
   reason in Source. The row has a Source in one of its three forms. qory is to run its
-  command after the session as it runs `full`; qory `64e700db` reads only the `full` row.
+  command after the session as it runs `full`; qory `05ef56eb` reads only the `full` row.
 - The tool guard knows a review session: a session whose `inputs.json` has
   `qory.review_session` as an object. There it allows agent starts, and an agent whose type
   ends in `-reviewer` writes only `<reports>/<agent>.json`, with a name of lower-case
@@ -1062,9 +1062,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
   `qory run verdict passed` at its end, and the next workflow of the loop judges the change;
   `running-a-workflow` states this in "The end". An end through "Points" still runs
   `escalate`, and so does `checks.cjs end` with `points.json`, whatever `inputs.json`
-  contains. Every other workflow runs `passed`. Not built yet in qory:
-  `qory.workflow.judges` in `inputs.json`, so a session of `implement-changes` runs
-  `qory run verdict passed` until qory writes it.
+  contains. Every other workflow runs `passed`.
 - The tool guard limits the main session of a reviewer of a change. When the `inputs.json`
   that qory writes at `$QORY_HARNESS_HOME` has the member `qory.review`, the session writes
   at one path, `qory.review.report`, with a `Write`, and no other file: not `points.json`, a
@@ -1550,6 +1548,7 @@ Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- `.github/workflows/check.yml` builds qory at `05ef56eb`, in place of `64e700db`.
 - The check of reply phrases, such as "you are correct", runs on every artifact type, where
   it ran on `proposal.md` alone. Core lists the 16 phrases in
   `simple-communication/references/reply-phrases.json`, and the check stops when the stack
